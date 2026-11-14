@@ -170,7 +170,7 @@ def main():
     os.chdir(base_dir)
 
     print("=" * 70, flush=True)
-    print(" 🌊 [부산ON 월드] 부산광역시청 시민소통 메타버스 글로벌 호스트 가동 🌊", flush=True)
+    print(" 🌊 [부산ON 월드 v2.0] 부산광역시청 & 16개 구·군청 시민소통 메타버스 글로벌 호스트 가동 🌊", flush=True)
     print("=" * 70, flush=True)
 
     if not check_single_instance(8080):

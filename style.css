@@ -72,14 +72,14 @@ body, html {
 }
 
 /* ========================================================
-   TOP HEADER BAR
+   TOP HEADER BAR (v2.0 절대 2줄 밀림 방지 단일행 고정)
    ======================================================== */
 .top-nav {
   position: absolute;
-  top: 14px;
-  left: 14px;
-  right: 14px;
-  height: 60px;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  height: 48px;
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -89,10 +89,34 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 14px;
   pointer-events: auto;
   z-index: 50;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   transition: all 0.3s ease;
+}
+.top-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.version-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  padding: 1px 6px;
+  border-radius: 9999px;
+  margin-left: 5px;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.4);
 }
 
 .brand-section {
@@ -1299,13 +1323,31 @@ body, html {
   pointer-events: auto;
 }
 
-/* Responsive adjustments */
+/* Responsive adjustments (v2.0 단일행 고정 & 2열 줄바꿈 절대 방지) */
 @media (max-width: 768px) {
   .top-nav {
-    height: auto;
-    padding: 10px 12px;
-    flex-wrap: wrap;
-    gap: 8px;
+    height: 48px !important;
+    padding: 0 10px !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    gap: 6px !important;
+  }
+  .brand-sub {
+    display: none !important;
+  }
+  .progress-bar-wrap {
+    display: none !important;
+  }
+  .counter-label {
+    display: none !important;
+  }
+  .server-status-pill span:last-child {
+    display: none !important;
+  }
+  .realm-select {
+    max-width: 140px !important;
+    font-size: 11px !important;
+    padding-right: 18px !important;
   }
   .quest-tracker, .service-dock, .minimap-container {
     display: none;
@@ -1313,6 +1355,22 @@ body, html {
   .chat-container {
     width: calc(100% - 28px);
     height: 200px;
+  }
+}
+@media (max-width: 480px) {
+  .top-nav {
+    padding: 0 6px !important;
+    gap: 4px !important;
+  }
+  .explorer-progress {
+    display: none !important;
+  }
+  .realm-select {
+    max-width: 110px !important;
+    font-size: 10px !important;
+  }
+  .cult-counter {
+    padding: 4px 6px !important;
   }
 }
 
@@ -1988,3 +2046,128 @@ body, html {
     font-size: 11.5px;
   }
 }
+
+/* ========================================================
+   v2.0 신규 모달 & 모바일 터치 최적화 스타일
+   ======================================================== */
+html, body, #canvas-container, #gl-canvas {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 맛집 & 카페 카드 */
+.gourmet-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.gourmet-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.12);
+  border-color: #93c5fd;
+}
+.gourmet-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.gourmet-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.gourmet-dish-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #0284c7;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid #bfdbfe;
+}
+.gourmet-cafe-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #fdf4ff;
+  color: #c026d3;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid #f5d0fe;
+}
+.gourmet-desc {
+  font-size: 12.5px;
+  color: #475569;
+  line-height: 1.45;
+}
+.gourmet-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed #f1f5f9;
+}
+.gourmet-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.gourmet-tel-link {
+  color: #0284c7;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+/* 구청 민원 창구 카드 */
+.district-counter-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.counter-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.counter-content {
+  flex: 1;
+}
+.counter-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+.counter-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.counter-tel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0284c7;
+  margin-top: 2px;
+}
+

@@ -1,7 +1,7 @@
 # ========================================================
-# 부산ON 월드 (BUSAN ON WORLD) - 통합 시민소통 메타버스 서버 (단일 포트 8080)
+# 부산ON 월드 v2.0 (BUSAN ON WORLD v2.0) - 통합 시민소통 메타버스 서버 (단일 포트 8080)
 # HTTP 정적 파일 서빙 + REST API + RFC 6455 WebSocket 멀티플레이 통합
-# (16개 자치 구·군청 채널 확장, AI 행정상담, 소관부서 검색, 청사 사무실 안내, 시민 자유담벼락)
+# (부산시청 본청 + 16개 자치 구·군청 독립 월드, 구청 종합민원실, 구립도서관, 지역 맛집·카페 안내)
 # ========================================================
 
 import os
@@ -268,9 +268,15 @@ def handle_websocket_loop(handler):
                         'name': msg.get('name', '부산시민_' + client_id[:4]),
                         'level': int(msg.get('level', 1)),
                         'title': msg.get('title', '첫 방문 시민'),
-                        'robe': msg.get('robe', 'blue'),
-                        'hat': msg.get('hat', 'camellia'),
-                        'wings': msg.get('wings', 'seagull'),
+                        'robe': msg.get('robe', msg.get('robeColor', 'blue')),
+                        'robeColor': msg.get('robeColor', msg.get('robe', 'blue')),
+                        'hat': msg.get('hat', msg.get('hatType', 'camellia')),
+                        'hatType': msg.get('hatType', msg.get('hat', 'camellia')),
+                        'wings': msg.get('wings', msg.get('wingsType', 'none')),
+                        'wingsType': msg.get('wingsType', msg.get('wings', 'none')),
+                        'hairStyle': msg.get('hairStyle', 'short'),
+                        'hairColor': msg.get('hairColor', 'black'),
+                        'skinTone': msg.get('skinTone', 'warm'),
                         'belt': msg.get('belt', 'citizen'),
                         'x': float(msg.get('x', 0)),
                         'y': float(msg.get('y', 0)),
@@ -579,7 +585,39 @@ class BusanCivicHTTPHandler(SimpleHTTPRequestHandler):
             self.send_json_response(posts)
             return
 
-        # 6. WebSocket 업그레이드 감지
+        # 6. 16개 구·군별 상세 데이터 (민원실, 도서관, 맛집)
+        if path == '/api/district-details':
+            code = qs.get('code', [''])[0].strip()
+            details = getattr(busan_data, 'BUSAN_DISTRICT_DETAILS', {})
+            if code and code in details:
+                self.send_json_response(details[code])
+            else:
+                self.send_json_response(details)
+            return
+
+        # 7. 맛집 & 인기 카페 큐레이션
+        if path == '/api/gourmet':
+            code = qs.get('district', [''])[0].strip()
+            details = getattr(busan_data, 'BUSAN_DISTRICT_DETAILS', {})
+            if code and code in details:
+                self.send_json_response(details[code].get('gourmet', {}))
+            else:
+                all_gourmet = {k: v.get('gourmet', {}) for k, v in details.items()}
+                self.send_json_response(all_gourmet)
+            return
+
+        # 8. 구립 도서관 및 전자도서관 포털
+        if path == '/api/libraries':
+            code = qs.get('district', [''])[0].strip()
+            details = getattr(busan_data, 'BUSAN_DISTRICT_DETAILS', {})
+            if code and code in details:
+                self.send_json_response(details[code].get('library', {}))
+            else:
+                all_libs = {k: v.get('library', {}) for k, v in details.items()}
+                self.send_json_response(all_libs)
+            return
+
+        # 9. WebSocket 업그레이드 감지
         upgrade = self.headers.get('Upgrade', '').lower()
         connection = self.headers.get('Connection', '').lower()
         if 'websocket' in upgrade or 'upgrade' in connection:
@@ -821,10 +859,11 @@ def run_server(port=PORT):
     server_address = ('0.0.0.0', port)
     _GLOBAL_HTTPD = ThreadingHTTPServer(server_address, BusanCivicHTTPHandler)
     print("=" * 65, flush=True)
-    print(f" [부산ON 월드] 부산광역시청 시민소통 메타버스 서버 시작!", flush=True)
+    print(f" [부산ON 월드 v2.0] 부산광역시청 & 16개 구·군청 시민소통 메타버스 서버 시작!", flush=True)
     print(f" - 서비스 주소: http://localhost:{port}", flush=True)
-    print(f" - 지원 공간: 부산시청 본청(시민광장·들락날락·행복민원실) + 16개 구·군청", flush=True)
-    print(f" - 통합 엔진: 소관부서 검색기 + 청사 사무실 안내 + AI 행정안내소", flush=True)
+    print(f" - 지원 공간: 부산시청 본청 + 16개 자치구·군 독립 청사 및 종합민원실", flush=True)
+    print(f" - 특화 기능: 구립도서관 연동, 지역별 맛집·인기 카페 안내, 실시간 시민채팅", flush=True)
+    print(f" - 통합 엔진: 소관부서 판별 + 층별 사무실 안내 + AI 다온 행정상담소", flush=True)
     print("=" * 65, flush=True)
     try:
         _GLOBAL_HTTPD.serve_forever()

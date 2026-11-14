@@ -2,13 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>부산ON 월드 (BUSAN ON WORLD) | 부산광역시청 시민소통 메타버스</title>
-  <meta name="description" content="부산광역시청을 실제와 동일하게 구현한 시민소통 3D 메타버스. 5대 시민광장, 1층 들락날락, 2층 행복민원실, AI 행정상담, 소관부서 검색, 청사 사무실 안내, 시민 자유담벼락, 16개 구·군 확장">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>부산ON 월드 v2.0 | 부산광역시청 & 16개 구·군청 시민소통 메타버스</title>
+  <meta name="description" content="부산광역시청과 16개 자치구·군을 실제와 동일하게 구현한 시민소통 3D 메타버스 v2.0. 5대 시민광장, 1층 들락날락, 2층 행복민원실, 구청 종합민원실, 구립도서관 연동, 지역 맛집·카페 가이드">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="부산ON 월드 - 시민이 연결되는 부산광역시청">
-  <meta property="og:description" content="공무원에게 전화하기 전, 시민끼리 자유롭게 묻고 답하는 열린 시정 메타버스">
+  <meta property="og:title" content="부산ON 월드 v2.0 - 시민이 연결되는 부산광역시청 & 16개 구·군청">
+  <meta property="og:description" content="공무원에게 전화하기 전, 시민끼리 자유롭게 묻고 답하며 맛집과 도서관까지 즐기는 열린 시정 메타버스">
   <meta property="og:type" content="website">
 
   <!-- Google Fonts -->
@@ -17,7 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=20261114_busan_pro">
+  <link rel="stylesheet" href="style.css?v=2.0.0">
 
   <!-- Three.js & OrbitControls -->
   <script src="three.min.js"></script>
@@ -39,8 +39,8 @@
       <div class="brand-section clickable" onclick="openStoryModal()">
         <div class="brand-logo">🌊</div>
         <div class="brand-info">
-          <span class="brand-title">부산ON 월드</span>
-          <span class="brand-sub">부산광역시청 열린 메타버스</span>
+          <span class="brand-title">부산ON 월드 <span class="version-tag">v2.0</span></span>
+          <span class="brand-sub">부산시청 & 16개 구·군 열린 메타버스</span>
         </div>
       </div>
 
@@ -165,6 +165,16 @@
         <span class="circle-label">청사사진</span>
       </button>
 
+      <button class="sidebar-circle-btn clickable" onclick="openGourmetModal()" title="부산시청 및 16개 구·군별 로컬 맛집 & 인기 카페 가이드">
+        <span class="circle-icon">🍽️</span>
+        <span class="circle-label">맛집카페</span>
+      </button>
+
+      <button class="sidebar-circle-btn clickable" onclick="openDistrictLibraryModal()" title="부산 공공도서관 & 구립 전자도서관 바로가기">
+        <span class="circle-icon">📚</span>
+        <span class="circle-label">도서관</span>
+      </button>
+
       <button class="sidebar-circle-btn clickable" onclick="openTicketKioskModal()" title="2층 행복민원실 실시간 순번 대기표 발급기">
         <span class="circle-icon">🎫</span>
         <span class="circle-label">번호표</span>
@@ -191,16 +201,16 @@
           <!-- JS 동적 스트리밍 렌더링 -->
           <div class="testimony-item">
             <span class="testimony-author">[안내원 다온]</span>
-            <span>부산시민 여러분, 부산ON 월드에 오신 것을 진심으로 환영합니다!</span>
+            <span>부산시민 여러분, 부산ON 월드 v2.0에 오신 것을 진심으로 환영합니다!</span>
           </div>
           <div class="testimony-item">
             <span class="testimony-author">[열린시민]</span>
-            <span>시청 앞 광장 분수대랑 닻 조형물이랑 똑같이 되어 있네요!</span>
+            <span>시청 앞 광장 분수대랑 16개 구청 월드가 모두 생생하게 연결되어 있네요!</span>
           </div>
         </div>
 
         <div class="testimony-input-box">
-          <input type="text" id="testimonyInput" class="testimony-input" placeholder="시민들과 실시간 한마디 나누기..." maxlength="80">
+          <input type="text" id="testimonyInput" class="testimony-input" placeholder="시민들과 실시간 한마디 나누기 (Enter로 바로 전송)..." maxlength="80" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();submitQuickCitizenVoice();}">
           <button id="testimonySubmit" class="testimony-submit clickable" onclick="submitQuickCitizenVoice()">전송</button>
         </div>
       </div>
@@ -316,7 +326,7 @@
           </div>
         </div>
         <div class="ai-input-wrap">
-          <input type="text" id="ai-question-input" class="ai-input" placeholder="궁금한 시정 업무나 불편사항을 적어보세요 (예: 공사장 소음 신고)...">
+          <input type="text" id="ai-question-input" class="ai-input" placeholder="궁금한 시정 업무나 불편사항을 적어보세요 (Enter로 질문)..." onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();submitAiQuestion();}">
           <button class="ai-send-btn clickable" onclick="submitAiQuestion()">질문하기</button>
         </div>
       </div>
@@ -559,48 +569,103 @@
     </div>
   </div>
 
-  <!-- MODAL 9: 캐릭터 커스터마이징 룸 -->
+  <!-- MODAL 9: 캐릭터 커스터마이징 룸 (대폭 강화) -->
   <div class="modal-overlay" id="modal-customize">
-    <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-content" style="max-width: 540px;">
       <div class="modal-header">
-        <div class="modal-title">시민 아바타 꾸미기</div>
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">👤</div>
+          <div>
+            <div class="modal-title">시민 아바타 꾸미기 룸</div>
+            <div class="modal-sub">헤어, 의상, 모자, 날개/배낭, 피부톤까지 나만의 개성 넘치는 시민을 완성하세요!</div>
+          </div>
+        </div>
         <button class="modal-close-btn" onclick="closeModal('modal-customize')">✕</button>
       </div>
       <div class="modal-body">
         <div style="display: flex; flex-direction: column; gap: 14px;">
           <div>
-            <label style="font-size: 12px; font-weight: 700;">시민 닉네임</label>
-            <input type="text" id="custom-name" class="division-search-input" maxlength="12" style="margin-top: 4px;">
+            <label style="font-size: 12px; font-weight: 700; color:#334155;">시민 닉네임</label>
+            <input type="text" id="custom-name" class="division-search-input" maxlength="12" style="margin-top: 4px;" placeholder="닉네임 입력">
           </div>
-          <div>
-            <label style="font-size: 12px; font-weight: 700;">의상 색상</label>
-            <select id="custom-robe" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
-              <option value="blue">부산 마린 블루 (대표 의상)</option>
-              <option value="white">순백 화이트</option>
-              <option value="camellia">동백 레드</option>
-              <option value="gold">햇살 골드</option>
-              <option value="green">녹음 그린</option>
-            </select>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">헤어 스타일</label>
+              <select id="custom-hair-style" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+                <option value="short">단정한 숏컷 (기본)</option>
+                <option value="dandy">댄디 볼륨 펌</option>
+                <option value="bob">세련된 단발 헤어</option>
+                <option value="long">우아한 롱헤어</option>
+                <option value="ponytail">발랄한 포니테일</option>
+                <option value="beret">예술가 베레모 헤어</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">머리 색상</label>
+              <select id="custom-hair-color" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+                <option value="black">자연 흑발 (블랙)</option>
+                <option value="brown">밀크 브라운 (갈색)</option>
+                <option value="gold">블론드 골드 (금발)</option>
+                <option value="silver">신비로운 실버 (은발)</option>
+                <option value="pink">벚꽃 핑크 (파스텔)</option>
+                <option value="ocean">부산 마린블루 (블루)</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label style="font-size: 12px; font-weight: 700;">머리 장식</label>
-            <select id="custom-hat" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
-              <option value="camellia">동백꽃 핀</option>
-              <option value="seagull">부산 갈매기 모자</option>
-              <option value="halo">시민 후광</option>
-              <option value="headset">120 콜센터 헤드셋</option>
-              <option value="none">없음</option>
-            </select>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">피부 톤</label>
+              <select id="custom-skin" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+                <option value="warm">자연스러운 웜톤</option>
+                <option value="fair">화사한 쿨톤</option>
+                <option value="tan">건강한 구릿빛</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">의상 스타일 & 색상</label>
+              <select id="custom-robe" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+                <option value="blue">부산 마린 블루 수트 (대표)</option>
+                <option value="white">순백 화이트 정장</option>
+                <option value="camellia">동백 레드 캐주얼</option>
+                <option value="gold">햇살 골드 정장</option>
+                <option value="green">녹음 그린 캐주얼</option>
+                <option value="hanbok">전통 품격 한복 스타일</option>
+                <option value="denim">청량 스트리트 데님</option>
+                <option value="lavender">로맨틱 라벤더 퍼플</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label style="font-size: 12px; font-weight: 700;">날개 장식</label>
-            <select id="custom-wings" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
-              <option value="seagull">갈매기 날개</option>
-              <option value="angel">천사 날개</option>
-              <option value="none">없음</option>
-            </select>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">모자 & 머리 장식</label>
+              <select id="custom-hat" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+                <option value="camellia">동백꽃 헤어핀</option>
+                <option value="seagull">부산 갈매기 모자</option>
+                <option value="halo">황금 시민 후광</option>
+                <option value="headset">120 상담 헤드셋</option>
+                <option value="cap">스포티 볼캡</option>
+                <option value="sunglasses">해변 쿨 선글라스</option>
+                <option value="chef">미식가 셰프 모자</option>
+                <option value="crown">골든 로열 크라운</option>
+                <option value="none">모자 없음</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">날개 & 등 장식</label>
+              <select id="custom-wings" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+                <option value="seagull">갈매기 날개</option>
+                <option value="angel">천사 날개</option>
+                <option value="butterfly">화려한 나비 날개</option>
+                <option value="backpack">여행자 탐험 백팩</option>
+                <option value="none">날개 없음</option>
+              </select>
+            </div>
           </div>
-          <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 42px;" onclick="saveCustomization()">저장 및 적용</button>
+
+          <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 44px; font-size: 14px; font-weight: 700; margin-top: 4px;" onclick="saveCustomization()">✨ 의상 저장 및 메타버스에 즉시 적용</button>
         </div>
       </div>
     </div>
@@ -617,7 +682,7 @@
         <div style="font-size: 13px; color: #475569; margin-bottom: 12px;">
           시민 발언대에 올라 부산시민 모두에게 울려 퍼질 목소리를 입력해 주세요! 확성기 효과음과 함께 전광판에 등록됩니다.
         </div>
-        <input type="text" id="podium-input-text" class="division-search-input" placeholder="부산시에 바라는 점이나 불만을 시원하게 외쳐보세요!" maxlength="50">
+        <input type="text" id="podium-input-text" class="division-search-input" placeholder="부산시에 바라는 점이나 불만을 시원하게 외쳐보세요! (Enter 전송)" maxlength="50" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();submitPodiumShout();}">
         <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 42px; margin-top: 14px;" onclick="submitPodiumShout()">확성기로 외치기</button>
       </div>
     </div>
@@ -768,8 +833,131 @@
     </div>
   </div>
 
+  <!-- MODAL 15: 구·군별 로컬 맛집 & 인기 카페 가이드 (신규) -->
+  <div class="modal-overlay" id="modal-gourmet">
+    <div class="modal-content" style="max-width: 680px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">🍽️</div>
+          <div>
+            <div class="modal-title" id="gourmetModalTitle">구·군별 대표 맛집 & 인기 카페 안내</div>
+            <div class="modal-sub">부산시청 및 16개 자치구·군의 현지인 추천 명품 맛집 3선 & 핫플 카페 2선</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-gourmet')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; flex-wrap:wrap;">
+          <div style="font-size:13px; font-weight:700; color:#334155;">지역 선택:</div>
+          <select id="gourmet-district-select" class="division-search-input" style="max-width:280px; height:36px;" onchange="renderGourmetContent(this.value)">
+            <option value="BUSAN-HQ">🏢 부산광역시청 (연제구청 주변)</option>
+            <option value="DIST-YEONJE">연제구 (시청역·연산로터리·온천천)</option>
+            <option value="DIST-DONGNAE">동래구 (동래온천·명륜동·복천동)</option>
+            <option value="DIST-HAEUNDAE">해운대구 (구남로·미포·센텀시티)</option>
+            <option value="DIST-BUSANJIN">부산진구 (서면 국밥골목·전포카페거리)</option>
+            <option value="DIST-SUYEONG">수영구 (광안리 해변·남천 빵천동)</option>
+            <option value="DIST-NAM">남구 (대연동 못골·오륙도 해파랑)</option>
+            <option value="DIST-JUNG">중구 (자갈치·남포동 비프광장·광복로)</option>
+            <option value="DIST-SEO">서구 (송도해수욕장·암남공원·대신동)</option>
+            <option value="DIST-DONG">동구 (부산역 차이나타운·초량불백)</option>
+            <option value="DIST-YEONGDO">영도구 (흰여울마을·태종대·남항시장)</option>
+            <option value="DIST-BUK">북구 (구포시장·덕천역·화명생태)</option>
+            <option value="DIST-SAHA">사하구 (다대포 해변·감천문화마을·하단)</option>
+            <option value="DIST-GEUMJEONG">금정구 (금정산성·범어사·부산대)</option>
+            <option value="DIST-GANGSEO">강서구 (명지국제도시·가덕도·대저)</option>
+            <option value="DIST-SASANG">사상구 (사상역 터미널·삼락생태공원)</option>
+            <option value="DIST-GIJANG">기장군 (기장시장 대게·연화리·오시리아)</option>
+          </select>
+        </div>
+
+        <!-- 맛집 섹션 -->
+        <div style="font-weight:800; color:#0369a1; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+          <span>🥘 현지인 극찬 대표 맛집 3선</span>
+        </div>
+        <div id="gourmetRestaurantList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:18px;">
+          <!-- JS 렌더링 -->
+        </div>
+
+        <!-- 카페 섹션 -->
+        <div style="font-weight:800; color:#c026d3; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+          <span>☕ 분위기 & 뷰 맛집 감성 카페 2선</span>
+        </div>
+        <div id="gourmetCafeList" style="display:flex; flex-direction:column; gap:10px;">
+          <!-- JS 렌더링 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 16: 구청 종합민원실 창구 & 온라인 민원 연동 (신규) -->
+  <div class="modal-overlay" id="modal-district-office">
+    <div class="modal-content" style="max-width: 640px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">🏛️</div>
+          <div>
+            <div class="modal-title" id="districtOfficeModalTitle">구청 종합민원실 안내</div>
+            <div class="modal-sub" id="districtOfficeModalSub">각 구청별 층별 배치 및 현장 민원 창구 안내</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-district-office')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="districtOfficeHeaderCard" style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:14px; margin-bottom:14px;">
+          <!-- Populated by JS -->
+        </div>
+
+        <div style="font-weight:800; color:#0369a1; font-size:14px; margin-bottom:8px;">
+          📋 종합민원실 주요 창구 및 업무
+        </div>
+        <div id="districtCountersList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- 온라인 민원 바로가기 액션 바 -->
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <a id="btnGov24Link" href="https://www.gov.kr" target="_blank" rel="noopener" class="nav-btn primary clickable" style="flex:1; justify-content:center; text-decoration:none; height:42px;">
+            🌐 정부24 온라인 민원신청 바로가기
+          </a>
+          <a id="btnDistrictOfficialLink" href="https://www.busan.go.kr" target="_blank" rel="noopener" class="nav-btn clickable" style="flex:1; justify-content:center; text-decoration:none; height:42px;">
+            🏛️ 구청 공식 홈페이지 방문
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 17: 구립 도서관 및 전자도서관 포털 (신규) -->
+  <div class="modal-overlay" id="modal-district-library">
+    <div class="modal-content" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">📚</div>
+          <div>
+            <div class="modal-title" id="districtLibraryModalTitle">구립 도서관 & 전자도서관 포털</div>
+            <div class="modal-sub">도서 대출, 문화 강좌, 24시간 디지털 전자책·오디오북 연동</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-district-library')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="districtLibraryCard" style="background:#faf5ff; border:1px solid #f3e8ff; border-radius:12px; padding:16px; margin-bottom:14px;">
+          <!-- Populated by JS -->
+        </div>
+
+        <div style="font-size:13px; color:#475569; line-height:1.6; margin-bottom:14px;">
+          💡 <strong>부산 시민 책이음 서비스:</strong> 하나의 회원증으로 부산 전역의 시립 및 16개 구·군 구립도서관에서 자유롭게 도서를 대출하고 전자책(e-Book)을 무료로 열람하실 수 있습니다.
+        </div>
+
+        <a id="btnLibraryPortalLink" href="https://library.busan.go.kr" target="_blank" rel="noopener" class="nav-btn primary clickable" style="width:100%; justify-content:center; text-decoration:none; height:44px; font-weight:700;">
+          📖 전자도서관 & 통합자료검색 포털 바로가기 →
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="audio.js?v=20261114_pro"></script>
-  <script src="app.js?v=20261114_pro"></script>
+  <script src="audio.js?v=2.0.0"></script>
+  <script src="app.js?v=2.0.0"></script>
 </body>
 </html>
