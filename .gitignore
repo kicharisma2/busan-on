@@ -14,6 +14,9 @@ chatgpt_extracted.txt
 chatgpt_full_conversation.json
 chatgpt_page.html
 chatgpt_rendered.html
+chatgpt_busan_plan.md
+new_chatgpt_share.json
+chatgpt_share.html
 script_*.txt
 
 # Firebase & Cloudflare binaries

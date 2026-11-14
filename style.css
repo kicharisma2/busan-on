@@ -1,2275 +1,1317 @@
 /* ========================================================
-   가즈아교 (GAZUA CULT) 온라인 대성전 - STYLESHEET
-   Cute Chibi Cultist, Customization & Holy Mini-Games
+   부산ON 월드 (BUSAN ON WORLD) - 메인 스타일시트
+   밝은 판타지 + 현대적 부산광역시청 시정 디자인 시스템
    ======================================================== */
 
 :root {
-  --gold: #f5c542;
-  --gold-glow: rgba(245, 197, 66, 0.45);
-  --crimson: #8a1420;
-  --neon-red: #ff334b;
-  --neon-glow: rgba(255, 51, 75, 0.65);
-  --down-blue: #3282f6;
-  --down-glow: rgba(50, 130, 246, 0.6);
-  --bg-dark: #0f0a0d;
-  --glass-bg: rgba(22, 14, 18, 0.82);
-  --glass-border: rgba(245, 197, 66, 0.28);
-  --text-main: #fdfaf3;
-  --text-dim: #d1c5b8;
-  --font-serif: 'Noto Serif KR', serif;
-  --font-sans: 'Noto Sans KR', system-ui, sans-serif;
+  --primary-blue: #0284c7;
+  --primary-deep: #0369a1;
+  --accent-cyan: #06b6d4;
+  --busan-gold: #f59e0b;
+  --camellia-red: #f43f5e;
+  --sea-green: #10b981;
+  --bg-sky: #f0f9ff;
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 10px 30px rgba(2, 132, 199, 0.12);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+  --font-kr: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  user-select: none;
-  -webkit-user-select: none;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
-html,
-body {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
+body, html {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  touch-action: none; /* 브라우저 자체의 핀치 줌, 더블탭 줌, 풀투리프레시 원천 차단 */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-  overscroll-behavior: none;
-  -webkit-text-size-adjust: 100%;
-  background-color: var(--bg-dark);
-  font-family: var(--font-sans);
+  font-family: var(--font-kr);
+  background-color: #e0f2fe;
   color: var(--text-main);
+  user-select: none;
 }
 
+/* 3D WebGL Canvas Layer */
 #canvas-container {
-  position: fixed;
-  inset: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   z-index: 1;
-  touch-action: none;
 }
 
-canvas#gl-canvas {
+#gl-canvas {
   width: 100%;
   height: 100%;
   display: block;
-  touch-action: none; /* 3D 카메라 줌/회전 전용 */
 }
 
-/* UI 오버레이 */
+/* UI Overlay Layer */
 .ui-layer {
-  position: fixed;
-  inset: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   z-index: 10;
   pointer-events: none;
-  touch-action: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 12px 16px;
-  overflow: hidden;
 }
 
 .clickable {
   pointer-events: auto;
-  touch-action: manipulation; /* 탭 반응 극대화 & 더블 탭 확대 완전 방지 */
 }
 
-/* 터치 스크롤 허용 요소 명시 (페이지 전체 줌은 막고 내부 스크롤은 부드럽게) */
-.testimony-feed,
-.modal-body,
-.custom-tab-content,
-.chat-modal-feed,
-.missions-list,
-.modal-content {
-  touch-action: pan-y !important;
-  -webkit-overflow-scrolling: touch;
-}
-
-.toolbar-container,
-.custom-tabs {
-  touch-action: pan-x !important;
-  -webkit-overflow-scrolling: touch;
-}
-
-button, input, select, textarea, .prayer-btn, .event-btn, .custom-btn-top, .modal-close-btn {
-  touch-action: manipulation !important;
-}
-
-.glass {
+/* ========================================================
+   TOP HEADER BAR
+   ======================================================== */
+.top-nav {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  height: 60px;
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px rgba(245, 197, 66, 0.1);
-  border-radius: 16px;
-}
-
-/* ---------------- TOP HEADER ---------------- */
-.header-bar {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  justify-content: space-between;
+  padding: 0 18px;
+  pointer-events: auto;
+  z-index: 50;
+  transition: all 0.3s ease;
 }
 
 .brand-section {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  cursor: pointer;
 }
 
-.cross-icon {
-  font-size: 26px;
-  color: var(--neon-red);
-  text-shadow: 0 0 14px var(--neon-glow);
-  animation: pulse-cross 1.8s infinite alternate;
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
 }
 
-@keyframes pulse-cross {
-  0% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 4px var(--neon-red));
-  }
-
-  100% {
-    transform: scale(1.18);
-    filter: drop-shadow(0 0 16px var(--neon-red));
-  }
-}
-
-.brand-titles {
+.brand-info {
   display: flex;
   flex-direction: column;
 }
 
 .brand-title {
-  font-family: var(--font-serif);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  color: var(--gold);
-  text-shadow: 0 0 10px var(--gold-glow);
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, #0369a1, #0891b2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .brand-sub {
   font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
-/* 방 선택기 */
-.room-selector {
+/* District / Realm Selector */
+.realm-badge-container {
   display: flex;
   align-items: center;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
   gap: 8px;
-  padding: 6px 14px;
 }
 
-.room-label {
-  font-size: 12.5px;
-  color: var(--text-dim);
+.realm-icon {
+  font-size: 15px;
 }
 
-.room-select {
-  background: rgba(0, 0, 0, 0.55);
-  color: var(--gold);
-  font-family: var(--font-sans);
+.realm-select {
+  background: transparent;
+  border: none;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 700;
-  border: 1px solid var(--gold);
-  border-radius: 8px;
-  padding: 5px 8px;
+  color: var(--primary-deep);
   cursor: pointer;
   outline: none;
 }
 
-.room-select option {
-  background: #1f1418;
-  color: #fff;
-}
-
-/* 상단 우측 */
-.header-right {
+/* User Explorer Progression */
+.explorer-progress {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  background: white;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
 }
 
-/* 실제 실시간 신도 수 카운터 */
-.cult-counter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  color: #fff;
-}
-
-.pulse-dot {
-  width: 9px;
-  height: 9px;
-  background-color: #10b981;
-  /* 실시간 온라인 초록불 */
-  border-radius: 50%;
-  box-shadow: 0 0 8px #10b981;
-  animation: blink 1.2s infinite;
-}
-
-@keyframes blink {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.4;
-    transform: scale(0.85);
-  }
-}
-
-.counter-num {
+.explorer-rank-badge {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
   font-weight: 800;
-  color: var(--gold);
-  font-size: 15px;
 }
 
-.custom-btn-top {
+.progress-bar-wrap {
+  width: 90px;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 25%;
+  background: linear-gradient(90deg, #0284c7, #06b6d4);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.explorer-level-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Server Connection Status Pill */
+.server-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  background: white;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.server-status-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.server-status-pill.online {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.server-status-pill.waiting {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+/* Nav Action Buttons */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #e2e8f0;
+  background: white;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(245, 197, 66, 0.35), rgba(138, 20, 32, 0.6));
-  border: 1px solid var(--gold);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
-.custom-btn-top:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 14px var(--gold-glow);
+.nav-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
 }
 
-.icon-btn {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  color: var(--gold);
+.nav-btn.primary {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+.nav-btn.primary:hover {
+  background: linear-gradient(135deg, #0369a1, #075985);
+}
+
+.nav-icon-btn {
   width: 38px;
   height: 38px;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
+  border: 1px solid #e2e8f0;
+  background: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
+  font-size: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
 }
 
-.icon-btn:hover {
-  transform: scale(1.08);
-  border-color: var(--gold);
-  box-shadow: 0 0 12px var(--gold-glow);
+.nav-icon-btn:hover {
+  background: #f1f5f9;
 }
 
-.icon-btn.active {
-  background: var(--gold);
-  color: #1a0a0d;
-}
+/* ========================================================
+   HUD & WIDGETS
+   ======================================================== */
 
-/* ---------------- 조작 안내 가이드 ---------------- */
-.control-guide {
+/* Quest & Story Tracker (Top-Left) */
+.quest-tracker {
   position: absolute;
-  top: 66px;
-  left: 18px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: 11.5px;
-  color: var(--gold);
-  border-radius: 20px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(245, 197, 66, 0.3);
-  animation: guide-float 3s ease-in-out infinite alternate;
-}
-
-@keyframes guide-float {
-  0% {
-    transform: translateY(0);
-  }
-
-  100% {
-    transform: translateY(-3px);
-  }
-}
-
-/* ---------------- 중앙 HUD & 실시간 롱숏 대결 게이지 ---------------- */
-.center-hud {
-  position: absolute;
-  top: 68px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-}
-
-.banner-pill {
-  padding: 6px 18px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.price-indicator {
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-}
-
-.price-indicator.up {
-  color: var(--neon-red);
-  text-shadow: 0 0 12px var(--neon-glow);
-}
-
-.price-indicator.down {
-  color: var(--down-blue);
-  text-shadow: 0 0 12px var(--down-glow);
-}
-
-/* 실시간 롱숏 부흥 대결 게이지 */
-.holy-war-hud {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 14px;
-  border-radius: 16px;
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.war-bar-bg {
-  width: 140px;
-  height: 8px;
-  border-radius: 4px;
-  background: #3282f6;
-  overflow: hidden;
-  position: relative;
-}
-
-.war-bar-fill {
-  height: 100%;
-  background: #ff334b;
-  width: 75%;
-  transition: width 0.3s ease;
-}
-
-/* 실시간 양봉 강림 게이지 */
-.ritual-hud {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 14px;
-  border-radius: 16px;
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(25, 12, 18, 0.85);
-  border: 1px solid rgba(245, 197, 66, 0.4);
-  box-shadow: 0 0 12px rgba(245, 197, 66, 0.2);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.ritual-hud:hover {
-  transform: scale(1.03);
-  box-shadow: 0 0 16px rgba(255, 51, 75, 0.5);
-}
-
-.ritual-bar-bg {
-  width: 120px;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-  position: relative;
-  border: 1px solid rgba(245, 197, 66, 0.2);
-}
-
-.ritual-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #ff334b, #ff0055);
-  width: 35%;
-  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 0 10px #ff334b;
-}
-
-/* 실시간 돌발 성령 부흥 이벤트 배너 */
-.holy-event-banner {
-  position: absolute;
-  top: 108px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  background: rgba(35, 12, 22, 0.9);
-  border: 1.5px solid #ff334b;
-  box-shadow: 0 0 20px rgba(255, 51, 75, 0.4), 0 4px 15px rgba(0, 0, 0, 0.6);
-  z-index: 32;
-  animation: banner-glow 2s infinite alternate;
-}
-
-@keyframes banner-glow {
-  0% { box-shadow: 0 0 10px rgba(255, 51, 75, 0.3); }
-  100% { box-shadow: 0 0 25px rgba(255, 51, 75, 0.7); }
-}
-
-.event-glow-badge {
-  background: #ff334b;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 12px;
-  animation: blink 1s infinite;
-}
-
-.event-title-text {
-  font-size: 12px;
-  font-weight: 700;
-  color: #ffd700;
-}
-
-.event-timer-badge {
-  font-size: 11px;
-  font-weight: 800;
-  color: #38ef7d;
-  background: rgba(0,0,0,0.4);
-  padding: 2px 6px;
-  border-radius: 6px;
-}
-
-.event-join-btn {
-  background: linear-gradient(135deg, #f59e0b, #ff334b);
-  border: none;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.1s ease;
-}
-.event-join-btn:active {
-  transform: scale(0.92);
-}
-
-/* ---------------- 이벤트 / 미니게임 사이드 바 ---------------- */
-.event-sidebar {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 15;
-}
-
-.event-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 20px;
-  background: rgba(30, 18, 22, 0.88);
-  border: 1px solid var(--gold);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-}
-
-.event-btn:hover {
-  transform: translateX(-6px) scale(1.05);
-  background: rgba(245, 197, 66, 0.22);
-  box-shadow: 0 6px 18px var(--gold-glow);
-}
-
-.event-btn .event-icon {
-  font-size: 18px;
-}
-
-/* ---------------- 간증 피드 & 입력창 ---------------- */
-.middle-area {
-  position: absolute;
-  bottom: 108px; /* 하단 액션 툴바와 절대 겹치지 않도록 16px 이상 넉넉한 여백 확보 */
-  left: 18px;
-  width: 420px; /* 더 큼직하게 확장 */
-  height: auto;
-  margin: 0;
-  pointer-events: none;
-  z-index: 38;
-}
-
-.testimony-container {
-  width: 100%;
-  max-height: 330px; /* 시원하게 대화 8~10줄 이상 노출 */
-  display: flex;
-  flex-direction: column;
-  padding: 12px 14px;
-  overflow: hidden;
-  border-radius: 14px;
-  background: rgba(14, 9, 18, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(245, 197, 66, 0.35);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  top: 86px;
+  left: 14px;
+  width: 280px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--glass-shadow);
   pointer-events: auto;
+  z-index: 40;
 }
 
-.testimony-header {
+.quest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.quest-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.quest-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.quest-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.quest-progress-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quest-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.quest-tag.done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* Quick Civic Service Dock (Left-Center) */
+.service-dock {
+  position: absolute;
+  top: 250px;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 40;
+}
+
+.dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dock-btn:hover {
+  transform: translateX(4px);
+  background: white;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+.dock-btn .dock-icon {
+  font-size: 18px;
+}
+
+/* Proximity Prompt (Center-Screen) */
+.interact-prompt {
+  position: absolute;
+  top: 68%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  color: white;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 45;
+  animation: pulsePrompt 1.8s infinite;
+}
+
+.prompt-key {
+  background: #0284c7;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+@keyframes pulsePrompt {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+}
+
+/* Citizen Broadcast Banner (Top Center Shouting) */
+.podium-banner {
+  position: absolute;
+  top: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: white;
+  padding: 10px 24px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 10px 28px rgba(239, 68, 68, 0.35);
+  display: none;
+  align-items: center;
+  gap: 12px;
+  z-index: 48;
+  pointer-events: auto;
+  animation: slideDownBanner 0.4s ease;
+}
+
+@keyframes slideDownBanner {
+  from { top: 40px; opacity: 0; }
+  to { top: 86px; opacity: 1; }
+}
+
+/* Mini-Map (Top-Right) */
+.minimap-container {
+  position: absolute;
+  top: 86px;
+  right: 14px;
+  width: 170px;
+  height: 170px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 10px;
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+}
+
+.minimap-header {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--gold);
-  border-bottom: 1px solid rgba(245, 197, 66, 0.2);
-  padding-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.testimony-list {
-  min-height: 170px;
-  max-height: 220px;
+.minimap-canvas-wrap {
+  flex: 1;
+  background: #e0f2fe;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+#minimap-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Quick Gesture Toolbar (Bottom-Center) */
+.gesture-toolbar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  z-index: 40;
+}
+
+.gesture-btn {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.gesture-btn:hover {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.gesture-btn.shout-btn {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: white;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.gesture-btn.shout-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* ========================================================
+   CHAT BOX (Bottom-Left)
+   ======================================================== */
+.chat-container {
+  position: absolute;
+  bottom: 24px;
+  left: 14px;
+  width: 380px;
+  max-width: calc(100vw - 28px);
+  height: 280px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  z-index: 40;
+  transition: height 0.3s;
+}
+
+.chat-header {
+  height: 38px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.chat-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-tab {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chat-tab.active {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 10px 12px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(245, 197, 66, 0.4) transparent;
 }
 
-.testimony-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.testimony-list::-webkit-scrollbar-thumb {
-  background: rgba(245, 197, 66, 0.4);
-  border-radius: 4px;
-}
-
-.testimony-item {
-  font-size: 12px;
+.chat-msg {
+  font-size: 13px;
   line-height: 1.4;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.4);
-  animation: fade-in-up 0.25s ease;
+  word-break: break-word;
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.testimony-author {
-  font-weight: 700;
-  color: var(--gold);
+.chat-msg .msg-author {
+  font-weight: 800;
+  color: #0369a1;
   margin-right: 6px;
 }
 
-.testimony-author.long {
-  color: #ff6b7e;
+.chat-msg .msg-title {
+  font-size: 11px;
+  color: #f59e0b;
+  margin-right: 4px;
 }
 
-.testimony-author.short {
-  color: #6bb0ff;
+.chat-msg .msg-time {
+  font-size: 10px;
+  color: #94a3b8;
+  float: right;
 }
 
-.testimony-input-box {
+.chat-input-bar {
+  padding: 8px 12px;
+  border-top: 1px solid rgba(0,0,0,0.06);
   display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.testimony-input {
-  flex: 1;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  padding: 6px 10px;
-  color: #fff;
-  font-size: 12px;
-  outline: none;
-}
-
-.testimony-input:focus {
-  border-color: var(--gold);
-}
-
-.testimony-submit {
-  background: var(--gold);
-  color: #1a0a0d;
-  border: none;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-/* ---------------- 하단 기도 툴바 ---------------- */
-.bottom-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.toolbar-container {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 10px 18px;
-  border-radius: 28px;
 }
 
-.prayer-btn {
+.chat-input {
+  flex: 1;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border: 1px solid #cbd5e1;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  background: white;
+}
+
+.chat-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.chat-send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #0284c7;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.chat-send-btn:hover {
+  transform: scale(1.05);
+  background: #0369a1;
+}
+
+/* ========================================================
+   MODALS & DIALOGS
+   ======================================================== */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: auto;
+  padding: 20px;
+}
+
+.modal-content {
+  background: white;
+  width: 95%;
+  max-width: 920px;
+  max-height: 90vh;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #0284c7;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  color: var(--text-main);
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  min-width: 68px;
-}
-
-.prayer-btn .btn-icon {
-  font-size: 22px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-}
-
-.prayer-btn .btn-text {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.prayer-btn:hover {
-  background: rgba(245, 197, 66, 0.2);
-  border-color: var(--gold);
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px var(--gold-glow);
-}
-
-.prayer-btn:active {
-  transform: translateY(1px) scale(0.96);
-}
-
-.prayer-btn.primary {
-  background: linear-gradient(135deg, rgba(255, 51, 75, 0.4), rgba(138, 20, 32, 0.7));
-  border-color: var(--neon-red);
-}
-
-.prayer-btn.gold {
-  background: linear-gradient(135deg, rgba(245, 197, 66, 0.4), rgba(163, 122, 21, 0.7));
-  border-color: var(--gold);
-}
-
-/* ---------------- 3D 네임태그 & 말풍선 ---------------- */
-.name-tag {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  background: rgba(0, 0, 0, 0.75);
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  pointer-events: none;
-  white-space: nowrap;
-  border: 1px solid rgba(245, 197, 66, 0.3);
-  z-index: 18;
-}
-
-.name-tag.me {
-  border-color: var(--gold);
-  color: var(--gold);
-}
-
-.speech-bubble {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  background: rgba(255, 255, 255, 0.95);
-  color: #1a0a0d;
-  padding: 6px 12px;
-  border-radius: 14px;
-  font-weight: 800;
-  font-size: 12px;
-  pointer-events: none;
-  white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-  animation: pop-bubble 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  z-index: 20;
-}
-
-.speech-bubble::after {
-  content: '';
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 6px 6px 0;
-  border-style: solid;
-  border-color: rgba(255, 255, 255, 0.95) transparent;
-  display: block;
-  width: 0;
-}
-
-@keyframes pop-bubble {
-  from {
-    transform: translate(-50%, -60%) scale(0.5);
-    opacity: 0;
-  }
-
-  to {
-    transform: translate(-50%, -100%) scale(1);
-    opacity: 1;
-  }
-}
-
-/* ---------------- 모달 창 ---------------- */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-}
-
-.modal-overlay.active {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.modal-card {
-  width: min(480px, calc(100vw - 32px));
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 24px;
-  position: relative;
-  text-align: center;
-  animation: modal-pop 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes modal-pop {
-  from {
-    transform: scale(0.85);
-    opacity: 0;
-  }
-
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.modal-close-btn {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  font-size: 24px;
-  cursor: pointer;
+  font-size: 18px;
 }
 
 .modal-title {
-  font-family: var(--font-serif);
-  font-size: 22px;
-  color: var(--gold);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.modal-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  line-height: 1;
+}
+
+.modal-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.modal-body {
+  flex: 1;
+  padding: 22px;
+  overflow-y: auto;
+}
+
+/* ========================================================
+   MODAL 1: AI 행정안내소 (다온 & 부기 대화창)
+   ======================================================== */
+.ai-chat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 520px;
+}
+
+.ai-chips-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.ai-chip {
+  padding: 6px 14px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid #bae6fd;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-chip:hover {
+  background: #bae6fd;
+}
+
+.ai-history {
+  flex: 1;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ai-bubble {
+  max-width: 85%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ai-bubble.user {
+  align-self: flex-end;
+  background: #0284c7;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.ai-bubble.bot {
+  align-self: flex-start;
+  background: white;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  border-bottom-left-radius: 4px;
+}
+
+.ai-badge {
+  display: inline-block;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
   margin-bottom: 8px;
 }
 
-.modal-desc {
-  font-size: 13px;
-  color: var(--text-dim);
-  line-height: 1.5;
-  margin-bottom: 18px;
-}
-
-/* ---------------- 캐릭터 꾸미기 모달 옵션 그리드 ---------------- */
-.custom-grid {
+.ai-portal-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  text-align: left;
-  margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.custom-option-group {
+.ai-portal-card {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
 }
 
-.custom-label {
-  font-size: 12px;
+.ai-portal-card:hover {
+  background: #e0f2fe;
+  border-color: #0284c7;
+}
+
+.ai-portal-card .card-title {
   font-weight: 700;
-  color: var(--gold);
+  font-size: 12px;
+  color: #0369a1;
 }
 
-.custom-select {
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
-  padding: 8px;
-  color: #fff;
-  font-size: 12.5px;
+.ai-portal-card .card-desc {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ai-input-wrap {
+  display: flex;
+  gap: 10px;
+}
+
+.ai-input {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid #cbd5e1;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
   outline: none;
 }
 
-.custom-select:focus {
-  border-color: var(--gold);
+.ai-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
-/* ---------------- 성령의 떡상 룰렛 ---------------- */
-.roulette-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  margin: 16px 0;
-}
-
-.roulette-wheel {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  border: 4px solid var(--gold);
-  box-shadow: 0 0 25px var(--gold-glow);
-  position: relative;
-  display: grid;
-  place-items: center;
-  background: conic-gradient(#ff334b 0% 25%,
-      #3282f6 25% 50%,
-      #f5c542 50% 75%,
-      #10b981 75% 100%);
-  transition: transform 3.5s cubic-bezier(0.1, 0.8, 0.2, 1);
-}
-
-.roulette-pointer {
-  position: absolute;
-  top: -12px;
-  width: 0;
-  height: 0;
-  border-left: 12px solid transparent;
-  border-right: 12px solid transparent;
-  border-top: 20px solid #fff;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  z-index: 2;
-}
-
-.roulette-center {
-  width: 60px;
-  height: 60px;
-  background: #1a0a0d;
-  border: 2px solid var(--gold);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--gold);
-  font-weight: 900;
-  font-size: 13px;
-  z-index: 1;
-}
-
-.roulette-result {
-  font-family: var(--font-serif);
-  font-size: 16px;
+.ai-send-btn {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: #0284c7;
+  color: white;
+  font-family: inherit;
   font-weight: 700;
-  color: var(--gold);
-  min-height: 24px;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-/* ---------------- 공통 폼 버튼 ---------------- */
-.form-group {
+/* ========================================================
+   MODAL 2: 소관부서 & 사무분장 검색기 (division-in-charge)
+   ======================================================== */
+.division-search-bar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.division-search-input {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid #cbd5e1;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.division-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.division-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.division-card:hover {
+  background: white;
+  border-color: #0284c7;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.08);
+}
+
+.division-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.division-task-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0369a1;
+}
+
+.division-authority-badge {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.division-row {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.division-row strong {
+  color: #334155;
+}
+
+/* ========================================================
+   MODAL 3: 청사 사무실 & 층별 안내기 (sejong-office-app)
+   ======================================================== */
+.office-filter-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.floor-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
-.form-label {
+.floor-chip {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid #cbd5e1;
+  background: white;
   font-size: 12px;
-  color: var(--gold);
   font-weight: 700;
+  cursor: pointer;
 }
 
-.form-input {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #fff;
-  font-size: 13px;
-  outline: none;
+.floor-chip.active {
+  background: #0284c7;
+  color: white;
+  border-color: #0284c7;
 }
 
-.form-input:focus {
-  border-color: var(--gold);
-}
-
-.action-btn {
+.office-table {
   width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, var(--gold), #d49e1e);
-  color: #1a0a0d;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.office-table th {
+  background: #f1f5f9;
+  padding: 10px;
+  text-align: left;
+  border-bottom: 2px solid #cbd5e1;
+  font-weight: 800;
+}
+
+.office-table td {
+  padding: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.office-table tr:hover {
+  background: #f8fafc;
+}
+
+/* ========================================================
+   MODAL 4: 시민 자유담벼락 & 불만 분출 광장 (Citizen Wall)
+   ======================================================== */
+.wall-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wall-categories {
+  display: flex;
+  gap: 6px;
+}
+
+.wall-cat-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid #cbd5e1;
+  background: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wall-cat-btn.active {
+  background: #0284c7;
+  color: white;
+  border-color: #0284c7;
+}
+
+.wall-notice-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #92400e;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.wall-posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wall-post-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.wall-post-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.wall-post-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.badge-complaint { background: #fee2e2; color: #b91c1c; }
+.badge-suggestion { background: #e0f2fe; color: #0369a1; }
+.badge-praise { background: #dcfce7; color: #15803d; }
+.badge-question { background: #fef3c7; color: #92400e; }
+
+.wall-post-title {
   font-size: 15px;
   font-weight: 800;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 8px;
-}
-
-.action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px var(--gold-glow);
-}
-
-/* ========================================================
-   모바일 & 태블릿 반응형 레이아웃 최적화
-   ======================================================== */
-
-/* 스마트폰 & 터치 기기 (화면 폭 768px 이하) */
-@media (max-width: 768px) {
-  .ui-layer {
-    padding: 4px 6px;
-    padding-top: max(4px, env(safe-area-inset-top));
-    padding-bottom: max(4px, env(safe-area-inset-bottom));
-  }
-
-  /* 1. 상단 헤더: 제목 숨김 후 성전 이동 + 서버 + 이름/칭호 + 꾸미기 + 인원 + BGM 한 줄 완벽 정렬 */
-  .header-bar {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 4px;
-    width: 100%;
-    padding: 2px 2px;
-    box-sizing: border-box;
-  }
-
-  /* 좌측 로고: 모바일에서는 사용자 요청에 따라 대성전 제목을 숨겨 상단 공간을 100% 확보 */
-  .brand-section {
-    display: none !important;
-  }
-
-  /* 성전 이동 선택기: 모바일 한 줄 레이아웃에 맞춰 알맞은 너비로 컴팩트화 */
-  .room-selector {
-    flex: 0 1 auto;
-    min-width: 95px;
-    max-width: 125px;
-    padding: 3px 4px !important;
-    margin: 0 !important;
-    border-radius: 8px;
-    box-sizing: border-box;
-    border: 1.5px solid #f5c542 !important;
-    background: rgba(22, 14, 28, 0.9) !important;
-    box-shadow: 0 0 8px rgba(245, 197, 66, 0.35) !important;
-  }
-
-  .room-label {
-    display: none !important;
-  }
-
-  .room-select {
-    width: 100% !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    color: #f5c542 !important;
-    padding: 2px 2px !important;
-    border-radius: 6px;
-    background: transparent !important;
-    border: none !important;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  /* 우측 액션 버튼들: 서버, 레벨/이름, 꾸미기, 카운터, BGM 모두 노출 */
-  .header-right {
-    display: flex !important;
-    align-items: center;
-    gap: 4px !important;
-    flex: 1 1 auto;
-    justify-content: flex-end;
-  }
-
-  .custom-btn-top {
-    padding: 3px 6px !important;
-    font-size: 10px !important;
-    border-radius: 6px !important;
-    gap: 3px !important;
-    white-space: nowrap !important;
-  }
-
-  /* 서버 연동 버튼: 모바일에서는 상태 원형 뱃지로 슬림화 */
-  #btnServerConfig {
-    width: 26px !important;
-    height: 26px !important;
-    min-width: 26px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  #btnServerConfig #serverStatusText {
-    display: none !important;
-  }
-
-  #btnServerConfig #serverStatusIcon {
-    font-size: 12px !important;
-    margin: 0 !important;
-  }
-
-  /* 이름 바꾸기 및 등급 호칭 버튼 */
-  #btnOpenMissions {
-    padding: 3px 6px !important;
-    display: flex !important;
-    align-items: center !important;
-  }
-
-  #btnOpenMissions #headerRankBadge {
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* 신도 꾸미기 버튼: 👗 아이콘 + 꾸미기 글자 선명하게 노출 */
-  #btnOpenCustom {
-    padding: 3px 6px !important;
-    display: flex !important;
-    align-items: center !important;
-  }
-
-  #btnOpenCustom .custom-text {
-    display: inline-block !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-  }
-
-  /* 합심 기도 인원수: "합심 기도:" 접두사 숨기고 인원수만 콤팩트하게 */
-  .cult-counter {
-    padding: 3px 6px !important;
-    font-size: 10px !important;
-    gap: 2px !important;
-    border-radius: 6px !important;
-    white-space: nowrap !important;
-    display: flex !important;
-    align-items: center !important;
-  }
-
-  .cult-counter .counter-label {
-    display: none !important;
-  }
-
-  .cult-counter .pulse-dot {
-    margin-right: 2px !important;
-  }
-
-  .cult-counter span, .cult-counter b {
-    font-size: 10px !important;
-  }
-
-  #bgmBtn {
-    width: 26px !important;
-    height: 26px !important;
-    min-width: 26px !important;
-    font-size: 11px !important;
-    padding: 0 !important;
-    border-radius: 6px !important;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* 키보드 이동 안내 배너 숨김 */
-  .control-guide {
-    display: none !important;
-  }
-
-  /* 2. 중앙 HUD: 헤더 바로 아래에 1줄 초슬림 띠로 밀착 (시세 + 양봉강림 인라인 합체, 줄밀림 0%) */
-  .center-hud {
-    position: absolute !important;
-    top: 38px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    gap: 4px;
-    width: calc(100% - 12px) !important;
-    max-width: 380px !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: center !important;
-    pointer-events: none;
-    z-index: 30;
-  }
-
-  .banner-pill {
-    padding: 2px 6px !important;
-    font-size: 9.5px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    border-radius: 6px !important;
-    line-height: 1.2 !important;
-    max-width: 62%;
-  }
-
-  /* 모바일에서 화면을 가리는 거대한 롱숏 대결 게이지는 숨김 */
-  .holy-war-hud {
-    display: none !important;
-  }
-
-  .ritual-hud {
-    padding: 2px 5px !important;
-    font-size: 9px !important;
-    gap: 2px !important;
-    border-radius: 6px !important;
-    white-space: nowrap !important;
-  }
-
-  .ritual-bar-bg {
-    width: 32px !important;
-    height: 4px !important;
-  }
-
-  /* 3. 우측 미니게임 사이드바: 상단을 가리지 않도록 화면 중앙 우측으로 낮춰 배치 */
-  .event-sidebar {
-    right: 4px;
-    top: 52%;
-    transform: translateY(-50%);
-    gap: 4px;
-    z-index: 35;
-  }
-
-  .event-btn {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  }
-
-  .event-btn span:last-child {
-    display: none !important;
-  }
-
-  .event-btn .event-icon {
-    font-size: 15px;
-    margin: 0;
-  }
-
-  /* 4. 맨 바닥: 액션명령창 (왼쪽 끝에서 오른쪽 끝까지 100% 꽉 채움) */
-  .bottom-bar {
-    position: absolute !important;
-    bottom: 3px !important;
-    left: 4px !important;
-    right: 4px !important;
-    width: calc(100% - 8px) !important;
-    display: flex !important;
-    justify-content: center !important;
-    z-index: 40 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .toolbar-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 4px 6px !important;
-    gap: 4px !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    white-space: nowrap !important;
-    flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
-    align-items: center !important;
-    border-radius: 12px !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-  }
-
-  .toolbar-container::-webkit-scrollbar {
-    display: none !important;
-  }
-
-  .prayer-btn {
-    flex: 0 0 auto !important;
-    padding: 4px 7px !important;
-    min-width: 44px !important;
-    border-radius: 8px !important;
-    gap: 2px !important;
-  }
-
-  .prayer-btn .btn-icon {
-    font-size: 14px !important;
-  }
-
-  .prayer-btn .btn-text {
-    font-size: 9px !important;
-  }
-
-  /* 모바일 하단 툴바에서는 점프 버튼 숨김 (우측 전용 점프 FAB 사용) */
-  .prayer-btn.jump {
-    display: none !important;
-  }
-
-  /* 5. 바닥 바로 위 가운데: 채팅창 (조이스틱과 점프 버튼 사이 중앙, 4줄 정도 콤팩트 표시) */
-  .middle-area {
-    position: absolute !important;
-    left: 106px !important;
-    right: 66px !important;
-    bottom: 52px !important;
-    width: auto !important;
-    max-width: none !important;
-    height: auto !important;
-    margin: 0 !important;
-    z-index: 43 !important;
-    pointer-events: none !important;
-  }
-
-  .testimony-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 4px 6px !important;
-    border-radius: 10px !important;
-    background: rgba(12, 8, 18, 0.85) !important;
-    backdrop-filter: blur(10px) !important;
-    border: 1px solid rgba(245, 197, 66, 0.3) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
-    pointer-events: auto !important;
-  }
-
-  .testimony-header {
-    font-size: 9.5px !important;
-    margin-bottom: 2px !important;
-    white-space: nowrap !important;
-    padding: 0 2px !important;
-  }
-
-  .testimony-header button {
-    font-size: 9px !important;
-    padding: 1px 4px !important;
-  }
-
-  /* 4줄 정도의 대화가 딱 맞게 보이도록 높이 최적화 */
-  .testimony-list {
-    min-height: 56px !important;
-    max-height: 68px !important;
-    gap: 2px !important;
-    overflow-y: auto !important;
-  }
-
-  .testimony-item {
-    font-size: 9.5px !important;
-    line-height: 1.25 !important;
-    padding: 2px 4px !important;
-    border-radius: 5px !important;
-    word-break: break-all !important;
-  }
-
-  .testimony-input-box {
-    margin-top: 3px !important;
-    gap: 3px !important;
-  }
-
-  .testimony-input {
-    font-size: 10px !important;
-    padding: 2px 5px !important;
-    height: 24px !important;
-  }
-
-  .testimony-submit {
-    font-size: 10px !important;
-    padding: 2px 6px !important;
-    height: 24px !important;
-    white-space: nowrap !important;
-  }
-
-  /* 6. 바닥 바로 위 왼쪽: 조이스틱 */
-  .virtual-joystick {
-    display: block !important;
-    position: absolute !important;
-    left: 6px !important;
-    bottom: 52px !important;
-    width: 95px !important;
-    height: 95px !important;
-    z-index: 45 !important;
-  }
-
-  /* 7. 바닥 바로 위 오른쪽: 점프 버튼 */
-  .mobile-jump-floating-btn {
-    display: flex !important;
-    position: absolute !important;
-    right: 8px !important;
-    bottom: 64px !important;
-    width: 52px !important;
-    height: 52px !important;
-    z-index: 46 !important;
-  }
-
-  /* 모달창 반응형 */
-  .modal-card {
-    width: 92vw !important;
-    max-width: 360px !important;
-    max-height: 82vh !important;
-    padding: 16px 12px !important;
-    border-radius: 14px !important;
-  }
-
-  .custom-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .rank-roadmap {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* 태블릿 및 중간 해상도 (화면 폭 769px ~ 1180px) */
-@media (min-width: 769px) and (max-width: 1180px) {
-  .ui-layer {
-    padding: 8px 12px;
-  }
-
-  .header-bar {
-    gap: 6px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .header-bar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .brand-section {
-    padding: 6px 10px;
-    gap: 6px;
-    flex: 0 0 auto;
-  }
-
-  .brand-title {
-    font-size: 14px;
-    white-space: nowrap;
-  }
-
-  .brand-sub {
-    font-size: 9.5px;
-    white-space: nowrap;
-  }
-
-  .room-selector {
-    padding: 4px 8px;
-    gap: 4px;
-    flex: 0 0 auto;
-  }
-
-  .room-label {
-    font-size: 11px;
-    white-space: nowrap;
-  }
-
-  .room-select {
-    font-size: 11.5px;
-    padding: 4px 6px;
-  }
-
-  .header-right {
-    gap: 4px !important;
-    flex: 0 0 auto;
-  }
-
-  .custom-btn-top {
-    padding: 4px 7px;
-    font-size: 11px;
-    white-space: nowrap;
-  }
-
-  .cult-counter {
-    padding: 4px 7px;
-    font-size: 11px;
-    white-space: nowrap;
-  }
-
-  /* 중간 해상도에서 시세 HUD와 겹치지 않도록 조작 가이드 숨김 */
-  .control-guide {
-    display: none !important;
-  }
-
-  .testimony-container {
-    width: 260px;
-    max-height: 180px;
-  }
-
-  .toolbar-container {
-    padding: 8px 12px;
-    gap: 6px;
-    overflow-x: auto;
-    max-width: 100%;
-  }
-
-  .prayer-btn {
-    padding: 6px 10px;
-    min-width: 54px;
-  }
-
-  .event-btn {
-    padding: 6px 10px;
-    font-size: 11px;
-  }
-}
-
-/* ========================================================
-   은혜 미션 & 신도 등급 승급 시스템 UI 스타일
-   ======================================================== */
-.mission-profile-card {
-  background: rgba(245, 197, 66, 0.08);
-  border: 1px solid rgba(245, 197, 66, 0.35);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-}
-
-.profile-rank-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.rank-badge-large {
-  background: linear-gradient(135deg, #f5c542, #b8860b);
-  color: #1a0f13;
-  font-weight: 900;
-  font-size: 16px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  box-shadow: 0 0 16px rgba(245, 197, 66, 0.6);
-  letter-spacing: 0.5px;
-}
-
-.rank-text-group {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-
-.rank-title-large {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--gold);
-}
-
-.rank-name-large {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.exp-bar-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.exp-bar-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.exp-bar-bg {
-  width: 100%;
-  height: 12px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(245, 197, 66, 0.25);
-}
-
-.exp-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #f5c542, #10b981);
-  border-radius: 6px;
-  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 0 10px rgba(245, 197, 66, 0.5);
-}
-
-.mission-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 190px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.mission-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.mission-item.completed {
-  border-color: rgba(16, 185, 129, 0.4);
-  background: rgba(16, 185, 129, 0.12);
-}
-
-.mission-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-align: left;
-}
-
-.mission-icon {
-  font-size: 16px;
-}
-
-.mission-title {
-  color: #fff;
-  font-weight: 500;
-}
-
-.mission-item.completed .mission-title {
-  text-decoration: line-through;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.mission-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mission-reward {
-  font-size: 11px;
-  font-weight: bold;
-  color: #f5c542;
-  background: rgba(245, 197, 66, 0.15);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.mission-status {
-  font-size: 11px;
-  color: #10b981;
-  font-weight: 700;
-}
-
-.rank-roadmap {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  font-size: 11px;
-  background: rgba(0, 0, 0, 0.35);
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  text-align: left;
-}
-
-.rank-step {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.rank-step .r-lvl {
-  font-weight: bold;
-  color: #f5c542;
-}
-
-.rank-step .r-desc {
-  font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.rank-step.highlight {
-  color: #f5c542;
-  font-weight: bold;
-}
-
-/* 레벨업 환희 축하 배너 */
-.levelup-banner {
-  position: fixed;
-  top: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100px);
-  z-index: 10000;
-  pointer-events: none;
-  opacity: 0;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.levelup-banner.active {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.levelup-content {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 28px;
-  border-radius: 30px;
-  border: 2px solid #f5c542;
-  background: rgba(25, 12, 18, 0.92);
-  box-shadow: 0 10px 40px rgba(245, 197, 66, 0.6), 0 0 20px #f5c542;
-}
-
-.levelup-icon {
-  font-size: 32px;
-  animation: bounce-icon 0.6s infinite alternate ease-in-out;
-}
-
-@keyframes bounce-icon {
-  from { transform: translateY(0); }
-  to { transform: translateY(-6px); }
-}
-
-.levelup-title {
-  font-size: 17px;
-  font-weight: 900;
-  color: #f5c542;
-  text-shadow: 0 0 12px rgba(245, 197, 66, 0.8);
-}
-
-.levelup-desc {
-  font-size: 13px;
-  color: #ffffff;
-  font-weight: 600;
-}
-
-/* ==================================================== */
-/* 전체 대화 및 지난 간증 기록 총람 모달 & UI */
-/* ==================================================== */
-.chat-expand-btn {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #f5c542;
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.chat-expand-btn:hover {
-  background: #f5c542;
-  color: #120d18;
-  box-shadow: 0 0 8px #f5c542;
-}
-
-.chat-history-card {
-  max-width: 660px;
-  width: 92%;
-  height: 82vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header-banner {
-  padding: 12px 16px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-  text-align: left;
-}
-.chat-banner {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(245, 197, 66, 0.15));
-  border: 1px solid rgba(168, 85, 247, 0.35);
-}
-.world-banner {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(245, 197, 66, 0.2));
-  border: 1px solid rgba(16, 185, 129, 0.35);
-}
-
-.chat-filter-bar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.chat-filter-btn {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 11.5px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.chat-filter-btn.active, .chat-filter-btn:hover {
-  background: rgba(245, 197, 66, 0.2);
-  border-color: #f5c542;
-  color: #f5c542;
-  font-weight: 700;
-}
-
-.full-chat-list {
-  flex: 1;
-  overflow-y: auto;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.full-chat-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
-  border-left: 3px solid rgba(245, 197, 66, 0.4);
-}
-.full-chat-item.system {
-  background: rgba(245, 197, 66, 0.1);
-  border-left-color: #f5c542;
-}
-.full-chat-item.long {
-  border-left-color: #ff334b;
-}
-.full-chat-item.short {
-  border-left-color: #38bdf8;
-}
-
-.full-chat-time {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
-  white-space: nowrap;
-  margin-top: 1px;
-}
-.full-chat-author {
-  font-weight: 700;
-  white-space: nowrap;
-}
-.full-chat-author.long { color: #ff5268; }
-.full-chat-author.short { color: #38bdf8; }
-.full-chat-author.system { color: #f5c542; }
-
-.full-chat-text {
-  color: #f3f4f6;
-  word-break: break-all;
-  flex: 1;
-}
-
-.modal-chat-input-bar {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-/* ==================================================== */
-/* 대양봉교 6대 성지 월드맵 그리드 */
-/* ==================================================== */
-.world-map-card {
-  max-width: 760px;
-  width: 94%;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-
-.world-zone-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 8px;
-}
-@media (max-width: 640px) {
-  .world-zone-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.zone-card {
-  position: relative;
-  background: rgba(25, 15, 28, 0.85);
-  border: 1px solid rgba(245, 197, 66, 0.25);
-  border-radius: 12px;
-  padding: 14px;
-  text-align: left;
-  transition: all 0.25s;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-.zone-card:hover {
-  border-color: #f5c542;
-  box-shadow: 0 6px 20px rgba(245, 197, 66, 0.35);
-  transform: translateY(-2px);
-}
-
-.zone-badge {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  font-size: 10px;
-  font-weight: bold;
-  background: rgba(245, 197, 66, 0.2);
-  color: #f5c542;
-  padding: 2px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(245, 197, 66, 0.4);
-}
-
-.zone-icon {
-  font-size: 28px;
+  color: var(--text-main);
   margin-bottom: 6px;
 }
-.zone-title {
-  font-size: 14px;
-  font-weight: 800;
-  color: #ffffff;
-  margin-bottom: 4px;
-}
-.zone-desc {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.65);
-  line-height: 1.4;
-  margin-bottom: 10px;
-  min-height: 32px;
-}
-.zone-teleport-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #f5c542, #eab308);
-  border: none;
-  color: #1a0f1e;
-  font-weight: 800;
-  font-size: 12px;
-  padding: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.zone-teleport-btn:hover {
-  background: #ffffff;
-  box-shadow: 0 0 12px #f5c542;
+
+.wall-post-content {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 12px;
 }
 
-/* ==================================================== */
-/* 오늘의 종가 예언 (Closing Prophecy) 카드 */
-/* ==================================================== */
-.prophecy-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 14px 0;
-}
-.prophecy-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-}
-.prophecy-card:hover {
-  border-color: #f5c542;
-  background: rgba(245, 197, 66, 0.15);
-  transform: scale(1.02);
-}
-.prophecy-card.voted {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.2);
-}
-.prophecy-icon { font-size: 24px; margin-bottom: 4px; }
-.prophecy-name { font-size: 13px; font-weight: 800; color: #fff; }
-.prophecy-pct { font-size: 11px; color: #f5c542; font-weight: bold; margin-top: 4px; }
-
-/* ==================================================== */
-/* 아바타 실시간 프리뷰 카드 (Avatar Preview) */
-/* ==================================================== */
-.avatar-preview-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(245, 197, 66, 0.35);
-  border-radius: 14px;
-  padding: 12px 18px;
-  margin-bottom: 14px;
-}
-.preview-avatar-wrap {
-  position: relative;
-  width: 72px;
-  height: 90px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.preview-halo {
-  position: absolute;
-  top: -6px;
-  font-size: 20px;
-  color: #f5c542;
-  filter: drop-shadow(0 0 6px rgba(245, 197, 66, 0.8));
-  animation: float-halo 2s ease-in-out infinite alternate;
-}
-@keyframes float-halo {
-  from { transform: translateY(0); }
-  to { transform: translateY(-3px); }
-}
-.preview-head {
-  position: relative;
-  width: 44px;
-  height: 40px;
-  background: #ffdfd3;
-  border-radius: 50% 50% 45% 45%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  z-index: 2;
-}
-.preview-hat-icon {
-  position: absolute;
-  top: -14px;
-  font-size: 18px;
-}
-.preview-eyes {
-  display: flex;
-  gap: 12px;
-  font-size: 8px;
-  color: #150b10;
-  margin-top: 2px;
-}
-.preview-blush {
-  position: absolute;
-  top: 22px;
-  width: 100%;
+.wall-post-footer {
   display: flex;
   justify-content: space-between;
-  padding: 0 4px;
-}
-.p-blush {
-  width: 8px;
-  height: 5px;
-  background: #ff7799;
-  border-radius: 50%;
-  opacity: 0.85;
-}
-.preview-mouth {
-  font-size: 10px;
-  color: #c44569;
-  line-height: 1;
-  margin-top: -2px;
-  font-weight: bold;
-}
-.preview-body {
-  position: relative;
-  width: 50px;
-  height: 42px;
-  background: #fffcf5;
-  border-radius: 8px 8px 18px 18px;
-  margin-top: -6px;
-  display: flex;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  transition: background 0.3s;
+  font-size: 12px;
+  color: #64748b;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
 }
-.preview-sash {
-  position: absolute;
-  width: 100%;
-  height: 7px;
-  background: #ff3352;
-  top: 14px;
-  transition: background 0.3s;
+
+.wall-like-btn {
+  background: white;
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #e11d48;
 }
-.preview-wings-icon {
-  position: absolute;
-  font-size: 32px;
-  top: -8px;
-  z-index: -1;
-  opacity: 0.9;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+
+/* ========================================================
+   MODAL 5: 16개 구·군 디오라마 미래도시관 포털
+   ======================================================== */
+.districts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
 }
-.preview-info {
-  text-align: left;
+
+.district-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
-.preview-title {
+
+.district-card:hover {
+  background: white;
+  border-color: #0284c7;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.12);
+  transform: translateY(-2px);
+}
+
+.district-name {
   font-size: 15px;
   font-weight: 800;
-  color: var(--gold);
+  color: #0369a1;
   margin-bottom: 4px;
 }
-.preview-summary {
+
+.district-landmark {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d97706;
+  margin-bottom: 6px;
+}
+
+.district-desc {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #64748b;
+  line-height: 1.4;
+  margin-bottom: 10px;
 }
 
-/* ==================================================== */
-/* 랜드마크 근접 시 뜨는 대형 플로팅 상호작용 액션 버튼 */
-/* ==================================================== */
-.proximity-action-container {
-  position: absolute;
-  bottom: 85px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
-  animation: bounce-glow 1.4s ease-in-out infinite alternate;
-}
-@keyframes bounce-glow {
-  0% { transform: translateX(-50%) translateY(0); filter: drop-shadow(0 0 10px rgba(245, 197, 66, 0.6)); }
-  100% { transform: translateX(-50%) translateY(-6px); filter: drop-shadow(0 0 20px rgba(255, 51, 75, 0.9)); }
+.district-warp-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: #0284c7;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.proximity-action-btn {
+/* ========================================================
+   MODAL 6: 부산시청 공식 사진 & 청사 안내 갤러리
+   ======================================================== */
+.photo-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.photo-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.photo-mockup {
+  height: 150px;
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 28px;
-  border-radius: 35px;
-  background: linear-gradient(135deg, #ff334b, #b91c1c);
-  border: 2px solid #f5c542;
-  color: #ffffff;
-  font-size: 15px;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+}
+
+.photo-card-body {
+  padding: 12px 14px;
+}
+
+.photo-card-title {
+  font-size: 14px;
   font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
-  transition: all 0.15s;
-  letter-spacing: -0.3px;
-}
-.proximity-action-btn.gold-mode {
-  background: linear-gradient(135deg, #f5c542, #d97706);
-  color: #1a0f1e;
-  border-color: #ffffff;
-}
-.proximity-action-btn:hover {
-  transform: scale(1.06);
-  box-shadow: 0 8px 30px rgba(245, 197, 66, 0.9);
-}
-.proximity-action-btn:active {
-  transform: scale(0.96);
-}
-.proximity-action-btn .p-icon {
-  font-size: 22px;
-}
-.proximity-action-btn .p-key {
-  font-size: 11px;
-  background: rgba(0, 0, 0, 0.35);
-  padding: 2px 6px;
-  border-radius: 6px;
-  margin-left: 4px;
+  color: var(--text-main);
+  margin-bottom: 4px;
 }
 
-/* ==================================================== */
-/* 모바일 / 태블릿 360도 가상 터치 조이스틱 (원형 물방울 썸스틱) */
-/* ==================================================== */
-.virtual-joystick {
-  display: none;
+.photo-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* 2D 빠른 행정 모드 전환 패널 */
+#fast-admin-mode {
   position: absolute;
-  bottom: 52px;
-  left: 6px;
-  z-index: 45;
-  width: 95px;
-  height: 95px;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: none;
-}
-
-/* PC에서는 하단 점프 버튼 숨김 (스페이스바로 점프) 및 모바일 플로팅 점프 버튼 숨김 */
-.prayer-btn.jump {
-  display: none !important;
-}
-
-.mobile-jump-floating-btn {
-  display: none;
-}
-
-@media (max-width: 900px), (pointer: coarse) {
-  .virtual-joystick {
-    display: block;
-  }
-
-  /* 모바일 전용 우측 플로팅 점프 버튼 (하단 액션바 바로 위 오른쪽) */
-  .mobile-jump-floating-btn {
-    display: flex !important;
-    position: absolute;
-    bottom: 64px;
-    right: 8px;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #34d399 0%, #059669 60%, #047857 100%);
-    border: 2px solid #a7f3d0;
-    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.4);
-    color: #ffffff;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 46;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: manipulation;
-    transition: transform 0.08s ease, box-shadow 0.08s ease;
-  }
-
-  .mobile-jump-floating-btn:active {
-    transform: scale(0.91);
-    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.9);
-  }
-
-  .m-jump-icon {
-    font-size: 19px;
-    line-height: 1;
-  }
-
-  .m-jump-text {
-    font-size: 9.5px;
-    font-weight: 800;
-    line-height: 1;
-    margin-top: 1px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  }
-}
-
-.joystick-base {
-  position: relative;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(245, 197, 66, 0.08) 0%, rgba(20, 15, 30, 0.55) 75%, rgba(10, 5, 15, 0.75) 100%);
-  border: 2px solid rgba(245, 197, 66, 0.35);
-  box-shadow: 0 0 15px rgba(245, 197, 66, 0.2), inset 0 0 12px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #f8fafc;
+  z-index: 95;
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
-/* 베이스 십자 가이드라인 */
-.joystick-base::before {
-  content: '';
-  position: absolute;
-  width: 60%;
-  height: 1px;
-  background: rgba(245, 197, 66, 0.2);
-}
-.joystick-base::after {
-  content: '';
-  position: absolute;
-  width: 1px;
-  height: 60%;
-  background: rgba(245, 197, 66, 0.2);
-}
-
-.joystick-knob {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 48px;
-  height: 48px;
-  margin-top: -24px;
-  margin-left: -24px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, #ffffff 0%, #ffde6b 35%, #f5c542 65%, #c8931a 100%);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 14px rgba(245, 197, 66, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  transform: translate(0px, 0px);
-  transition: transform 0.05s ease-out;
-}
-
-.joystick-knob.returning {
-  transition: transform 0.16s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-}
-
-.knob-core {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: rgba(140, 95, 10, 0.6);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .top-nav {
+    height: auto;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .quest-tracker, .service-dock, .minimap-container {
+    display: none;
+  }
+  .chat-container {
+    width: calc(100% - 28px);
+    height: 200px;
+  }
 }

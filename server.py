@@ -1,6 +1,7 @@
 # ========================================================
-# 가즈아교 (GAZUA CULT) 온라인 대성전 통합 서버 (단일 포트 8080)
-# HTTP 정적 파일 서빙 + RFC 6455 WebSocket 멀티플레이 통합 (완벽 스레드 안전 & Ping/Pong 완비)
+# 부산ON 월드 (BUSAN ON WORLD) - 통합 시민소통 메타버스 서버 (단일 포트 8080)
+# HTTP 정적 파일 서빙 + REST API + RFC 6455 WebSocket 멀티플레이 통합
+# (16개 자치 구·군청 채널 확장, AI 행정상담, 소관부서 검색, 청사 사무실 안내, 시민 자유담벼락)
 # ========================================================
 
 import os
@@ -11,102 +12,60 @@ import hashlib
 import struct
 import threading
 import time
-import urllib.request
+import urllib.parse
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+
+import busan_data
 
 PORT = 8080
 
-ROOMS = {
-    'KRW-BTC': {},
-    'KRW-ETH': {},
-    'KRW-DOGE': {},
-    'SEC-005930': {},
-    'SEC-000660': {},
-    'US-TSLA': {},
-    'US-NVDA': {}
-}
+# 16개 구·군 + 부산시청 본관 룸 채널 등록
+ROOM_LIST = ['BUSAN-HQ'] + [d['code'] for d in busan_data.BUSAN_DISTRICTS]
+ROOMS = {r: {} for r in ROOM_LIST}
 
 ROOM_STATE = {
-    'KRW-BTC': {'ritual_gauge': 35, 'boss_hp': 100},
-    'KRW-ETH': {'ritual_gauge': 30, 'boss_hp': 100},
-    'KRW-DOGE': {'ritual_gauge': 40, 'boss_hp': 100},
-    'SEC-005930': {'ritual_gauge': 25, 'boss_hp': 100},
-    'SEC-000660': {'ritual_gauge': 30, 'boss_hp': 100},
-    'US-TSLA': {'ritual_gauge': 35, 'boss_hp': 100},
-    'US-NVDA': {'ritual_gauge': 50, 'boss_hp': 100}
+    r: {
+        'voice_count': 0,         # 시민 발언 횟수
+        'stamp_total': 5,         # 스탬프 수
+        'active_event': '시민 소통의 시간'
+    } for r in ROOM_LIST
 }
 
-ROOM_CHAT_HISTORY = {
-    'KRW-BTC': [],
-    'KRW-ETH': [],
-    'KRW-DOGE': [],
-    'SEC-005930': [],
-    'SEC-000660': [],
-    'US-TSLA': [],
-    'US-NVDA': []
-}
+ROOM_CHAT_HISTORY = {r: [] for r in ROOM_LIST}
 
-# ========================================================
-# 100% 실제 국내외 주식 실시간 시세 (네이버 금융 & 야후 파이낸스)
-# ========================================================
-REAL_STOCK_DATA = {
-    'SEC-005930': {'name': '삼성전자', 'symbol': '005930', 'price': 78500, 'changeRate': 0.0, 'diff': 0, 'updated': 0},
-    'SEC-000660': {'name': 'SK하이닉스', 'symbol': '000660', 'price': 215000, 'changeRate': 0.0, 'diff': 0, 'updated': 0},
-    'US-TSLA': {'name': '테슬라', 'symbol': 'TSLA', 'price': 248.5, 'changeRate': 0.0, 'diff': 0, 'updated': 0},
-    'US-NVDA': {'name': '엔비디아', 'symbol': 'NVDA', 'price': 135.2, 'changeRate': 0.0, 'diff': 0, 'updated': 0}
-}
+# 시민 자유 담벼락 영구 저장 파일
+WALL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'citizen_wall_posts.json')
+WALL_LOCK = threading.RLock()
 
-def fetch_real_stocks_loop():
-    while True:
-        try:
-            url = 'https://polling.finance.naver.com/api/realtime/domestic/stock/005930,000660'
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                for item in data.get('datas', []):
-                    code = item.get('itemCode')
-                    room_key = f"SEC-{code}"
-                    if room_key in REAL_STOCK_DATA:
-                        price = float(item.get('closePriceRaw', 0))
-                        ratio = float(item.get('fluctuationsRatioRaw', 0)) / 100.0
-                        comp = item.get('compareToPreviousPrice', {}).get('name', '')
-                        if comp == 'FALLING':
-                            ratio = -abs(ratio)
-                        elif comp == 'RISING':
-                            ratio = abs(ratio)
-                        diff = float(item.get('compareToPreviousClosePriceRaw', 0))
-                        if comp == 'FALLING':
-                            diff = -abs(diff)
-
-                        REAL_STOCK_DATA[room_key]['price'] = price
-                        REAL_STOCK_DATA[room_key]['changeRate'] = ratio
-                        REAL_STOCK_DATA[room_key]['diff'] = diff
-                        REAL_STOCK_DATA[room_key]['updated'] = time.time()
-        except Exception:
-            pass
-
-        for sym, rkey in [('TSLA', 'US-TSLA'), ('NVDA', 'US-NVDA')]:
+def load_wall_posts():
+    with WALL_LOCK:
+        if os.path.exists(WALL_FILE):
             try:
-                y_url = f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d'
-                req = urllib.request.Request(y_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=4) as resp:
-                    ydata = json.loads(resp.read().decode('utf-8'))
-                    meta = ydata['chart']['result'][0]['meta']
-                    cur_p = float(meta.get('regularMarketPrice', 0))
-                    prev_p = float(meta.get('chartPreviousClose', cur_p))
-                    ratio = (cur_p - prev_p) / prev_p if prev_p else 0
-                    REAL_STOCK_DATA[rkey]['price'] = round(cur_p, 2)
-                    REAL_STOCK_DATA[rkey]['changeRate'] = round(ratio, 4)
-                    REAL_STOCK_DATA[rkey]['diff'] = round(cur_p - prev_p, 2)
-                    REAL_STOCK_DATA[rkey]['updated'] = time.time()
+                with open(WALL_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
             except Exception:
                 pass
+        # 파일이 없으면 기본 데이터 저장
+        try:
+            with open(WALL_FILE, 'w', encoding='utf-8') as f:
+                json.dump(busan_data.DEFAULT_WALL_POSTS, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        return list(busan_data.DEFAULT_WALL_POSTS)
 
-        time.sleep(3.0)
+def save_wall_posts(posts):
+    with WALL_LOCK:
+        try:
+            with open(WALL_FILE, 'w', encoding='utf-8') as f:
+                json.dump(posts, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[WALL_SAVE_ERROR] {e}", flush=True)
+
+WALL_POSTS = load_wall_posts()
 
 CLIENT_MAP = {}    # { sock: client_id }
 CLIENT_META = {}   # { client_id: {'room': r, 'info': info, 'sock': sock, 'send_lock': Lock()} }
-CLIENT_LOCK = threading.RLock() # 메인 동기화 RLock
+CLIENT_LOCK = threading.RLock()
 
 WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -136,7 +95,6 @@ def encode_ws_frame(data_str, opcode=0x1):
     return bytes(frame)
 
 def safe_send_frame(sock, frame_bytes, send_lock=None):
-    """스레드 안전한 WebSocket 프레임 전송 (프레임 데이터 오염 방지)"""
     try:
         if send_lock:
             with send_lock:
@@ -148,7 +106,6 @@ def safe_send_frame(sock, frame_bytes, send_lock=None):
         return False
 
 def recv_exact_stream(rfile, num_bytes):
-    """rfile 버퍼에서 정확히 num_bytes 만큼 읽기"""
     try:
         data = rfile.read(num_bytes)
         if len(data) < num_bytes:
@@ -158,7 +115,6 @@ def recv_exact_stream(rfile, num_bytes):
         return None
 
 def decode_ws_frame_from_stream(rfile, sock, send_lock):
-    """RFC 6455 웹소켓 프레임 디코딩 및 Ping/Pong 완벽 자동 처리"""
     try:
         header = recv_exact_stream(rfile, 2)
         if not header:
@@ -166,7 +122,6 @@ def decode_ws_frame_from_stream(rfile, sock, send_lock):
         b1, b2 = header[0], header[1]
         opcode = b1 & 0x0f
 
-        # 0x8: Connection Close
         if opcode == 0x8:
             return 'close', None
 
@@ -195,18 +150,17 @@ def decode_ws_frame_from_stream(rfile, sock, send_lock):
             for i in range(len(data)):
                 data[i] ^= mask[i % 4]
 
-        # 0x9: Ping -> 즉각 Pong(0xA) 응답 전송! (연결 영구 유지의 핵심)
+        # 0x9: Ping -> 즉각 Pong(0xA) 응답
         if opcode == 0x9:
             pong_frame = encode_ws_frame(data, opcode=0xA)
             safe_send_frame(sock, pong_frame, send_lock)
             return 'ping', None
 
-        # 0xA: Pong -> 하트비트 수신 완료
         if opcode == 0xA:
             return 'pong', None
 
         return 'text', data.decode('utf-8', errors='ignore')
-    except Exception as e:
+    except Exception:
         return None, None
 
 def broadcast_room(room_id, msg_obj, exclude_sock=None):
@@ -250,7 +204,7 @@ def cleanup_client(sock, reason='normal_close'):
         pass
 
     if old_room and cid:
-        print(f"[-] 신도 퇴장 ({reason}): {cid} (현재 {old_room} 성전 신도 수: {actual_count}명)", flush=True)
+        print(f"[-] 시민 퇴장 ({reason}): {cid} (현재 {old_room} 시민 수: {actual_count}명)", flush=True)
         broadcast_room(old_room, {
             'type': 'peer_leave',
             'id': cid,
@@ -268,7 +222,7 @@ def handle_websocket_loop(handler):
         pass
 
     client_id = os.urandom(6).hex()
-    current_room = 'KRW-BTC'
+    current_room = 'BUSAN-HQ'
 
     while True:
         status, msg_str = decode_ws_frame_from_stream(rfile, sock, send_lock)
@@ -284,12 +238,11 @@ def handle_websocket_loop(handler):
             mtype = msg.get('type')
 
             if mtype == 'ping':
-                # 클라이언트 애플리케이션 레벨 Ping
                 safe_send_frame(sock, encode_ws_frame(json.dumps({'type': 'pong'})), send_lock)
                 continue
 
             if mtype == 'join':
-                new_room = msg.get('room', 'KRW-BTC')
+                new_room = msg.get('room', 'BUSAN-HQ')
                 if new_room not in ROOMS:
                     ROOMS[new_room] = {}
 
@@ -301,7 +254,7 @@ def handle_websocket_loop(handler):
                             ROOMS[old_room].pop(client_id, None)
 
                 if old_room and old_room in ROOMS and old_room != new_room:
-                    print(f"[-] 신도 방 이동: {client_id} ({old_room} -> {new_room})", flush=True)
+                    print(f"[-] 시민 공간 이동: {client_id} ({old_room} -> {new_room})", flush=True)
                     broadcast_room(old_room, {
                         'type': 'peer_leave',
                         'id': client_id,
@@ -312,16 +265,16 @@ def handle_websocket_loop(handler):
                 with CLIENT_LOCK:
                     client_info = {
                         'id': client_id,
-                        'name': msg.get('name', '가즈아신도'),
+                        'name': msg.get('name', '부산시민_' + client_id[:4]),
                         'level': int(msg.get('level', 1)),
-                        'title': msg.get('title', '초신자'),
-                        'belt': msg.get('belt', 'long'),
-                        'robe': msg.get('robe', 'white'),
-                        'hat': msg.get('hat', 'halo'),
-                        'wings': msg.get('wings', 'angel'),
+                        'title': msg.get('title', '첫 방문 시민'),
+                        'robe': msg.get('robe', 'blue'),
+                        'hat': msg.get('hat', 'camellia'),
+                        'wings': msg.get('wings', 'seagull'),
+                        'belt': msg.get('belt', 'citizen'),
                         'x': float(msg.get('x', 0)),
                         'y': float(msg.get('y', 0)),
-                        'z': float(msg.get('z', 2)),
+                        'z': float(msg.get('z', 20)),
                         'ry': float(msg.get('ry', 0)),
                         'jump': bool(msg.get('jump', False)),
                         'act': 'idle'
@@ -333,24 +286,21 @@ def handle_websocket_loop(handler):
                     actual_count = len(ROOMS[current_room])
                     peer_list = [p['info'] for p in ROOMS[current_room].values() if p['info']['id'] != client_id]
 
-                print(f"[+] 신도 입장: [{client_info['title']}] {client_info['name']} ({client_id}) -> {current_room} (실제 성전 인원: {actual_count}명)", flush=True)
+                print(f"[+] 시민 입장: [{client_info['title']}] {client_info['name']} ({client_id}) -> {current_room} (총 {actual_count}명)", flush=True)
 
-                r_st = ROOM_STATE.get(current_room, {'ritual_gauge': 35, 'boss_hp': 100})
                 recent_chats = ROOM_CHAT_HISTORY.get(current_room, [])[-40:]
 
-                # 1. 환영 패킷 전송 (기존 접속자 목록 포함)
+                # 1. 환영 패킷 전송
                 safe_send_frame(sock, encode_ws_frame(json.dumps({
                     'type': 'welcome',
                     'id': client_id,
                     'room': current_room,
                     'peers': peer_list,
                     'count': actual_count,
-                    'ritual_gauge': r_st.get('ritual_gauge', 35),
-                    'boss_hp': r_st.get('boss_hp', 100),
                     'chat_history': recent_chats
                 })), send_lock)
 
-                # 2. 방 내 기존 신도들에게 새로운 신도 입장 즉시 브로드캐스트!
+                # 2. 룸 내 다른 시민들에게 알림
                 broadcast_room(current_room, {
                     'type': 'peer_join',
                     'peer': client_info,
@@ -381,8 +331,8 @@ def handle_websocket_loop(handler):
 
             elif mtype == 'level_up':
                 lvl = int(msg.get('level', 1))
-                ttl = msg.get('title', '초신자')
-                nm = msg.get('name', '신도')
+                ttl = msg.get('title', '시민 탐험가')
+                nm = msg.get('name', '부산시민')
                 with CLIENT_LOCK:
                     if client_id in CLIENT_META:
                         info = CLIENT_META[client_id]['info']
@@ -412,220 +362,461 @@ def handle_websocket_loop(handler):
                 }, exclude_sock=sock)
 
             elif mtype == 'update_look':
-                robe_val = msg.get('robe', 'white')
-                hat_val = msg.get('hat', 'halo')
-                wings_val = msg.get('wings', 'angel')
-                belt_val = msg.get('belt', 'long')
-                name_val = msg.get('name', '신도')
-
                 with CLIENT_LOCK:
                     if client_id in CLIENT_META:
                         info = CLIENT_META[client_id]['info']
-                        info['name'] = name_val
-                        info['robe'] = robe_val
-                        info['hat'] = hat_val
-                        info['wings'] = wings_val
-                        info['belt'] = belt_val
+                        info['name'] = msg.get('name', info['name'])
+                        info['robe'] = msg.get('robe', info['robe'])
+                        info['hat'] = msg.get('hat', info['hat'])
+                        info['wings'] = msg.get('wings', info['wings'])
+                        info['belt'] = msg.get('belt', info['belt'])
 
                 broadcast_room(current_room, {
                     'type': 'peer_update_look',
                     'id': client_id,
-                    'name': name_val,
-                    'robe': robe_val,
-                    'hat': hat_val,
-                    'wings': wings_val,
-                    'belt': belt_val
+                    'name': msg.get('name'),
+                    'robe': msg.get('robe'),
+                    'hat': msg.get('hat'),
+                    'wings': msg.get('wings'),
+                    'belt': msg.get('belt')
                 }, exclude_sock=sock)
 
-            elif mtype == 'testimony':
+            elif mtype == 'chat':
                 chat_entry = {
-                    'type': 'peer_testimony',
+                    'type': 'peer_chat',
                     'id': client_id,
-                    'name': msg.get('name', '신도'),
+                    'name': msg.get('name', '시민'),
+                    'title': msg.get('title', '시민'),
                     'text': msg.get('text', ''),
-                    'belt': msg.get('belt', 'long'),
+                    'scope': msg.get('scope', 'all'), # all, square, wall
                     'time': time.strftime("%H:%M")
                 }
-                print(f"[간증 대화] [{current_room}] {chat_entry['name']}: {chat_entry['text']}", flush=True)
+                print(f"[시민 채팅] [{current_room}] {chat_entry['name']}: {chat_entry['text']}", flush=True)
                 if current_room not in ROOM_CHAT_HISTORY:
                     ROOM_CHAT_HISTORY[current_room] = []
                 ROOM_CHAT_HISTORY[current_room].append(chat_entry)
                 if len(ROOM_CHAT_HISTORY[current_room]) > 100:
                     ROOM_CHAT_HISTORY[current_room].pop(0)
 
-                # 모든 신도에게 브로드캐스트
                 broadcast_room(current_room, chat_entry, exclude_sock=sock)
 
-            elif mtype == 'roulette':
+            elif mtype == 'shout_podium':
+                # 시민 발언대 외치기 (전체 공지 및 확성기 이펙트)
+                shout_text = msg.get('text', '부산을 더 살기 좋은 도시로!')
+                author_name = msg.get('name', '열혈시민')
+                print(f"[시민 발언대 외침!] {author_name}: {shout_text}", flush=True)
                 broadcast_room(current_room, {
-                    'type': 'peer_roulette',
-                    'name': msg.get('name', '신도'),
-                    'reward': msg.get('reward', '')
+                    'type': 'podium_broadcast',
+                    'id': client_id,
+                    'name': author_name,
+                    'text': shout_text,
+                    'time': time.strftime("%H:%M:%S")
                 })
 
-            elif mtype == 'ritual_add':
-                amount = int(msg.get('amount', 3))
-                if current_room not in ROOM_STATE:
-                    ROOM_STATE[current_room] = {'ritual_gauge': 0, 'boss_hp': 100}
-                r_st = ROOM_STATE[current_room]
-                r_st['ritual_gauge'] = min(100, r_st['ritual_gauge'] + amount)
-                is_max = r_st['ritual_gauge'] >= 100
+            elif mtype == 'stamp_collected':
+                # 스탬프 투어 수집 브로드캐스트
+                stamp_id = msg.get('stamp_id', '')
+                stamp_name = msg.get('stamp_name', '')
+                author_name = msg.get('name', '시민')
                 broadcast_room(current_room, {
-                    'type': 'ritual_update',
-                    'gauge': r_st['ritual_gauge'],
-                    'contributor': msg.get('name', '신도'),
-                    'act': msg.get('act', '기도')
-                })
-                if is_max:
-                    broadcast_room(current_room, {
-                        'type': 'ritual_ascension',
-                        'bonusExp': 200
-                    })
-                    def reset_ritual(rm):
-                        time.sleep(14)
-                        if rm in ROOM_STATE:
-                            ROOM_STATE[rm]['ritual_gauge'] = 15
-                            broadcast_room(rm, {'type': 'ritual_update', 'gauge': 15})
-                    threading.Thread(target=reset_ritual, args=(current_room,), daemon=True).start()
-
-            elif mtype == 'boss_hit':
-                dmg = int(msg.get('dmg', 8))
-                if current_room not in ROOM_STATE:
-                    ROOM_STATE[current_room] = {'ritual_gauge': 35, 'boss_hp': 100}
-                r_st = ROOM_STATE[current_room]
-                r_st['boss_hp'] = max(0, r_st['boss_hp'] - dmg)
-                is_dead = r_st['boss_hp'] <= 0
-                broadcast_room(current_room, {
-                    'type': 'boss_update',
-                    'hp': r_st['boss_hp'],
-                    'attacker': msg.get('name', '신도'),
-                    'dmg': dmg
-                })
-                if is_dead:
-                    broadcast_room(current_room, {
-                        'type': 'boss_defeated',
-                        'bonusExp': 150
-                    })
-                    def respawn_boss(rm):
-                        time.sleep(40)
-                        if rm in ROOM_STATE:
-                            ROOM_STATE[rm]['boss_hp'] = 100
-                            broadcast_room(rm, {'type': 'boss_respawn', 'hp': 100})
-                    threading.Thread(target=respawn_boss, args=(current_room,), daemon=True).start()
-
-            elif mtype == 'bull_buff':
-                broadcast_room(current_room, {
-                    'type': 'peer_bull_buff',
-                    'name': msg.get('name', '신도')
-                })
-
-            elif mtype == 'summit_bell':
-                broadcast_room(current_room, {
-                    'type': 'peer_summit_bell',
-                    'name': msg.get('name', '신도')
-                })
+                    'type': 'peer_stamp',
+                    'id': client_id,
+                    'name': author_name,
+                    'stamp_id': stamp_id,
+                    'stamp_name': stamp_name
+                }, exclude_sock=sock)
 
         except Exception as e:
-            print(f"[WS_MSG_EXCEPTION] {client_id}: {e}", flush=True)
+            print(f"[WS_EXCEPTION] {client_id}: {e}", flush=True)
             break
 
     cleanup_client(sock, reason='loop_exit')
 
-class CultistHTTPHandler(SimpleHTTPRequestHandler):
+
+def get_web_root():
+    """웹 리소스(index.html, style.css 등)의 실제 위치를 어떤 실행 환경에서도 안정적으로 탐색"""
+    candidates = []
+    # 1. PyInstaller _MEIPASS
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        candidates.append(getattr(sys, '_MEIPASS'))
+    # 2. 실행 파일 디렉터리 및 상위 디렉터리 (dist/.. 포함)
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        candidates.append(exe_dir)
+        candidates.append(os.path.dirname(exe_dir))
+    # 3. 소스 코드 위치 및 상위 디렉터리
+    file_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(file_dir)
+    candidates.append(os.path.dirname(file_dir))
+    # 4. 현재 작업 디렉터리
+    candidates.append(os.getcwd())
+
+    for c in candidates:
+        if c and os.path.exists(os.path.join(c, 'index.html')):
+            return os.path.abspath(c)
+    return os.getcwd()
+
+WEB_ROOT = get_web_root()
+print(f"[부산ON] 정적 파일 서빙 디렉터리: {WEB_ROOT}", flush=True)
+
+
+class BusanCivicHTTPHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=WEB_ROOT, **kwargs)
+
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.end_headers()
+
     def do_GET(self):
-        # 1. 실제 주식 시세 REST API 제공
-        if self.path.startswith('/api/stock-prices'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json; charset=utf-8')
-            self.send_header('Cache-Control', 'no-cache')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps(REAL_STOCK_DATA).encode('utf-8'))
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        # 루트('/') 접근 시 index.html 로 기본 라우팅
+        if path in ('', '/', '/index', '/index.htm'):
+            self.path = '/index.html'
+            path = '/index.html'
+
+        qs = urllib.parse.parse_qs(parsed.query)
+
+        # 1. 16개 구·군청 메타데이터
+        if path == '/api/districts':
+            self.send_json_response(busan_data.BUSAN_DISTRICTS)
             return
 
-        # 2. WebSocket 업그레이드 감지 (대소문자/복합 헤더 완벽 지원)
+        # 2. 부산시청 층별 사무실 안내 (from sejong-office-app)
+        if path == '/api/office-search':
+            floor_kw = qs.get('floor', [''])[0].strip()
+            q = qs.get('q', [''])[0].strip().lower()
+
+            results = []
+            for fl in busan_data.BUSAN_OFFICE_FLOORS:
+                if floor_kw and floor_kw not in fl['floor']:
+                    continue
+                for off in fl['offices']:
+                    if not q or (q in off['name'].lower() or q in off['dept'].lower() or q in off['duties'].lower() or q in off['room'].lower()):
+                        results.append({
+                            "floor": fl['floor'],
+                            "floor_name": fl['name'],
+                            **off
+                        })
+            self.send_json_response(results)
+            return
+
+        # 3. 소관부서 & 사무분장 판별 (from division-in-charge)
+        if path == '/api/division-search':
+            q = qs.get('q', [''])[0].strip().lower()
+            results = []
+            for item in busan_data.DIVISION_KNOWLEDGE_BASE:
+                match = False
+                if not q:
+                    match = True
+                else:
+                    for kw in item['keyword']:
+                        if kw.lower() in q or q in kw.lower():
+                            match = True
+                            break
+                    if q in item['task_name'].lower() or q in item['dept_city'].lower() or q in item['dept_district'].lower():
+                        match = True
+                if match:
+                    results.append(item)
+            self.send_json_response(results)
+            return
+
+        # 4. 실제 부산시청 사진 및 구조 갤러리 데이터
+        if path == '/api/busan-photos':
+            self.send_json_response(busan_data.BUSAN_PHOTO_GALLERY)
+            return
+
+        # 5. 시민 자유담벼락 게시물 목록
+        if path == '/api/wall':
+            category = qs.get('cat', ['전체'])[0]
+            with WALL_LOCK:
+                posts = list(WALL_POSTS)
+            if category and category != '전체':
+                posts = [p for p in posts if p.get('category') == category]
+            self.send_json_response(posts)
+            return
+
+        # 6. WebSocket 업그레이드 감지
         upgrade = self.headers.get('Upgrade', '').lower()
         connection = self.headers.get('Connection', '').lower()
         if 'websocket' in upgrade or 'upgrade' in connection:
             ws_key = self.headers.get('Sec-WebSocket-Key')
             if ws_key:
-                sock = self.connection
-                try:
-                    sock.settimeout(None)
-                except Exception:
-                    pass
-                sock.sendall(make_ws_handshake(ws_key))
+                handshake_bytes = make_ws_handshake(ws_key)
+                self.connection.sendall(handshake_bytes)
                 handle_websocket_loop(self)
                 return
 
-        # 3. 일반 정적 HTTP 파일 서빙
         super().do_GET()
 
-    def end_headers(self):
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        super().end_headers()
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        content_len = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_len).decode('utf-8', errors='ignore') if content_len > 0 else '{}'
 
-    def log_message(self, format, *args):
-        pass
-
-def get_resource_dir():
-    if getattr(sys, 'frozen', False):
-        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-        if os.path.exists(os.path.join(exe_dir, 'index.html')):
-            return exe_dir
-        bundle_dir = getattr(sys, '_MEIPASS', exe_dir)
-        if os.path.exists(os.path.join(bundle_dir, 'index.html')):
-            return bundle_dir
-        return exe_dir
-    return os.path.dirname(os.path.abspath(__file__))
-
-HTTP_SERVER_INSTANCE = None
-
-def start_server(port=PORT):
-    global HTTP_SERVER_INSTANCE
-    r_dir = get_resource_dir()
-    os.chdir(r_dir)
-
-    try:
-        class BoundCultistHandler(CultistHTTPHandler):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, directory=r_dir, **kwargs)
-
-        HTTP_SERVER_INSTANCE = ThreadingHTTPServer(('0.0.0.0', port), BoundCultistHandler)
-        threading.Thread(target=fetch_real_stocks_loop, daemon=True).start()
-        print("=" * 65, flush=True)
-        print(" † 대한예수교 떡상장로회 [가즈아교 온라인 대성전] 통합 서버 가동 †", flush=True)
-        print(f" 🌐 로컬 접속 주소: http://localhost:{port}/index.html", flush=True)
-        print(" - 단일 포트(8080) HTTP 웹 서빙 + WebSocket 멀티플레이 통합 완비", flush=True)
-        print(" - 실제 접속자 수 100% 정직 반영 & 실시간 캐릭터/채팅 동기화", flush=True)
-        print("=" * 65, flush=True)
-        HTTP_SERVER_INSTANCE.serve_forever()
-    except OSError as e:
-        if "Address already in use" in str(e) or getattr(e, 'winerror', None) == 10048:
-            print(f"[*] 포트 {port}가 이미 사용 중입니다. 기존 가동 중인 서버와 연동됩니다.", flush=True)
-        else:
-            print(f"[!] 서버 시작 오류: {e}", flush=True)
-
-def stop_server():
-    global HTTP_SERVER_INSTANCE
-    if HTTP_SERVER_INSTANCE:
         try:
-            HTTP_SERVER_INSTANCE.shutdown()
+            payload = json.loads(body)
         except Exception:
-            pass
+            payload = {}
 
-def start_server_in_background(port=PORT):
-    th = threading.Thread(target=start_server, args=(port,), daemon=True)
-    th.start()
-    return th
+        # 1. AI 행정안내원 (다온 & 부기) 질의응답
+        if path == '/api/ai-guide':
+            question = payload.get('question', '').strip()
+            answer_data = self.generate_ai_guide_response(question)
+            self.send_json_response(answer_data)
+            return
 
-def main():
+        # 2. 시민 담벼락 새 글 등록
+        if path == '/api/wall':
+            title = payload.get('title', '').strip()
+            content = payload.get('content', '').strip()
+            author = payload.get('author', '익명시민').strip() or '익명시민'
+            category = payload.get('category', '불만외치기')
+            district = payload.get('district', '연제구')
+
+            if not title or not content:
+                self.send_error_response("제목과 내용을 모두 입력해 주세요.", 400)
+                return
+
+            new_post = {
+                "id": "post-" + os.urandom(4).hex(),
+                "author": author,
+                "category": category,
+                "title": title,
+                "content": content,
+                "district": district,
+                "time": time.strftime("오늘 %H:%M"),
+                "likes": 1,
+                "comments": []
+            }
+
+            with WALL_LOCK:
+                WALL_POSTS.insert(0, new_post)
+                save_wall_posts(WALL_POSTS)
+
+            # 웹소켓 룸에도 공지 브로드캐스트
+            broadcast_room('BUSAN-HQ', {
+                'type': 'wall_new_post',
+                'post': new_post
+            })
+
+            self.send_json_response({"success": True, "post": new_post})
+            return
+
+        # 3. 시민 담벼락 공감/좋아요
+        if path == '/api/wall/like':
+            post_id = payload.get('post_id')
+            updated_likes = 0
+            with WALL_LOCK:
+                for p in WALL_POSTS:
+                    if p['id'] == post_id:
+                        p['likes'] = p.get('likes', 0) + 1
+                        updated_likes = p['likes']
+                        break
+                save_wall_posts(WALL_POSTS)
+            self.send_json_response({"success": True, "likes": updated_likes})
+            return
+
+        # 4. 시민 담벼락 댓글 등록
+        if path == '/api/wall/comment':
+            post_id = payload.get('post_id')
+            comment_text = payload.get('text', '').strip()
+            comment_author = payload.get('author', '시민').strip()
+
+            if not post_id or not comment_text:
+                self.send_error_response("댓글 내용을 입력해 주세요.", 400)
+                return
+
+            new_comment = {
+                "author": comment_author,
+                "text": comment_text,
+                "time": time.strftime("%H:%M")
+            }
+
+            with WALL_LOCK:
+                for p in WALL_POSTS:
+                    if p['id'] == post_id:
+                        if 'comments' not in p:
+                            p['comments'] = []
+                        p['comments'].append(new_comment)
+                        break
+                save_wall_posts(WALL_POSTS)
+
+            self.send_json_response({"success": True, "comment": new_comment})
+            return
+
+        self.send_error(404, "Not Found")
+
+    def send_json_response(self, data_obj, code=200):
+        body_bytes = json.dumps(data_obj, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Length', str(len(body_bytes)))
+        self.end_headers()
+        self.wfile.write(body_bytes)
+
+    def send_error_response(self, message, code=400):
+        self.send_json_response({"error": message}, code=code)
+
+    def generate_ai_guide_response(self, q):
+        """
+        다온 & 부기 AI 행정안내원:
+        - 시민의 자연어 질의 분석
+        - 소관 기관(부산시청 본청 vs 16개 구청 vs 특수기관) 명확 판별
+        - 담당 부서, 전화번호, 층수 매칭
+        - 법령 및 조례 근거 제시
+        - 공식 민원 접수처(부산민원120, 안전신문고, 정부24) 링크 안내
+        - 비공식 참고용 고지 배지
+        """
+        q_lower = q.lower()
+        matched_item = None
+
+        # 1. 지식 베이스 키워드 검색
+        for item in busan_data.DIVISION_KNOWLEDGE_BASE:
+            for kw in item['keyword']:
+                if kw in q_lower:
+                    matched_item = item
+                    break
+            if matched_item:
+                break
+
+        # 2. 층별 사무실 검색 연계
+        matched_office = None
+        for fl in busan_data.BUSAN_OFFICE_FLOORS:
+            for off in fl['offices']:
+                if any(w in off['name'].lower() or w in off['duties'].lower() for w in q_lower.split()):
+                    matched_office = {**off, "floor": fl['floor']}
+                    break
+            if matched_office:
+                break
+
+        if matched_item:
+            answer_text = (
+                f"문의하신 사안은 **[{matched_item['task_name']}]** 관련 업무입니다.\n\n"
+                f"📌 **관할 구분:** {matched_item['authority']}\n"
+                f"🏢 **부산시청 담당:** {matched_item['dept_city']}\n"
+                f"🏛️ **자치구·군 담당:** {matched_item['dept_district']}\n\n"
+                f"💡 **처리 안내 및 팁:**\n{matched_item['rule_summary']}\n\n"
+                f"📜 **관련 법령/근거:** {matched_item['legal_basis']}\n"
+                f"🚀 **신속한 접수 경로:** {matched_item['official_action']}"
+            )
+            return {
+                "success": True,
+                "found": True,
+                "task_name": matched_item['task_name'],
+                "authority": matched_item['authority'],
+                "answer": answer_text,
+                "dept_city": matched_item['dept_city'],
+                "dept_district": matched_item['dept_district'],
+                "legal_basis": matched_item['legal_basis'],
+                "official_portals": [
+                    {"name": "부산민원120 콜센터", "url": "tel:051-120", "desc": "국번없이 120 (평일 08:30~18:30)"},
+                    {"name": "안전신문고", "url": "https://www.safetyreport.go.kr", "desc": "도로파손·불법주정차 앱 간편 신고"},
+                    {"name": "부산광역시 공식 민원창구", "url": "https://www.busan.go.kr/minwon120", "desc": "통합민원 온라인 신청"},
+                    {"name": "정부24", "url": "https://www.gov.kr", "desc": "각종 행정증명서 발급 및 신고"}
+                ],
+                "badge": "공식 행정자료 기반 안내",
+                "disclaimer": "본 답변은 행정 편의를 돕기 위한 비공식 AI 가이드이며, 법적 민원 접수나 처분 효력이 없습니다. 정확한 행정처리는 공식 창구를 통해 주시기 바랍니다."
+            }
+
+        elif matched_office:
+            answer_text = (
+                f"문의하신 내용과 가장 밀접한 부서는 **부산시청 {matched_office['floor']} [{matched_office['dept']} - {matched_office['name']}]**입니다.\n\n"
+                f"📞 **직통 연락처:** {matched_office['tel']}\n"
+                f"📍 **위치:** 부산시청 본관 {matched_office['floor']} {matched_office['room']}\n"
+                f"📋 **소관 업무:** {matched_office['duties']}\n\n"
+                f"직접 방문하시기 전에 해당 부서에 전화로 필요 구비서류를 미리 문의하시면 시간을 크게 절약하실 수 있습니다!"
+            )
+            return {
+                "success": True,
+                "found": True,
+                "task_name": matched_office['name'],
+                "authority": "부산광역시 본청",
+                "answer": answer_text,
+                "dept_city": f"{matched_office['dept']} ({matched_office['tel']})",
+                "dept_district": "시 본청 소관 또는 해당 구청 연계",
+                "legal_basis": "부산광역시 행정기구 설치 조례",
+                "official_portals": [
+                    {"name": "부산시 콜센터 120", "url": "tel:051-120", "desc": "051-120 (전화 연결)"},
+                    {"name": "부산시청 종합안내", "url": "https://www.busan.go.kr/bhintro04", "desc": "청사 층별 종합안내도"}
+                ],
+                "badge": "청사 부서 안내 매칭",
+                "disclaimer": "부서 개편이나 업무 분장에 따라 변경될 수 있으니 방문 전 120 콜센터 또는 해당 부서 직통번호로 확인해 주세요."
+            }
+
+        else:
+            answer_text = (
+                f"입력하신 질문에 대해 가장 적절한 안내 창구를 종합 검토하였습니다.\n\n"
+                f"부산시청 및 16개 구·군의 방대한 행정 사무 중 정확한 소관부서 매칭을 위해,\n"
+                f"국번 없이 **☎ 051-120 (부산시 통합민원 120 바로콜센터)**로 전화 주시면 상담원이 즉시 담당 공무원 직통 전화로 연결해 드립니다.\n\n"
+                f"또한 아래의 [소관부서 검색기] 탭에서 '포트홀', '불법주차', '여권', '청년지원' 등 단어 단위로 검색해 보실 수 있습니다."
+            )
+            return {
+                "success": True,
+                "found": False,
+                "task_name": "일반 행정 질의",
+                "authority": "부산시 120 바로콜센터 문의 권장",
+                "answer": answer_text,
+                "dept_city": "부산시청 통합민원과 (051-888-1451)",
+                "dept_district": "해당 거주지 구·군청 민원실",
+                "legal_basis": "민원 처리에 관한 법률",
+                "official_portals": [
+                    {"name": "부산민원 120", "url": "tel:051-120", "desc": "국번없이 120"},
+                    {"name": "부산시 대표포털", "url": "https://www.busan.go.kr", "desc": "공식 시정소식 및 민원안내"}
+                ],
+                "badge": "일반 행정 가이드",
+                "disclaimer": "비공식 참고용 안내입니다. 법적 공식 민원은 부산민원120 또는 안전신문고를 이용해 주세요."
+            }
+
+_GLOBAL_HTTPD = None
+
+def run_server(port=PORT):
+    global _GLOBAL_HTTPD
+    server_address = ('0.0.0.0', port)
+    _GLOBAL_HTTPD = ThreadingHTTPServer(server_address, BusanCivicHTTPHandler)
+    print("=" * 65, flush=True)
+    print(f" [부산ON 월드] 부산광역시청 시민소통 메타버스 서버 시작!", flush=True)
+    print(f" - 서비스 주소: http://localhost:{port}", flush=True)
+    print(f" - 지원 공간: 부산시청 본청(시민광장·들락날락·행복민원실) + 16개 구·군청", flush=True)
+    print(f" - 통합 엔진: 소관부서 검색기 + 청사 사무실 안내 + AI 행정안내소", flush=True)
+    print("=" * 65, flush=True)
     try:
-        start_server()
+        _GLOBAL_HTTPD.serve_forever()
     except KeyboardInterrupt:
-        print("\n서버를 종료합니다.", flush=True)
+        print("\n서버를 안전하게 종료합니다.")
         stop_server()
 
-if __name__ == "__main__":
-    main()
+def start_server_in_background(port=PORT):
+    global _GLOBAL_HTTPD
+    server_address = ('0.0.0.0', port)
+    _GLOBAL_HTTPD = ThreadingHTTPServer(server_address, BusanCivicHTTPHandler)
+    t = threading.Thread(target=_GLOBAL_HTTPD.serve_forever, daemon=True)
+    t.start()
+    print(f" [부산ON 월드] 백그라운드 서버 가동 (포트 {port})", flush=True)
+    return t
+
+def stop_server():
+    global _GLOBAL_HTTPD
+    if _GLOBAL_HTTPD:
+        try:
+            _GLOBAL_HTTPD.shutdown()
+            _GLOBAL_HTTPD.server_close()
+        except Exception:
+            pass
+        _GLOBAL_HTTPD = None
+        print(" [부산ON 월드] 서버 종료 완료", flush=True)
+
+if __name__ == '__main__':
+    run_server()
