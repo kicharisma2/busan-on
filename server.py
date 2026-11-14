@@ -303,7 +303,9 @@ def handle_websocket_loop(handler):
                 # 2. 룸 내 다른 시민들에게 알림
                 broadcast_room(current_room, {
                     'type': 'peer_join',
+                    'id': client_id,
                     'peer': client_info,
+                    'info': client_info,
                     'count': actual_count
                 }, exclude_sock=sock)
 

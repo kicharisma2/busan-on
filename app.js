@@ -1,7 +1,7 @@
 // ========================================================
-// 부산ON 월드 (BUSAN ON WORLD) - 메인 3D 메타버스 엔진
+// 부산ON 월드 (BUSAN ON WORLD) - 프리미엄 3D 메타버스 엔진
 // 부산광역시청 5대 시민광장, 1층 들락날락 도서관, 2층 행복민원실
-// SD 치비 시민 아바타 시스템, 물리 충돌 및 층간 계단 이동, 실시간 멀티플레이
+// 프로시저럴 텍스처, 톤매핑 & 고대비 조명, SD 치비 아바타, 실시간 멀티플레이
 // ========================================================
 
 // --------------------------------------------------------
@@ -17,14 +17,13 @@ const STATE = {
   wingsType: "seagull",
   currentRoom: "BUSAN-HQ",
   onlineCount: 1,
-  peers: {},             // { id: { mesh, info, targetPos, targetRotY, isWalking, nameTagMesh, bubbleMesh } }
+  peers: {},             // { id: { mesh, info, targetPos, targetRotY } }
   keys: { w: false, a: false, s: false, d: false, space: false, shift: false },
   joystickDir: { x: 0, y: 0 },
   clickTargetPos: null,
   activeHostUrl: null,
   ws: null,
   lastMoveSend: 0,
-  lastPingTime: 0,
   stamps: { anchor: false, lighthouse: false, lobby: false, civil: false },
   quizIndex: 0,
   quizScore: 0,
@@ -32,14 +31,14 @@ const STATE = {
 };
 
 const COLOR_PALETTE = {
-  blue: 0x0284c7,     // 부산 마린 블루
-  white: 0xf8fafc,    // 순백 화이트
+  blue: 0x0284c7,     // 부산 마린 로얄 블루 (고대비 선명도)
+  white: 0xffffff,    // 순백 화이트
   camellia: 0xe11d48, // 동백꽃 레드
   gold: 0xf59e0b,     // 햇살 골드
   green: 0x10b981     // 녹음 그린
 };
 
-// 3D 렌더링 핵심 전역 변수
+// 3D 렌더링 전역 변수
 let scene, camera, renderer, controls, clock;
 let localPlayer = null;
 let clickMarkerMesh = null;
@@ -50,13 +49,155 @@ let interactiveObjects = [];
 let lighthouseBeamMesh = null;
 let busanCityHallObstacles = [];
 
+// 프로시저럴 텍스처 캐시
+const TEXTURES = {};
+
 // ========================================================
-// 2. 호스트 서버 자동 감지 및 API URL 헬퍼
+// 2. 프로시저럴 고품질 텍스처 생성기 (외장 에셋 없이 즉각 로드)
+// ========================================================
+function createProceduralTextures() {
+  // (1) 시민광장 화강석 석재 타일 (Stone Plaza Tiles)
+  const c1 = document.createElement('canvas');
+  c1.width = 512;
+  c1.height = 512;
+  const ctx1 = c1.getContext('2d');
+  ctx1.fillStyle = '#e2e8f0';
+  ctx1.fillRect(0, 0, 512, 512);
+
+  // 미세 석재 노이즈
+  for (let i = 0; i < 20000; i++) {
+    const nx = Math.random() * 512;
+    const ny = Math.random() * 512;
+    ctx1.fillStyle = Math.random() > 0.5 ? '#cbd5e1' : '#f8fafc';
+    ctx1.fillRect(nx, ny, 2, 2);
+  }
+
+  // 타일 줄눈 (Grid lines)
+  ctx1.strokeStyle = '#94a3b8';
+  ctx1.lineWidth = 4;
+  for (let x = 0; x <= 512; x += 128) {
+    ctx1.beginPath(); ctx1.moveTo(x, 0); ctx1.lineTo(x, 512); ctx1.stroke();
+  }
+  for (let y = 0; y <= 512; y += 128) {
+    ctx1.beginPath(); ctx1.moveTo(0, y); ctx1.lineTo(512, y); ctx1.stroke();
+  }
+  TEXTURES.plaza = new THREE.CanvasTexture(c1);
+  TEXTURES.plaza.wrapS = THREE.RepeatWrapping;
+  TEXTURES.plaza.wrapT = THREE.RepeatWrapping;
+  TEXTURES.plaza.repeat.set(8, 8);
+
+  // (2) 1층 로비 광택 대리석 (Polished Marble Floor)
+  const c2 = document.createElement('canvas');
+  c2.width = 512;
+  c2.height = 512;
+  const ctx2 = c2.getContext('2d');
+  ctx2.fillStyle = '#f8fafc';
+  ctx2.fillRect(0, 0, 512, 512);
+  // 은은한 회색 마블 마블링 베인
+  ctx2.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+  ctx2.lineWidth = 6;
+  ctx2.beginPath();
+  ctx2.moveTo(40, 0);
+  ctx2.bezierCurveTo(180, 160, 240, 360, 480, 512);
+  ctx2.stroke();
+
+  ctx2.beginPath();
+  ctx2.moveTo(0, 320);
+  ctx2.bezierCurveTo(200, 240, 320, 120, 512, 80);
+  ctx2.stroke();
+
+  // 대리석 대형 타일 라인
+  ctx2.strokeStyle = '#cbd5e1';
+  ctx2.lineWidth = 2;
+  for (let x = 0; x <= 512; x += 256) {
+    ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, 512); ctx2.stroke();
+  }
+  for (let y = 0; y <= 512; y += 256) {
+    ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(512, y); ctx2.stroke();
+  }
+  TEXTURES.marble = new THREE.CanvasTexture(c2);
+  TEXTURES.marble.wrapS = THREE.RepeatWrapping;
+  TEXTURES.marble.wrapT = THREE.RepeatWrapping;
+  TEXTURES.marble.repeat.set(8, 5);
+
+  // (3) 시청 고층 유리 타워 커튼월 (Modern Glass Curtain Wall)
+  const c3 = document.createElement('canvas');
+  c3.width = 512;
+  c3.height = 512;
+  const ctx3 = c3.getContext('2d');
+  ctx3.fillStyle = '#0284c7';
+  ctx3.fillRect(0, 0, 512, 512);
+
+  // 창문 유리 패널 격자 & 조명 반사
+  for (let y = 0; y < 512; y += 64) {
+    for (let x = 0; x < 512; x += 32) {
+      ctx3.fillStyle = Math.random() > 0.4 ? '#38bdf8' : '#7dd3fc';
+      ctx3.fillRect(x + 2, y + 4, 28, 56);
+      // 창문 내부 은은한 시정 사무실 불빛
+      if (Math.random() > 0.6) {
+        ctx3.fillStyle = 'rgba(254, 240, 138, 0.45)';
+        ctx3.fillRect(x + 4, y + 10, 24, 24);
+      }
+    }
+  }
+  // 수직 알루미늄 멀리언
+  ctx3.strokeStyle = '#0f172a';
+  ctx3.lineWidth = 3;
+  for (let x = 0; x <= 512; x += 32) {
+    ctx3.beginPath(); ctx3.moveTo(x, 0); ctx3.lineTo(x, 512); ctx3.stroke();
+  }
+  TEXTURES.glassTower = new THREE.CanvasTexture(c3);
+  TEXTURES.glassTower.wrapS = THREE.RepeatWrapping;
+  TEXTURES.glassTower.wrapT = THREE.RepeatWrapping;
+  TEXTURES.glassTower.repeat.set(6, 6);
+
+  // (4) 2층 및 야외무대 따뜻한 원목 마루 (Wood Floor)
+  const c4 = document.createElement('canvas');
+  c4.width = 512;
+  c4.height = 512;
+  const ctx4 = c4.getContext('2d');
+  ctx4.fillStyle = '#b45309';
+  ctx4.fillRect(0, 0, 512, 512);
+  for (let y = 0; y < 512; y += 32) {
+    ctx4.fillStyle = (y / 32) % 2 === 0 ? '#92400e' : '#b45309';
+    ctx4.fillRect(0, y, 512, 30);
+  }
+  ctx4.strokeStyle = '#78350f';
+  ctx4.lineWidth = 2;
+  for (let y = 0; y <= 512; y += 32) {
+    ctx4.beginPath(); ctx4.moveTo(0, y); ctx4.lineTo(512, y); ctx4.stroke();
+  }
+  TEXTURES.wood = new THREE.CanvasTexture(c4);
+  TEXTURES.wood.wrapS = THREE.RepeatWrapping;
+  TEXTURES.wood.wrapT = THREE.RepeatWrapping;
+  TEXTURES.wood.repeat.set(6, 6);
+
+  // (5) 푸른 잔디 공원 텍스처 (Grass)
+  const c5 = document.createElement('canvas');
+  c5.width = 512;
+  c5.height = 512;
+  const ctx5 = c5.getContext('2d');
+  ctx5.fillStyle = '#22c55e';
+  ctx5.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 30000; i++) {
+    const gx = Math.random() * 512;
+    const gy = Math.random() * 512;
+    ctx5.fillStyle = Math.random() > 0.5 ? '#16a34a' : '#4ade80';
+    ctx5.fillRect(gx, gy, 2, 3);
+  }
+  TEXTURES.grass = new THREE.CanvasTexture(c5);
+  TEXTURES.grass.wrapS = THREE.RepeatWrapping;
+  TEXTURES.grass.wrapT = THREE.RepeatWrapping;
+  TEXTURES.grass.repeat.set(16, 16);
+}
+
+// ========================================================
+// 3. 호스트 서버 자동 감지 (Gist Raw 무제한 통신)
 // ========================================================
 const GIST_REGISTRY_ID = "8bd7ddc5c6df9538c8092e1f01c9b2fa";
 
 async function autoDiscoverHostServer() {
-  // 1. 이미 지정된 로컬/사용자 호스트가 있다면 사용
+  // 1. 수동 지정 호스트 확인
   const savedHost = localStorage.getItem('busan_custom_host');
   if (savedHost) {
     STATE.activeHostUrl = savedHost;
@@ -64,7 +205,7 @@ async function autoDiscoverHostServer() {
     return savedHost;
   }
 
-  // 2. 로컬호스트 실행 환경인 경우
+  // 2. 로컬호스트 실행 환경 확인
   const loc = window.location;
   if (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1' || loc.port === '8080') {
     STATE.activeHostUrl = `${loc.protocol}//${loc.host}`;
@@ -72,26 +213,27 @@ async function autoDiscoverHostServer() {
     return STATE.activeHostUrl;
   }
 
-  // 3. GitHub Pages 환경: Gist에서 실시간 Cloudflare 공인 호스트 주소 획득
-  updateServerStatusUI(false, "호스트 서버 탐색 중...");
+  // 3. GitHub Pages: Gist Raw URL 직접 호출 (Rate Limit 403 제약 완전 없음!)
+  updateServerStatusUI(false, "글로벌 호스트 탐색 중...");
+  const cacheBuster = Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   try {
-    const gistRes = await fetch(`https://api.github.com/gists/${GIST_REGISTRY_ID}?t=${Date.now()}`);
-    if (gistRes.ok) {
-      const gistData = await gistRes.json();
-      if (gistData.files && gistData.files['host.json']) {
-        const hostInfo = JSON.parse(gistData.files['host.json'].content);
-        if (hostInfo.status === 'online' && hostInfo.url) {
-          STATE.activeHostUrl = hostInfo.url.replace(/\/+$/, '');
-          updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
-          return STATE.activeHostUrl;
-        }
+    const rawRes = await fetch(`https://gist.githubusercontent.com/kicharisma2/${GIST_REGISTRY_ID}/raw/host.json?_nocache=${cacheBuster}`, {
+      cache: 'no-store'
+    });
+    if (rawRes.ok) {
+      const hostInfo = await rawRes.json();
+      if (hostInfo && hostInfo.status === 'online' && (hostInfo.url || hostInfo.host)) {
+        const cleanHost = (hostInfo.url || hostInfo.host).replace(/\/+$/, '');
+        STATE.activeHostUrl = cleanHost;
+        updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
+        console.log("[부산ON] Gist Raw 호스트 실시간 연동 성공:", cleanHost);
+        return cleanHost;
       }
     }
   } catch (err) {
-    console.warn("[부산ON] Gist 레지스트리 조회 실패:", err);
+    console.warn("[부산ON] Gist Raw 호스트 조회 실패:", err);
   }
 
-  // 4. Fallback: 기본 로컬 주소
   STATE.activeHostUrl = "http://localhost:8080";
   updateServerStatusUI(false, "로컬 대기 모드");
   return STATE.activeHostUrl;
@@ -114,85 +256,97 @@ function updateServerStatusUI(online, text) {
 }
 
 // ========================================================
-// 3. Three.js 씬 초기화 및 환경광 / 그림자
+// 4. Three.js 씬 초기화 및 톤매핑 / 고대비 조명
 // ========================================================
 const SHARED_GEO = {};
 const SHARED_MAT = {};
 
 function initSharedGeometries() {
-  SHARED_GEO.head = new THREE.SphereGeometry(0.38, 20, 18);
-  SHARED_GEO.eye = new THREE.SphereGeometry(0.048, 12, 10);
-  SHARED_GEO.shine = new THREE.SphereGeometry(0.02, 8, 8);
-  SHARED_GEO.blush = new THREE.SphereGeometry(0.052, 10, 8);
-  SHARED_GEO.body = new THREE.CylinderGeometry(0.24, 0.36, 0.58, 18);
-  SHARED_GEO.limb = new THREE.CylinderGeometry(0.08, 0.08, 0.36, 12);
-  SHARED_GEO.camelliaFlower = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 8);
-  SHARED_GEO.camelliaCenter = new THREE.SphereGeometry(0.045, 8, 8);
-  SHARED_GEO.halo = new THREE.TorusGeometry(0.34, 0.038, 10, 24);
-  SHARED_GEO.wing = new THREE.BoxGeometry(0.42, 0.18, 0.03);
+  SHARED_GEO.head = new THREE.SphereGeometry(0.44, 24, 22);
+  SHARED_GEO.hair = new THREE.SphereGeometry(0.48, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.6);
+  SHARED_GEO.hairBangs = new THREE.BoxGeometry(0.38, 0.18, 0.14);
+  SHARED_GEO.eye = new THREE.SphereGeometry(0.065, 14, 12);
+  SHARED_GEO.shine = new THREE.SphereGeometry(0.024, 10, 10);
+  SHARED_GEO.blush = new THREE.SphereGeometry(0.068, 12, 10);
+  SHARED_GEO.mouth = new THREE.TorusGeometry(0.045, 0.016, 8, 14, Math.PI);
+  SHARED_GEO.body = new THREE.CylinderGeometry(0.26, 0.38, 0.62, 20);
+  SHARED_GEO.limb = new THREE.CylinderGeometry(0.09, 0.09, 0.38, 12);
+  SHARED_GEO.shoe = new THREE.BoxGeometry(0.16, 0.08, 0.24);
+  SHARED_GEO.camelliaFlower = new THREE.CylinderGeometry(0.14, 0.14, 0.04, 8);
+  SHARED_GEO.camelliaCenter = new THREE.SphereGeometry(0.05, 8, 8);
+  SHARED_GEO.halo = new THREE.TorusGeometry(0.36, 0.04, 10, 24);
+  SHARED_GEO.wing = new THREE.BoxGeometry(0.48, 0.22, 0.04);
+  SHARED_GEO.shadowDecal = new THREE.CircleGeometry(0.42, 18);
 
   SHARED_MAT.skin = new THREE.MeshStandardMaterial({ color: 0xffdfd3, roughness: 0.45 });
-  SHARED_MAT.eye = new THREE.MeshBasicMaterial({ color: 0x111827 });
+  SHARED_MAT.hair = new THREE.MeshStandardMaterial({ color: 0x24140e, roughness: 0.6 }); // 또렷한 흑갈색 헤어
+  SHARED_MAT.eye = new THREE.MeshBasicMaterial({ color: 0x0f172a });
   SHARED_MAT.shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
   SHARED_MAT.blush = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
+  SHARED_MAT.mouth = new THREE.MeshBasicMaterial({ color: 0xe11d48 });
+  SHARED_MAT.shoe = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 });
   SHARED_MAT.gold = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 });
   SHARED_MAT.camellia = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 });
   SHARED_MAT.halo = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-  SHARED_MAT.wing = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+  SHARED_MAT.wing = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+  SHARED_MAT.shadow = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26 });
 }
 
 function initThreeWorld() {
-  const container = document.getElementById('canvas-container');
   const canvas = document.getElementById('gl-canvas');
-
   clock = new THREE.Clock();
 
-  // Scene
+  // (1) Scene - 맑고 화창한 부산 바다 하늘 (푸른빛)
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbfe3f7);
-  scene.fog = new THREE.FogExp2(0xbfe3f7, 0.008);
+  scene.background = new THREE.Color(0x38bdf8); // 선명한 스카이블루
+  scene.fog = new THREE.FogExp2(0x7dd3fc, 0.0035); // 원거리 대기감만 살짝 부여
 
-  // Camera
+  // (2) Camera
   camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 800);
-  camera.position.set(0, 14, 52);
+  camera.position.set(0, 12, 54);
 
-  // Renderer
+  // (3) Renderer - ACES 톤매핑으로 눈부심 방지 및 사진 수준의 선명한 대비
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05; // 과노출 없는 황금 노출값
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  // OrbitControls
+  // (4) OrbitControls
   controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.06;
-  controls.maxPolarAngle = Math.PI / 2 - 0.03; // 바닥 밑으로 카메라 관통 방지
+  controls.maxPolarAngle = Math.PI / 2 - 0.03;
   controls.minDistance = 2.5;
   controls.maxDistance = 65;
   controls.target.set(0, 1.4, 28);
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.82);
+  // (5) 조명 세팅 - 부드러운 환경광 + 선명한 태양광 (하얗게 날아가지 않음)
+  const ambientLight = new THREE.AmbientLight(0xfff7ed, 0.45); // 따뜻하고 부드러운 앰비언트
   scene.add(ambientLight);
 
-  const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.25);
-  sunLight.position.set(45, 60, 40);
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.15); // 선명한 메인 태양광
+  sunLight.position.set(40, 65, 35);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.bias = -0.0003;
   sunLight.shadow.camera.near = 0.5;
   sunLight.shadow.camera.far = 180;
-  const d = 55;
+  const d = 52;
   sunLight.shadow.camera.left = -d;
   sunLight.shadow.camera.right = d;
   sunLight.shadow.camera.top = d;
   sunLight.shadow.camera.bottom = -d;
   scene.add(sunLight);
 
-  const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x0369a1, 0.45);
+  // 하늘(푸른빛)과 땅(바다빛)의 자연스러운 바운스광
+  const hemiLight = new THREE.HemisphereLight(0xbae6fd, 0x1e3a8a, 0.38);
   scene.add(hemiLight);
 
+  createProceduralTextures();
   initSharedGeometries();
   setupClickMarker();
   buildBusanCityHallWorld();
@@ -205,58 +359,64 @@ function initThreeWorld() {
 }
 
 // ========================================================
-// 4. 부산광역시청 및 5대 시민광장 3D 건축 모델링
+// 5. 부산광역시청 및 5대 시민광장 3D 건축 모델링
 // ========================================================
 function buildBusanCityHallWorld() {
   busanCityHallObstacles = [];
 
-  // (1) 메인 지형 베이스 (푸른 녹지 공원 & 화강석 광장)
-  const terrainGeo = new THREE.PlaneGeometry(220, 220);
-  const terrainMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.85 }); // 부드러운 잔디
+  // (1) 메인 지형: 푸른 잔디 공원 (텍스처 적용)
+  const terrainGeo = new THREE.PlaneGeometry(240, 240);
+  const terrainMat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.grass,
+    roughness: 0.85
+  });
   const terrain = new THREE.Mesh(terrainGeo, terrainMat);
   terrain.rotation.x = -Math.PI / 2;
   terrain.position.y = -0.02;
   terrain.receiveShadow = true;
   scene.add(terrain);
 
-  // 시민광장 대리석 석재 바닥 (Z: 12 ~ 50, X: -24 ~ 24)
-  const plazaFloorGeo = new THREE.PlaneGeometry(48, 44);
-  const plazaFloorMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35 });
+  // (2) 시민광장 화강석 석재 바닥 (텍스처 적용)
+  const plazaFloorGeo = new THREE.PlaneGeometry(54, 46);
+  const plazaFloorMat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.plaza,
+    roughness: 0.4
+  });
   const plazaFloor = new THREE.Mesh(plazaFloorGeo, plazaFloorMat);
   plazaFloor.rotation.x = -Math.PI / 2;
   plazaFloor.position.set(0, 0.01, 31);
   plazaFloor.receiveShadow = true;
   scene.add(plazaFloor);
 
-  // (2) 부산광역시청 본관 외관 타워 (28층 트윈 고층 유리 타워 파사드)
+  // (3) 부산광역시청 본관 외관 타워 (28층 모던 커튼월)
   buildCityHallTowerFacade();
 
-  // (3) 시민광장: 부산의 닻 조형물 & 음악 분수대
+  // (4) 시민광장: 부산의 닻 조형물 & 음악 분수대
   buildAnchorSculpture(0, 0, 26);
   buildDancingFountain(0, 0, 42);
 
-  // (4) 등대광장: 해양 등대 & 소원 연못
+  // (5) 등대광장: 해양 등대 & 소원 연못
   buildLighthouseSquare(34, 0, 30);
 
-  // (5) 동백광장: 붉은 동백나무 군락 & 정원 벤치
+  // (6) 동백광장: 만개한 동백나무 정원 & 벤치
   buildCamelliaSquare(-34, 0, 30);
 
-  // (6) 녹음광장 야외공연장: 반원형 관람석 & 버스킹 무대
+  // (7) 녹음광장 야외공연장: 반원형 관람석 & 버스킹 무대
   buildGreenPlazaAmphitheater(-33, 0, 60);
 
-  // (7) 잔디광장 시민 발언대: 확성기 발언대
+  // (8) 잔디광장 시민 발언대: 확성기 발언대
   buildFreeSpeechPodium(33, 0, 60);
 
-  // (8) 1층 들락날락 어린이 복합문화도서관 & 16구군 미래도시관 & 안내데스크
+  // (9) 1층 들락날락 어린이 도서관 & 미래도시관 & 안내데스크
   buildFirstFloorAtriumLobby();
 
-  // (9) 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터
+  // (10) 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터
   buildCentralGrandStairs();
 
-  // (10) 2층 행복민원실 (여권창구, 120콜센터, 아주라 수유실, 순번 키오스크)
+  // (11) 2층 행복민원실 (여권창구, 120콜센터, 아주라 수유실, 순번 키오스크)
   buildSecondFloorCivilServiceHall();
 
-  // (11) 갈매기 및 자연 환경 요소
+  // (12) 갈매기 비행 무리
   createFlockOfSeagulls();
 }
 
@@ -266,37 +426,35 @@ function buildBusanCityHallWorld() {
 function buildCityHallTowerFacade() {
   const buildingGroup = new THREE.Group();
 
-  // 메인 타워 베이스 (28층 모던 글래스 타워 볼륨)
-  const towerGeo = new THREE.BoxGeometry(84, 42, 70);
+  // 28층 모던 글래스 타워 볼륨 (커튼월 텍스처 적용)
+  const towerGeo = new THREE.BoxGeometry(84, 44, 70);
   const towerMat = new THREE.MeshStandardMaterial({
-    color: 0x38bdf8,
-    metalness: 0.35,
-    roughness: 0.25,
-    transparent: true,
-    opacity: 0.88
+    map: TEXTURES.glassTower,
+    metalness: 0.5,
+    roughness: 0.2
   });
   const tower = new THREE.Mesh(towerGeo, towerMat);
-  tower.position.set(0, 21, -50);
+  tower.position.set(0, 22, -50);
+  tower.castShadow = true;
   buildingGroup.add(tower);
 
-  // 외벽 프레임 (화강석 스팬드럴 띠)
-  const frameGeo = new THREE.BoxGeometry(85, 1.2, 71);
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });
-  for (let y = 6; y <= 40; y += 4.5) {
-    const spandrel = new THREE.Mesh(frameGeo, frameMat);
-    spandrel.position.set(0, y, -50);
-    buildingGroup.add(spandrel);
-  }
+  // 옥상 통신 안테나 철탑 & 붉은 항공 장애 표시등
+  const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.4, 10, 8), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9 }));
+  spire.position.set(0, 49, -50);
+  buildingGroup.add(spire);
+
+  const warnLight = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+  warnLight.position.set(0, 54, -50);
+  buildingGroup.add(warnLight);
 
   // 1층 캐노피 지붕 & 시청 간판
   const canopyGeo = new THREE.BoxGeometry(28, 1.2, 8);
-  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.6, roughness: 0.2 });
+  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.7, roughness: 0.2 });
   const canopy = new THREE.Mesh(canopyGeo, canopyMat);
   canopy.position.set(0, 5.2, -1);
   canopy.castShadow = true;
   buildingGroup.add(canopy);
 
-  // 간판 텍스트 플레이트 ("부산광역시청 BUSAN METROPOLITAN CITY")
   createSignBoard(0, 5.9, 3.1, "부산광역시청 BUSAN METROPOLITAN CITY", 0x0369a1, buildingGroup);
 
   // 유리 자동문 입구 (Z: 0, X: -6 ~ 6)
@@ -308,7 +466,7 @@ function buildCityHallTowerFacade() {
 
   scene.add(buildingGroup);
 
-  // 건물 외벽 물리 충돌 등록 (출입구 X: -6 ~ 6 제외)
+  // 건물 외벽 물리 충돌 등록
   busanCityHallObstacles.push({ type: 'box', x: -28, z: 0, w: 32, d: 2, h: 10 });
   busanCityHallObstacles.push({ type: 'box', x: 28, z: 0, w: 32, d: 2, h: 10 });
   busanCityHallObstacles.push({ type: 'box', x: -42, z: -45, w: 2, d: 80, h: 15 });
@@ -323,45 +481,40 @@ function buildAnchorSculpture(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 화강석 단상 (Y: 1.0, 발로 밟고 올라설 수 있음)
+  // 화강석 단상 (Y: 1.0)
   const baseGeo = new THREE.BoxGeometry(5.0, 1.0, 5.0);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
+  const baseMat = new THREE.MeshStandardMaterial({ map: TEXTURES.plaza, roughness: 0.4 });
   const base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = 0.5;
   base.receiveShadow = true;
   base.castShadow = true;
   group.add(base);
 
-  // 실버 크롬 닻(Anchor) 메탈 조각
-  const anchorMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.92, roughness: 0.15 });
+  // 실버 크롬 닻 메탈 조각
+  const anchorMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.95, roughness: 0.12 });
 
-  // 세로 축 (Shank)
   const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 4.2, 16), anchorMat);
   shank.position.y = 3.0;
   shank.castShadow = true;
   group.add(shank);
 
-  // 가로 빗장 (Stock)
   const stock = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 3.4, 16), anchorMat);
   stock.rotation.z = Math.PI / 2;
   stock.position.y = 4.4;
   group.add(stock);
 
-  // 하단 닻고리 (Flukes)
   const ringGeo = new THREE.TorusGeometry(1.6, 0.22, 12, 24, Math.PI);
   const flukes = new THREE.Mesh(ringGeo, anchorMat);
   flukes.rotation.z = Math.PI;
   flukes.position.y = 2.4;
   group.add(flukes);
 
-  // 상단 로프 링
   const topRing = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.08, 10, 20), anchorMat);
   topRing.position.y = 5.2;
   group.add(topRing);
 
   scene.add(group);
 
-  // 상호작용 등록
   registerInteractiveObject({
     id: 'anchor',
     pos: { x, y: 1.0, z },
@@ -374,7 +527,6 @@ function buildAnchorSculpture(x, y, z) {
     }
   });
 
-  // 충돌체 등록
   busanCityHallObstacles.push({ type: 'box', x, z, w: 5.0, d: 5.0, h: 1.0 });
 }
 
@@ -385,7 +537,6 @@ function buildDancingFountain(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 원형 분수대 수조 테두리
   const basinGeo = new THREE.CylinderGeometry(6.2, 6.4, 0.7, 32);
   const basinMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });
   const basin = new THREE.Mesh(basinGeo, basinMat);
@@ -393,23 +544,21 @@ function buildDancingFountain(x, y, z) {
   basin.receiveShadow = true;
   group.add(basin);
 
-  // 푸른 물 표면
   const waterGeo = new THREE.CylinderGeometry(5.8, 5.8, 0.65, 32);
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x0284c7,
     roughness: 0.1,
-    metalness: 0.2,
+    metalness: 0.3,
     transparent: true,
-    opacity: 0.82
+    opacity: 0.85
   });
   const water = new THREE.Mesh(waterGeo, waterMat);
   water.position.y = 0.38;
   group.add(water);
 
-  // 중앙 분수 분사 노즐 파티클
   for (let i = 0; i < 16; i++) {
-    const pGeo = new THREE.SphereGeometry(0.12, 8, 8);
-    const pMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.85 });
+    const pGeo = new THREE.SphereGeometry(0.14, 8, 8);
+    const pMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.9 });
     const p = new THREE.Mesh(pGeo, pMat);
     const angle = (i / 16) * Math.PI * 2;
     p.position.set(Math.cos(angle) * 3.5, 0.6, Math.sin(angle) * 3.5);
@@ -420,7 +569,6 @@ function buildDancingFountain(x, y, z) {
 
   scene.add(group);
 
-  // 상호작용 등록
   registerInteractiveObject({
     id: 'fountain',
     pos: { x, y, z },
@@ -443,18 +591,15 @@ function buildLighthouseSquare(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 빨간색 & 하얀색 스트라이프 등대 탑 (높이 12m)
   const lhGroup = new THREE.Group();
   lhGroup.position.set(0, 0, 0);
 
-  // 베이스
   const baseGeo = new THREE.CylinderGeometry(2.4, 2.8, 1.2, 18);
   const baseMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
   const lhBase = new THREE.Mesh(baseGeo, baseMat);
   lhBase.position.y = 0.6;
   lhGroup.add(lhBase);
 
-  // 몸통 4단 스트라이프
   const colors = [0xe11d48, 0xffffff, 0xe11d48, 0xffffff];
   for (let i = 0; i < 4; i++) {
     const segGeo = new THREE.CylinderGeometry(1.9 - i * 0.25, 2.15 - i * 0.25, 2.2, 18);
@@ -465,19 +610,17 @@ function buildLighthouseSquare(x, y, z) {
     lhGroup.add(seg);
   }
 
-  // 상단 조명실 (Lantern Room)
   const lanternGeo = new THREE.CylinderGeometry(1.2, 1.2, 1.4, 16);
   const lanternMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfef08a, emissiveIntensity: 0.8 });
   const lantern = new THREE.Mesh(lanternGeo, lanternMat);
   lantern.position.y = 11.2;
   lhGroup.add(lantern);
 
-  // 회전 라이트 빔 콘 (Light Cone)
   const beamGeo = new THREE.ConeGeometry(8, 28, 16, 1, true);
   const beamMat = new THREE.MeshBasicMaterial({
     color: 0xfef08a,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.25,
     side: THREE.DoubleSide
   });
   lighthouseBeamMesh = new THREE.Mesh(beamGeo, beamMat);
@@ -487,7 +630,7 @@ function buildLighthouseSquare(x, y, z) {
 
   group.add(lhGroup);
 
-  // 소원 연못 (Wish Pond)
+  // 소원 연못
   const pondGroup = new THREE.Group();
   pondGroup.position.set(0, 0, 10);
   const pondRim = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.4, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
@@ -501,7 +644,6 @@ function buildLighthouseSquare(x, y, z) {
 
   scene.add(group);
 
-  // 상호작용 등록
   registerInteractiveObject({
     id: 'lighthouse',
     pos: { x, y, z },
@@ -537,7 +679,6 @@ function buildCamelliaSquare(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 8그루의 풍성한 동백나무 배치
   const treePositions = [
     { dx: -6, dz: -6 }, { dx: 0, dz: -8 }, { dx: 6, dz: -6 },
     { dx: -8, dz: 0 }, { dx: 8, dz: 0 },
@@ -551,7 +692,6 @@ function buildCamelliaSquare(x, y, z) {
     busanCityHallObstacles.push({ type: 'cyl', x: x + p.dx, z: z + p.dz, r: 0.8, h: 4.5 });
   });
 
-  // 정원 원목 벤치 2개
   const bench1 = createParkBench();
   bench1.position.set(-2, 0, 0);
   group.add(bench1);
@@ -561,7 +701,6 @@ function buildCamelliaSquare(x, y, z) {
   bench2.rotation.y = Math.PI;
   group.add(bench2);
 
-  // 흩날리는 붉은 동백꽃잎 파티클 초기화
   for (let i = 0; i < 24; i++) {
     const petal = new THREE.Mesh(SHARED_GEO.camelliaFlower, SHARED_MAT.camellia);
     petal.scale.set(0.6, 0.6, 0.6);
@@ -592,7 +731,6 @@ function buildCamelliaSquare(x, y, z) {
 
 function createCamelliaTree() {
   const tree = new THREE.Group();
-  // 갈색 줄기
   const trunkGeo = new THREE.CylinderGeometry(0.24, 0.32, 2.4, 10);
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
@@ -600,15 +738,13 @@ function createCamelliaTree() {
   trunk.castShadow = true;
   tree.add(trunk);
 
-  // 짙은 초록 잎 군락
   const foliageGeo = new THREE.SphereGeometry(1.6, 12, 10);
-  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7 });
+  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.65 });
   const foliage = new THREE.Mesh(foliageGeo, foliageMat);
   foliage.position.y = 2.8;
   foliage.castShadow = true;
   tree.add(foliage);
 
-  // 붉은 동백꽃 송이들 장식
   for (let i = 0; i < 8; i++) {
     const flower = new THREE.Mesh(SHARED_GEO.camelliaFlower, SHARED_MAT.camellia);
     const u = Math.random() * Math.PI * 2;
@@ -629,17 +765,14 @@ function createParkBench() {
   const seatMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.6 });
   const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 });
 
-  // 좌판
   const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.7), seatMat);
   seat.position.y = 0.45;
   bench.add(seat);
 
-  // 등받이
   const back = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 0.1), seatMat);
   back.position.set(0, 0.85, -0.3);
   bench.add(back);
 
-  // 다리 2쌍
   [-0.9, 0.9].forEach(dx => {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.45, 0.65), legMat);
     leg.position.set(dx, 0.225, 0);
@@ -655,16 +788,16 @@ function buildGreenPlazaAmphitheater(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 원목 버스킹 무대 (Y: 0.4)
+  // 원목 버스킹 무대 (Y: 0.4, 텍스처 적용)
   const stageGeo = new THREE.CylinderGeometry(5.2, 5.4, 0.4, 24);
-  const stageMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.6 });
+  const stageMat = new THREE.MeshStandardMaterial({ map: TEXTURES.wood, roughness: 0.5 });
   const stage = new THREE.Mesh(stageGeo, stageMat);
   stage.position.y = 0.2;
   stage.receiveShadow = true;
   group.add(stage);
 
-  // 무대 스탠드 마이크
-  const micMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 });
+  // 스탠드 마이크
+  const micMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.85 });
   const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 8), micMat);
   stand.position.set(0, 0.9, 0);
   group.add(stand);
@@ -673,10 +806,10 @@ function buildGreenPlazaAmphitheater(x, y, z) {
   micHead.position.set(0, 1.6, 0);
   group.add(micHead);
 
-  // 반원형 관람석 계단 (3단 티어: Y 0.5, 1.0, 1.5)
+  // 반원형 관람석 계단 (3단 티어)
   for (let tier = 1; tier <= 3; tier++) {
     const tierGeo = new THREE.CylinderGeometry(5.2 + tier * 2.5, 5.2 + tier * 2.5, 0.5, 24, 1, false, Math.PI * 0.2, Math.PI * 0.6);
-    const tierMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.5 });
+    const tierMat = new THREE.MeshStandardMaterial({ map: TEXTURES.plaza, roughness: 0.5 });
     const tierMesh = new THREE.Mesh(tierGeo, tierMat);
     tierMesh.position.y = tier * 0.5 - 0.25;
     group.add(tierMesh);
@@ -707,18 +840,15 @@ function buildFreeSpeechPodium(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 발언대 원목 단상 (Y: 0.8)
-  const podiumBase = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.8, 4.2), new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.6 }));
+  const podiumBase = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.8, 4.2), new THREE.MeshStandardMaterial({ map: TEXTURES.wood, roughness: 0.5 }));
   podiumBase.position.y = 0.4;
   group.add(podiumBase);
 
-  // 연탁
   const lectern = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x78350f }));
   lectern.position.set(0, 1.35, -1.0);
   group.add(lectern);
 
-  // 황동 확성기 스피커 (Megaphone)
-  const megaMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.3 });
+  const megaMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.25 });
   const horn = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 14), megaMat);
   horn.rotation.x = Math.PI / 2;
   horn.position.set(0, 1.95, -1.0);
@@ -745,22 +875,26 @@ function buildFreeSpeechPodium(x, y, z) {
 function buildFirstFloorAtriumLobby() {
   const lobbyGroup = new THREE.Group();
 
-  // 1층 대리석 바닥 (Z: 0 ~ -38, X: -40 ~ 40)
+  // 1층 광택 대리석 바닥 (텍스처 적용)
   const floorGeo = new THREE.PlaneGeometry(80, 38);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25, metalness: 0.1 });
+  const floorMat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.marble,
+    roughness: 0.18,
+    metalness: 0.12
+  });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(0, 0.02, -19);
   floor.receiveShadow = true;
   lobbyGroup.add(floor);
 
-  // (1) 서관 들락날락 어린이 복합문화공간 (Curved Bookshelves & Lounge)
+  // 들락날락 도서관
   buildDeullakLibrarySection(-24, 0, -18, lobbyGroup);
 
-  // (2) 중앙 미래도시관 16개 자치구군 원형 디오라마 테이블
+  // 중앙 미래도시관 16개 자치구군 디오라마
   buildFutureCityDistrictTable(0, 0, -16, lobbyGroup);
 
-  // (3) 동관 종합안내데스크 & AI 다온 NPC
+  // 종합안내데스크 & AI 다온 NPC
   buildAiGuideReceptionDesk(24, 0, -14, lobbyGroup);
 
   scene.add(lobbyGroup);
@@ -770,11 +904,9 @@ function buildDeullakLibrarySection(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 들락날락 간판 보드
   createSignBoard(0, 3.8, 0, "들락날락 어린이 복합문화공간", 0x0284c7, group);
 
-  // 원목 곡선형 책장 2개 (Colorful Bookshelves)
-  const shelfMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
+  const shelfMat = new THREE.MeshStandardMaterial({ map: TEXTURES.wood, roughness: 0.5 });
   [-4.5, 4.5].forEach(dx => {
     const shelf = new THREE.Mesh(new THREE.BoxGeometry(6.5, 3.2, 0.8), shelfMat);
     shelf.position.set(dx, 1.6, -4);
@@ -782,7 +914,6 @@ function buildDeullakLibrarySection(x, y, z, parent) {
     busanCityHallObstacles.push({ type: 'box', x: x + dx, z: z - 4, w: 6.5, d: 0.8, h: 3.2 });
   });
 
-  // 라운지 독서 원형 테이블과 알록달록 스툴
   const table = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
   table.position.set(0, 0.3, 0);
   group.add(table);
@@ -812,24 +943,21 @@ function buildFutureCityDistrictTable(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 대형 원형 디오라마 테이블 (반경 4.5m)
   const tableGeo = new THREE.CylinderGeometry(4.5, 4.7, 0.85, 32);
   const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 });
   const table = new THREE.Mesh(tableGeo, tableMat);
   table.position.y = 0.425;
   group.add(table);
 
-  // 상단 16개 구·군 홀로그램 발광 맵
   const mapTop = new THREE.Mesh(new THREE.CylinderGeometry(4.3, 4.3, 0.88, 32), new THREE.MeshStandardMaterial({
     color: 0x0284c7,
     emissive: 0x0369a1,
-    emissiveIntensity: 0.4,
+    emissiveIntensity: 0.45,
     roughness: 0.2
   }));
   mapTop.position.y = 0.44;
   group.add(mapTop);
 
-  // 16개 자치구군 미니어처 핀
   for (let i = 0; i < 16; i++) {
     const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.35, 8), new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b }));
     const angle = (i / 16) * Math.PI * 2;
@@ -856,7 +984,6 @@ function buildAiGuideReceptionDesk(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 안내데스크 카운터
   const counterGeo = new THREE.BoxGeometry(6.5, 1.1, 1.6);
   const counterMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, metalness: 0.3 });
   const counter = new THREE.Mesh(counterGeo, counterMat);
@@ -865,7 +992,7 @@ function buildAiGuideReceptionDesk(x, y, z, parent) {
 
   createSignBoard(0, 1.8, 0, "종합안내데스크 (AI 다온)", 0xffffff, group);
 
-  // AI 다온 NPC 모델링 (안내데스크 뒤편)
+  // AI 다온 NPC
   const daonNpc = createCuteCitizenMesh({
     name: "안내원 다온",
     title: "AI 시정 길잡이",
@@ -893,26 +1020,23 @@ function buildAiGuideReceptionDesk(x, y, z, parent) {
 }
 
 // --------------------------------------------------------
-// [건축 9] 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터 (물리 이동 보장)
+// [건축 9] 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터 (물리 램프)
 // --------------------------------------------------------
 function buildCentralGrandStairs() {
   const group = new THREE.Group();
 
-  // 계단 램프 경사로: Z: -22 ~ -38, X: -6 ~ 6, Y: 0 ~ 5.0
   const stairLength = 16.0;
   const stairHeight = 5.0;
   const rampGeo = new THREE.BoxGeometry(12.0, 0.4, stairLength);
   const rampMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4 });
   const ramp = new THREE.Mesh(rampGeo, rampMat);
 
-  // 램프 중심점 배치 및 회전
   ramp.position.set(0, 2.5, -30.0);
   ramp.rotation.x = Math.atan2(stairHeight, stairLength);
   group.add(ramp);
 
-  // 중앙 에스컬레이터 황금 손잡이 난간 레일
   [-5.8, 5.8].forEach(rx => {
-    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, stairLength + 1, 10), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8 }));
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, stairLength + 1, 10), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85 }));
     rail.position.set(rx, 3.4, -30.0);
     rail.rotation.x = Math.PI / 2 + Math.atan2(stairHeight, stairLength);
     group.add(rail);
@@ -927,40 +1051,42 @@ function buildCentralGrandStairs() {
 function buildSecondFloorCivilServiceHall() {
   const floor2Group = new THREE.Group();
 
-  // 2층 바닥 (Y: 5.0, Z: -38 ~ -82, X: -40 ~ 40)
+  // 2층 바닥 (Y: 5.0, 원목 텍스처 적용)
   const floor2Geo = new THREE.PlaneGeometry(80, 44);
-  const floor2Mat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 });
+  const floor2Mat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.wood,
+    roughness: 0.35
+  });
   const floor2 = new THREE.Mesh(floor2Geo, floor2Mat);
   floor2.rotation.x = -Math.PI / 2;
   floor2.position.set(0, 5.0, -60);
   floor2.receiveShadow = true;
   floor2Group.add(floor2);
 
-  // 남측 2층 난간 (1층 로비가 내려다보이는 안전 강화유리 난간)
+  // 1층 로비 조망 안전 강화유리 난간
   const glassRailGeo = new THREE.BoxGeometry(80, 1.2, 0.2);
   const glassRailMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45 });
   const rail = new THREE.Mesh(glassRailGeo, glassRailMat);
   rail.position.set(0, 5.6, -38.2);
   floor2Group.add(rail);
 
-  // (1) 종합 민원 발급 카운터 (여권, 주민, 토지, 세무 등 8개 창구)
+  // 8개 종합 민원 창구
   buildCivilServiceCounters(-20, 5.0, -62, floor2Group);
 
-  // (2) 실시간 순번 대기표 발급 키오스크 (Queue Ticket Kiosk)
+  // 순번 대기표 발급 키오스크
   buildQueueTicketKiosk(-6, 5.0, -45, floor2Group);
 
-  // (3) 시민 대기 라운지 (가죽 소파 & 테이블 & 안내 TV)
+  // 시민 대기 라운지
   buildCivilWaitingLounge(-18, 5.0, -48, floor2Group);
 
-  // (4) 120 부산민원콜센터 상담 부스
+  // 120 부산민원콜센터 부스
   buildCallCenterBooth(24, 5.0, -48, floor2Group);
 
-  // (5) 아주라(Ajura) 모자휴게실 / 수유실
+  // 아주라 모자휴게실
   buildAjuraNurseryRoom(24, 5.0, -68, floor2Group);
 
   scene.add(floor2Group);
 
-  // 2층 난간 물리 충돌 등록 (1층으로 추락 방지, 중앙 계단 통로 제외)
   busanCityHallObstacles.push({ type: 'box', x: -24, z: -38.2, w: 32, d: 0.4, h: 7.0 });
   busanCityHallObstacles.push({ type: 'box', x: 24, z: -38.2, w: 32, d: 0.4, h: 7.0 });
 }
@@ -969,18 +1095,15 @@ function buildCivilServiceCounters(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 메인 카운터 데스크 (길이 28m)
-  const desk = new THREE.Mesh(new THREE.BoxGeometry(28, 1.1, 2.2), new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.2 }));
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(28, 1.1, 2.2), new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.3 }));
   desk.position.y = 0.55;
   group.add(desk);
 
-  // 8개 창구 번호 LED 사인보드
   const services = ["여권발급", "가족관계", "지적토지", "세무상담", "차량등록", "건축주택", "어르신복지", "통합민원"];
   for (let i = 0; i < 8; i++) {
     const cx = -12 + i * 3.4;
-    const numSign = createSignBoard(cx, 1.8, 0, `${i + 1}번 ${services[i]}`, 0x0f172a, group);
+    createSignBoard(cx, 1.8, 0, `${i + 1}번 ${services[i]}`, 0x0f172a, group);
 
-    // 창구 직원 NPC
     const staff = createCuteCitizenMesh({
       name: `담당관${i + 1}`,
       title: services[i],
@@ -1015,12 +1138,10 @@ function buildQueueTicketKiosk(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 스탠딩 터치 키오스크 몸체
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.6), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7 }));
   body.position.y = 0.8;
   group.add(body);
 
-  // 터치 스크린 화면
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.55), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.5 }));
   screen.position.set(0, 1.15, 0.31);
   group.add(screen);
@@ -1046,7 +1167,6 @@ function buildCivilWaitingLounge(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 소파 3개
   const sofaMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
   [-4, 0, 4].forEach(sx => {
     const sofa = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.7, 1.2), sofaMat);
@@ -1055,7 +1175,6 @@ function buildCivilWaitingLounge(x, y, z, parent) {
     busanCityHallObstacles.push({ type: 'box', x: x + sx, z, w: 3.2, d: 1.2, h: 5.7 });
   });
 
-  // 벽걸이 시정 알림 TV 모니터
   const tv = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x0284c7, emissiveIntensity: 0.3 }));
   tv.position.set(0, 2.6, -3.5);
   group.add(tv);
@@ -1067,7 +1186,6 @@ function buildCallCenterBooth(x, y, z, parent) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
 
-  // 방음 유리 상담 부스
   const booth = new THREE.Mesh(new THREE.BoxGeometry(8, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.45 }));
   booth.position.y = 1.3;
   group.add(booth);
@@ -1118,9 +1236,6 @@ function buildAjuraNurseryRoom(x, y, z, parent) {
   busanCityHallObstacles.push({ type: 'box', x, z, w: 8, d: 6, h: 7.6 });
 }
 
-// --------------------------------------------------------
-// [도우미] 3D 한글 안내 표지판 보드
-// --------------------------------------------------------
 function createSignBoard(x, y, z, textStr, bgHex, parent) {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -1150,9 +1265,6 @@ function createSignBoard(x, y, z, textStr, bgHex, parent) {
   return mesh;
 }
 
-// --------------------------------------------------------
-// [환경] 갈매기 비행 무리
-// --------------------------------------------------------
 function createFlockOfSeagulls() {
   for (let i = 0; i < 5; i++) {
     const sGroup = new THREE.Group();
@@ -1181,7 +1293,7 @@ function createFlockOfSeagulls() {
 }
 
 // ========================================================
-// 5. 귀여운 SD 치비 시민 캐릭터 아바타 엔진 (가즈아교 계승)
+// 6. 선명한 고대비 귀여운 SD 치비 시민 캐릭터 아바타 엔진
 // ========================================================
 function createCuteCitizenMesh({
   name = "시민",
@@ -1195,86 +1307,127 @@ function createCuteCitizenMesh({
 } = {}) {
   const root = new THREE.Group();
 
-  // (1) 몸통 (아기자기한 꼬마 바디)
+  // (1) 몸통 (선명한 로얄블루 수트 및 깃)
   const robeHex = COLOR_PALETTE[robeColor] || COLOR_PALETTE.blue;
-  const robeMat = new THREE.MeshStandardMaterial({ color: robeHex, roughness: 0.5 });
+  const robeMat = new THREE.MeshStandardMaterial({ color: robeHex, roughness: 0.45 });
   const body = new THREE.Mesh(SHARED_GEO.body, robeMat);
   body.position.y = 0.65;
   if (isPlayer) body.castShadow = true;
   root.add(body);
 
-  // (2) 귀여운 대두 머리 (Head)
+  // 화이트 와이셔츠 깃 포인트
+  const collar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.06), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  collar.position.set(0, 0.88, 0.18);
+  root.add(collar);
+
+  // (2) 또렷한 헤어스타일과 대두 머리 (Head & Hair)
   const headGroup = new THREE.Group();
-  headGroup.position.y = 1.18;
+  headGroup.position.y = 1.22;
   root.add(headGroup);
 
   const head = new THREE.Mesh(SHARED_GEO.head, SHARED_MAT.skin);
   if (isPlayer) head.castShadow = true;
   headGroup.add(head);
 
-  // 반짝이는 큰 눈
+  // 입체 흑갈색 헤어 볼륨 (어떤 조명에서도 또렷하게 캐릭터 윤곽을 살림)
+  const hair = new THREE.Mesh(SHARED_GEO.hair, SHARED_MAT.hair);
+  hair.position.set(0, 0.06, -0.02);
+  headGroup.add(hair);
+
+  const bangsL = new THREE.Mesh(SHARED_GEO.hairBangs, SHARED_MAT.hair);
+  bangsL.position.set(-0.16, 0.28, 0.32);
+  bangsL.rotation.z = 0.2;
+  headGroup.add(bangsL);
+
+  const bangsR = new THREE.Mesh(SHARED_GEO.hairBangs, SHARED_MAT.hair);
+  bangsR.position.set(0.16, 0.28, 0.32);
+  bangsR.rotation.z = -0.2;
+  headGroup.add(bangsR);
+
+  // 초롱초롱한 애니메 눈망울
   const eyeL = new THREE.Mesh(SHARED_GEO.eye, SHARED_MAT.eye);
-  eyeL.position.set(-0.13, 0.04, 0.34);
+  eyeL.position.set(-0.14, 0.02, 0.38);
   const shineL = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
-  shineL.position.set(-0.02, 0.02, 0.035);
+  shineL.position.set(-0.02, 0.025, 0.045);
   eyeL.add(shineL);
   headGroup.add(eyeL);
 
   const eyeR = new THREE.Mesh(SHARED_GEO.eye, SHARED_MAT.eye);
-  eyeR.position.set(0.13, 0.04, 0.34);
+  eyeR.position.set(0.14, 0.02, 0.38);
   const shineR = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
-  shineR.position.set(-0.02, 0.02, 0.035);
+  shineR.position.set(-0.02, 0.025, 0.045);
   eyeR.add(shineR);
   headGroup.add(eyeR);
 
-  // 발그레한 핑크 볼터치 (Blush)
+  // 핑크빛 볼터치 (Blush)
   const blushL = new THREE.Mesh(SHARED_GEO.blush, SHARED_MAT.blush);
-  blushL.position.set(-0.22, -0.06, 0.3);
+  blushL.position.set(-0.25, -0.08, 0.34);
   headGroup.add(blushL);
 
   const blushR = new THREE.Mesh(SHARED_GEO.blush, SHARED_MAT.blush);
-  blushR.position.set(0.22, -0.06, 0.3);
+  blushR.position.set(0.25, -0.08, 0.34);
   headGroup.add(blushR);
 
-  // (3) 팔 & 다리 (걷기 애니메이션 관절)
+  // 방긋 웃는 입
+  const mouth = new THREE.Mesh(SHARED_GEO.mouth, SHARED_MAT.mouth);
+  mouth.rotation.x = Math.PI;
+  mouth.position.set(0, -0.15, 0.42);
+  headGroup.add(mouth);
+
+  // (3) 팔 & 다리 및 구두
   const armL = new THREE.Mesh(SHARED_GEO.limb, robeMat);
-  armL.position.set(-0.35, 0.68, 0);
+  armL.position.set(-0.36, 0.68, 0);
   root.add(armL);
 
   const armR = new THREE.Mesh(SHARED_GEO.limb, robeMat);
-  armR.position.set(0.35, 0.68, 0);
+  armR.position.set(0.36, 0.68, 0);
   root.add(armR);
 
+  const legGroupL = new THREE.Group();
+  legGroupL.position.set(-0.14, 0.22, 0);
   const legL = new THREE.Mesh(SHARED_GEO.limb, SHARED_MAT.skin);
-  legL.position.set(-0.14, 0.22, 0);
-  root.add(legL);
+  legGroupL.add(legL);
+  const shoeL = new THREE.Mesh(SHARED_GEO.shoe, SHARED_MAT.shoe);
+  shoeL.position.set(0, -0.16, 0.04);
+  legGroupL.add(shoeL);
+  root.add(legGroupL);
 
+  const legGroupR = new THREE.Group();
+  legGroupR.position.set(0.14, 0.22, 0);
   const legR = new THREE.Mesh(SHARED_GEO.limb, SHARED_MAT.skin);
-  legR.position.set(0.14, 0.22, 0);
-  root.add(legR);
+  legGroupR.add(legR);
+  const shoeR = new THREE.Mesh(SHARED_GEO.shoe, SHARED_MAT.shoe);
+  shoeR.position.set(0, -0.16, 0.04);
+  legGroupR.add(shoeR);
+  root.add(legGroupR);
 
-  // (4) 모자 장식 파츠 (Hat Slot)
+  // (4) 발밑 전용 그림자 데칼 (바닥과 언제나 분리되어 또렷하게 보임)
+  const shadowDecal = new THREE.Mesh(SHARED_GEO.shadowDecal, SHARED_MAT.shadow);
+  shadowDecal.rotation.x = -Math.PI / 2;
+  shadowDecal.position.y = 0.02;
+  root.add(shadowDecal);
+
+  // (5) 모자 장식 파츠
   const hatSlot = new THREE.Group();
   headGroup.add(hatSlot);
   applyHatDecoration(hatSlot, hatType);
 
-  // (5) 날개 장식 파츠 (Wings Slot)
+  // (6) 날개 장식 파츠
   const wingsSlot = new THREE.Group();
   body.add(wingsSlot);
   applyWingsDecoration(wingsSlot, wingsType);
 
-  // (6) 머리 위 3D 캔버스 닉네임 명찰
+  // (7) 머리 위 3D 캔버스 닉네임 명찰
   const nameTagMesh = createNameTagSprite(name, title, level, isPlayer);
-  nameTagMesh.position.y = 1.95;
+  nameTagMesh.position.y = 2.05;
   root.add(nameTagMesh);
 
-  // (7) 머리 위 말풍선 슬롯
+  // (8) 머리 위 말풍선 슬롯
   const bubbleSlot = new THREE.Group();
-  bubbleSlot.position.y = 2.45;
+  bubbleSlot.position.y = 2.55;
   bubbleSlot.visible = false;
   root.add(bubbleSlot);
 
-  // 캐릭터 객체 메타데이터 바인딩
   root.userData = {
     name,
     title,
@@ -1287,8 +1440,8 @@ function createCuteCitizenMesh({
     eyeR,
     armL,
     armR,
-    legL,
-    legR,
+    legGroupL,
+    legGroupR,
     hatSlot,
     wingsSlot,
     nameTagMesh,
@@ -1309,27 +1462,27 @@ function applyHatDecoration(slot, hatType) {
 
   if (hatType === 'camellia') {
     const flower = new THREE.Mesh(SHARED_GEO.camelliaFlower, SHARED_MAT.camellia);
-    flower.position.set(0.24, 0.32, 0.15);
+    flower.position.set(0.26, 0.38, 0.18);
     slot.add(flower);
     const center = new THREE.Mesh(SHARED_GEO.camelliaCenter, SHARED_MAT.gold);
-    center.position.set(0.24, 0.34, 0.17);
+    center.position.set(0.26, 0.40, 0.20);
     slot.add(center);
   } else if (hatType === 'seagull') {
-    const seagullHat = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-    seagullHat.position.set(0, 0.42, 0);
+    const seagullHat = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    seagullHat.position.set(0, 0.48, 0);
     seagullHat.rotation.x = Math.PI / 4;
     slot.add(seagullHat);
   } else if (hatType === 'halo') {
     const halo = new THREE.Mesh(SHARED_GEO.halo, SHARED_MAT.halo);
-    halo.position.set(0, 0.52, 0);
+    halo.position.set(0, 0.58, 0);
     halo.rotation.x = Math.PI / 2;
     slot.add(halo);
   } else if (hatType === 'headset') {
-    const band = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.04, 8, 16, Math.PI), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
-    band.position.set(0, 0.08, 0);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.045, 8, 16, Math.PI), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
+    band.position.set(0, 0.1, 0);
     slot.add(band);
-    const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.08, 10), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
-    earL.position.set(-0.38, 0.05, 0);
+    const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.08, 10), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+    earL.position.set(-0.42, 0.06, 0);
     earL.rotation.z = Math.PI / 2;
     slot.add(earL);
   }
@@ -1340,12 +1493,12 @@ function applyWingsDecoration(slot, wingsType) {
 
   if (wingsType === 'seagull' || wingsType === 'angel') {
     const lWing = new THREE.Mesh(SHARED_GEO.wing, SHARED_MAT.wing);
-    lWing.position.set(-0.35, 0.1, -0.22);
+    lWing.position.set(-0.38, 0.1, -0.24);
     lWing.rotation.y = -0.35;
     slot.add(lWing);
 
     const rWing = new THREE.Mesh(SHARED_GEO.wing, SHARED_MAT.wing);
-    rWing.position.set(0.35, 0.1, -0.22);
+    rWing.position.set(0.38, 0.1, -0.24);
     rWing.rotation.y = 0.35;
     slot.add(rWing);
 
@@ -1360,7 +1513,7 @@ function createNameTagSprite(name, title, level, isMe = false) {
   canvas.height = 96;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = isMe ? 'rgba(2, 132, 199, 0.88)' : 'rgba(15, 23, 42, 0.82)';
+  ctx.fillStyle = isMe ? 'rgba(2, 132, 199, 0.95)' : 'rgba(15, 23, 42, 0.9)';
   ctx.roundRect(10, 10, 364, 76, 20);
   ctx.fill();
 
@@ -1395,31 +1548,31 @@ function createLocalPlayer() {
     wingsType: STATE.wingsType,
     isPlayer: true
   });
-  localPlayer.position.set(0, 0, 38); // 시민광장 중앙에서 시작
+  localPlayer.position.set(0, 0, 38);
   scene.add(localPlayer);
 }
 
 // ========================================================
-// 6. 충돌 판정 및 다층 계단/슬로프 물리 엔진 (가즈아교 계승)
+// 7. 충돌 판정 및 다층 계단/슬로프 물리 엔진 (가즈아교 계승)
 // ========================================================
 function getBusanCityHallFloorY(x, z) {
-  // 1. 2층 행복민원실 바닥 (Z: -38 to -82, X: -40 to 40)
+  // 1. 2층 행복민원실 (Z: -38 to -82, X: -40 to 40)
   if (x >= -40 && x <= 40 && z <= -38.0 && z >= -82.0) {
     return 5.0;
   }
 
-  // 2. 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터 (Z: -22 to -38, X: -6.5 to 6.5)
+  // 2. 1F -> 2F 중앙 그랜드 계단/에스컬레이터 (Z: -22 to -38, X: -6.5 to 6.5)
   if (x >= -6.5 && x <= 6.5 && z < -22.0 && z > -38.0) {
-    const progress = (-z - 22.0) / 16.0; // 0.0 ~ 1.0
+    const progress = (-z - 22.0) / 16.0;
     return 5.0 * Math.max(0, Math.min(1, progress));
   }
 
-  // 3. 시민광장 닻 조형물 화강석 단상 (Z: 23.5 to 28.5, X: -2.5 to 2.5)
+  // 3. 시민광장 닻 조형물 단상 (Z: 23.5 to 28.5, X: -2.5 to 2.5)
   if (x >= -2.5 && x <= 2.5 && z >= 23.5 && z <= 28.5) {
     return 1.0;
   }
 
-  // 4. 녹음광장 야외공연장 관람석 스텝 (Z: 52 to 68, X: -46 to -20)
+  // 4. 녹음광장 야외공연장 관람석 스텝
   if (x >= -46 && x <= -20 && z >= 52 && z <= 68) {
     const d = Math.hypot(x - (-33), z - 60);
     if (d > 4.5 && d <= 7.0) return 0.5;
@@ -1427,12 +1580,11 @@ function getBusanCityHallFloorY(x, z) {
     if (d > 10.0 && d <= 13.5) return 1.5;
   }
 
-  // 5. 잔디광장 시민 발언대 단상 (Z: 58 to 62, X: 31 to 35)
+  // 5. 잔디광장 발언대 단상
   if (x >= 31 && x <= 35 && z >= 58 && z <= 62) {
     return 0.8;
   }
 
-  // 기본 평지 지표면 & 1층 로비
   return 0.0;
 }
 
@@ -1441,7 +1593,6 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
   let resZ = nextZ;
   const radius = 0.42;
 
-  // 월드 외곽 경계벽 제한
   if (resX < -50) resX = -50;
   if (resX > 50) resX = 50;
   if (resZ > 72) resZ = 72;
@@ -1457,11 +1608,7 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
       const maxZ = obs.z + halfD + radius;
 
       if (resX >= minX && resX <= maxX && resZ >= minZ && resZ <= maxZ) {
-        // 발 높이가 장애물 상단보다 높으면 올라서기 허용
-        if (footY >= obs.h - 0.2) {
-          continue;
-        }
-        // 측면 슬라이딩 충돌 분해
+        if (footY >= obs.h - 0.2) continue;
         const overlapL = resX - minX;
         const overlapR = maxX - resX;
         const overlapB = resZ - minZ;
@@ -1480,9 +1627,7 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
       const minDist = obs.r + radius;
 
       if (dist < minDist) {
-        if (footY >= obs.h - 0.2) {
-          continue;
-        }
+        if (footY >= obs.h - 0.2) continue;
         const angle = Math.atan2(dz, dx);
         resX = obs.x + Math.cos(angle) * minDist;
         resZ = obs.z + Math.sin(angle) * minDist;
@@ -1494,7 +1639,7 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
 }
 
 // ========================================================
-// 7. 이동 컨트롤 & 3인칭 스마트 카메라 추적
+// 8. 이동 컨트롤 & 3인칭 스마트 카메라 추적 (미끄러짐 제로)
 // ========================================================
 function setupMovementControls() {
   window.addEventListener('keydown', (e) => {
@@ -1520,16 +1665,15 @@ function setupMovementControls() {
     if (k === 'd' || k === 'arrowright') STATE.keys.d = false;
   });
 
-  // 바닥 클릭 이동 (Click to Move)
+  // 바닥 클릭 이동
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
   window.addEventListener('pointerdown', (e) => {
-    // UI 레이어 클릭 시 3D 피킹 무시
     if (e.target.closest('.top-nav, .event-sidebar, .middle-area, .toolbar-container, .modal-overlay, .virtual-joystick')) {
       return;
     }
-    if (e.button !== 0) return; // 좌클릭만 반응
+    if (e.button !== 0) return;
 
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -1564,12 +1708,11 @@ function triggerPlayerJump() {
   const ud = localPlayer.userData;
   if (!ud.isJumping) {
     ud.isJumping = true;
-    ud.jumpVelocity = 8.8; // 상쾌한 점프 도약감
+    ud.jumpVelocity = 8.8;
     if (window.busanAudio) window.busanAudio.playJump();
   }
 }
 
-// 모바일 가상 조이스틱
 function setupVirtualJoystick() {
   const container = document.getElementById('virtualJoystickContainer');
   const knob = document.getElementById('joystickKnob');
@@ -1593,7 +1736,7 @@ function setupVirtualJoystick() {
 
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     STATE.joystickDir.x = dx / maxRadius;
-    STATE.joystickDir.y = -dy / maxRadius; // 전진은 음의 y
+    STATE.joystickDir.y = -dy / maxRadius;
   }
 
   function resetKnob() {
@@ -1639,7 +1782,6 @@ function updatePlayerMovement(dt) {
   const moveDir = new THREE.Vector3();
   let isMoving = false;
 
-  // 화면(카메라) 기준 전후좌우 벡터 계산
   if (camera) {
     const camFwd = new THREE.Vector3();
     camera.getWorldDirection(camFwd);
@@ -1649,13 +1791,11 @@ function updatePlayerMovement(dt) {
     const camRight = new THREE.Vector3();
     camRight.crossVectors(camFwd, new THREE.Vector3(0, 1, 0)).normalize();
 
-    // 1. 키보드 입력
     if (STATE.keys.w) moveDir.add(camFwd);
     if (STATE.keys.s) moveDir.sub(camFwd);
     if (STATE.keys.a) moveDir.sub(camRight);
     if (STATE.keys.d) moveDir.add(camRight);
 
-    // 2. 가상 조이스틱
     if (Math.abs(STATE.joystickDir.x) > 0.05 || Math.abs(STATE.joystickDir.y) > 0.05) {
       moveDir.addScaledVector(camFwd, STATE.joystickDir.y);
       moveDir.addScaledVector(camRight, STATE.joystickDir.x);
@@ -1671,7 +1811,6 @@ function updatePlayerMovement(dt) {
     STATE.clickTargetPos = null;
     if (clickMarkerMesh) clickMarkerMesh.visible = false;
 
-    // 회전각 부드러운 보간 (부드러운 시선 전환)
     const targetAngle = Math.atan2(moveDir.x, moveDir.z);
     let diff = targetAngle - localPlayer.rotation.y;
     while (diff < -Math.PI) diff += Math.PI * 2;
@@ -1682,7 +1821,6 @@ function updatePlayerMovement(dt) {
     nextX += moveDir.x * step;
     nextZ += moveDir.z * step;
   } else if (STATE.clickTargetPos) {
-    // 클릭 위치 추적 이동
     const toTarget = new THREE.Vector3().subVectors(STATE.clickTargetPos, curPos);
     toTarget.y = 0;
     const dist = toTarget.length();
@@ -1706,16 +1844,14 @@ function updatePlayerMovement(dt) {
     }
   }
 
-  // 충돌 분해 및 바닥 Y 높이 검사
   const resolved = resolveObstacleCollision(curPos.x, curPos.z, nextX, nextZ, curPos.y);
   curPos.x = resolved.x;
   curPos.z = resolved.z;
 
   const targetFloorY = getBusanCityHallFloorY(curPos.x, curPos.z);
 
-  // 점프 및 수직 물리
   if (ud.isJumping) {
-    ud.jumpVelocity -= 22 * dt; // 지구 중력
+    ud.jumpVelocity -= 22 * dt;
     curPos.y += ud.jumpVelocity * dt;
     if (curPos.y <= targetFloorY) {
       curPos.y = targetFloorY;
@@ -1723,7 +1859,6 @@ function updatePlayerMovement(dt) {
       ud.jumpVelocity = 0;
     }
   } else {
-    // 계단 및 슬로프 부드러운 스냅
     if (Math.abs(curPos.y - targetFloorY) < 0.25) {
       curPos.y = targetFloorY;
     } else if (curPos.y > targetFloorY) {
@@ -1735,7 +1870,7 @@ function updatePlayerMovement(dt) {
 
   ud.isWalking = isMoving;
 
-  // 3인칭 스마트 카메라 추적 (카메라 타겟과 위치가 플레이어와 함께 이동하여 미끄러짐 방지)
+  // 3인칭 스마트 카메라 추적 (타겟과 카메라 일체 이동으로 시점 미끄러짐 원천 차단)
   if (controls && isMoving) {
     const curTarget = controls.target.clone();
     const newTarget = new THREE.Vector3(curPos.x, curPos.y + 1.4, curPos.z);
@@ -1745,7 +1880,7 @@ function updatePlayerMovement(dt) {
     camera.position.addScaledVector(targetDelta, Math.min(1, dt * 8));
   }
 
-  // 네트워크 위치 동기화 (초당 15회 패킷 전송)
+  // 멀티플레이 위치 패킷 전송
   const now = performance.now();
   if ((isMoving || ud.isJumping) && STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     if (now - STATE.lastMoveSend > 65) {
@@ -1761,16 +1896,14 @@ function updatePlayerMovement(dt) {
     }
   }
 
-  // 근접 인터랙션 검사
   checkProximityInteractions();
 }
 
-// 치비 아바타 걷기, 눈깜빡임, 날개짓 애니메이션
 function updateCuteCitizenAnimation(c, dt, t) {
   const ud = c.userData;
   if (!ud) return;
 
-  // 1. 깜찍한 눈 깜빡임 (Blinking)
+  // 1. 깜찍한 눈 깜빡임
   if (ud.eyeL && ud.eyeR) {
     ud.blinkTimer -= dt;
     if (ud.blinkTimer <= 0) {
@@ -1787,24 +1920,23 @@ function updateCuteCitizenAnimation(c, dt, t) {
     }
   }
 
-  // 2. 걷기 시 팔다리 스윙 & 몸통 통통 바운스
+  // 2. 걷기 시 팔다리 스윙 및 통통 바운스
   if (ud.isWalking) {
     const swing = Math.sin(t * 11) * 0.55;
     if (ud.armL) ud.armL.rotation.x = swing;
     if (ud.armR) ud.armR.rotation.x = -swing;
-    if (ud.legL) ud.legL.rotation.x = -swing * 0.9;
-    if (ud.legR) ud.legR.rotation.x = swing * 0.9;
-    if (ud.headGroup) ud.headGroup.position.y = 1.18 + Math.abs(Math.sin(t * 11)) * 0.05;
+    if (ud.legGroupL) ud.legGroupL.rotation.x = -swing * 0.9;
+    if (ud.legGroupR) ud.legGroupR.rotation.x = swing * 0.9;
+    if (ud.headGroup) ud.headGroup.position.y = 1.22 + Math.abs(Math.sin(t * 11)) * 0.05;
   } else {
-    // 숨쉬기 부드러운 유휴 애니메이션
     if (ud.armL) ud.armL.rotation.x = Math.sin(t * 2.5) * 0.08;
     if (ud.armR) ud.armR.rotation.x = -Math.sin(t * 2.5) * 0.08;
-    if (ud.legL) ud.legL.rotation.x = 0;
-    if (ud.legR) ud.legR.rotation.x = 0;
-    if (ud.headGroup) ud.headGroup.position.y = 1.18 + Math.sin(t * 3.0) * 0.02;
+    if (ud.legGroupL) ud.legGroupL.rotation.x = 0;
+    if (ud.legGroupR) ud.legGroupR.rotation.x = 0;
+    if (ud.headGroup) ud.headGroup.position.y = 1.22 + Math.sin(t * 3.0) * 0.02;
   }
 
-  // 3. 날개 펄럭임 (점프 중에는 역동적 파닥임)
+  // 3. 날개 펄럭임
   if (ud.wingsSlot && ud.wingsSlot.userData.lWing) {
     const flapSpeed = ud.isJumping ? 24 : ud.isWalking ? 14 : 5;
     const flapAmp = ud.isJumping ? 0.6 : ud.isWalking ? 0.35 : 0.15;
@@ -1815,7 +1947,7 @@ function updateCuteCitizenAnimation(c, dt, t) {
 }
 
 // ========================================================
-// 8. 렌더 루프 및 파티클 / 동적 환경 업데이트
+// 9. 렌더 루프 및 파티클 / 동적 환경 업데이트
 // ========================================================
 function animate() {
   requestAnimationFrame(animate);
@@ -1823,10 +1955,8 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = clock.getElapsedTime();
 
-  // (1) 로컬 플레이어 물리 및 이동
   updatePlayerMovement(dt);
 
-  // (2) 로컬 및 원격 아바타 애니메이션
   if (localPlayer) {
     updateCuteCitizenAnimation(localPlayer, dt, t);
   }
@@ -1839,17 +1969,14 @@ function animate() {
     }
   }
 
-  // (3) 분수대 물줄기 춤추는 애니메이션
   fountainParticles.forEach(p => {
     p.position.y = p.userData.baseY + Math.sin(t * p.userData.speed + p.userData.phase) * 1.6 + 1.2;
   });
 
-  // (4) 등대 탐조등 회전 빔
   if (lighthouseBeamMesh) {
     lighthouseBeamMesh.rotation.z = t * 1.5;
   }
 
-  // (5) 동백꽃잎 흩날림
   fallingPetals.forEach(p => {
     p.position.y -= p.userData.vy;
     p.rotation.z += p.userData.rotSpeed;
@@ -1858,7 +1985,6 @@ function animate() {
     }
   });
 
-  // (6) 갈매기 선회 비행
   seagulls.forEach(s => {
     s.userData.angle += s.userData.speed;
     s.position.x = Math.cos(s.userData.angle) * s.userData.radius;
@@ -1875,7 +2001,7 @@ function animate() {
 }
 
 // ========================================================
-// 9. 근접 상호작용 및 실시간 이벤트 시스템
+// 10. 근접 상호작용
 // ========================================================
 function registerInteractiveObject(obj) {
   interactiveObjects.push(obj);
@@ -1925,7 +2051,7 @@ function showSpeechBubble(characterMesh, text) {
   canvas.height = 160;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
   ctx.roundRect(10, 10, 492, 140, 24);
   ctx.fill();
 
@@ -1939,7 +2065,6 @@ function showSpeechBubble(characterMesh, text) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // 2줄 자동 줄바꿈
   if (text.length > 18) {
     const line1 = text.substring(0, 18);
     const line2 = text.substring(18, 36);
@@ -1961,21 +2086,31 @@ function showSpeechBubble(characterMesh, text) {
 }
 
 // ========================================================
-// 10. WebSocket 실시간 멀티플레이 연동 (가즈아교 계승)
+// 11. WebSocket 실시간 멀티플레이 연동 (상호 완벽 동기화 보장)
 // ========================================================
 async function connectMultiplayerWebSocket() {
   const hostUrl = await autoDiscoverHostServer();
-  const wsUrl = hostUrl.replace(/^http/, 'ws');
+  const isSecure = window.location.protocol === 'https:' || hostUrl.includes('trycloudflare.com') || hostUrl.startsWith('https:');
+  const cleanHost = hostUrl.replace(/^https?:\/\//i, '').replace(/^wss?:\/\//i, '').replace(/\/+$/, '');
+  const wsUrl = `${isSecure ? 'wss:' : 'ws:'}//${cleanHost}/ws`;
 
   console.log(`[부산ON] WebSocket 연결 시도: ${wsUrl}`);
   try {
+    if (STATE.ws) {
+      try { STATE.ws.close(); } catch {}
+    }
+
     STATE.ws = new WebSocket(wsUrl);
 
     STATE.ws.onopen = () => {
       console.log("[부산ON] WebSocket 서버 연결 성공!");
       updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
 
-      // 룸 참가 패킷 전송
+      const px = localPlayer ? localPlayer.position.x : 0;
+      const py = localPlayer ? localPlayer.position.y : 0;
+      const pz = localPlayer ? localPlayer.position.z : 38;
+
+      // 룸 참가 패킷 즉각 전송
       STATE.ws.send(JSON.stringify({
         type: 'join',
         room: STATE.currentRoom,
@@ -1984,7 +2119,10 @@ async function connectMultiplayerWebSocket() {
         level: STATE.playerLevel,
         robe: STATE.robeColor,
         hat: STATE.hatType,
-        wings: STATE.wingsType
+        wings: STATE.wingsType,
+        x: px,
+        y: py,
+        z: pz
       }));
     };
 
@@ -2015,22 +2153,37 @@ async function connectMultiplayerWebSocket() {
 function handleServerMessage(msg) {
   const mtype = msg.type;
 
-  if (mtype === 'join_ack') {
-    // 기존 동시접속 피어들 일괄 추가
-    if (msg.peers) {
-      for (const pid in msg.peers) {
-        addRemotePeer(pid, msg.peers[pid]);
+  // 1. 환영 패킷 (기존 접속 피어들 일괄 생성)
+  if (mtype === 'welcome' || mtype === 'join_ack') {
+    const peerList = msg.peers || [];
+    if (Array.isArray(peerList)) {
+      peerList.forEach(p => {
+        if (p && p.id) addRemotePeer(p.id, p);
+      });
+    } else if (typeof peerList === 'object') {
+      for (const pid in peerList) {
+        if (peerList[pid]) addRemotePeer(pid, peerList[pid]);
       }
     }
     updateOnlineCount(msg.count || 1);
-  } else if (mtype === 'peer_join') {
-    addRemotePeer(msg.id, msg.info);
+  }
+  // 2. 새로운 다른 시민 입장
+  else if (mtype === 'peer_join') {
+    const info = msg.peer || msg.info || msg;
+    const pid = msg.id || info.id;
+    if (pid) {
+      addRemotePeer(pid, info);
+    }
     updateOnlineCount(msg.count);
-    addTestimonyItem(`[시민 입장]`, `${msg.info.name}님이 시청 광장에 도착했습니다.`);
-  } else if (mtype === 'peer_leave') {
+    addTestimonyItem(`[시민 입장]`, `${info.name || '시민'}님이 시청 광장에 도착했습니다.`);
+  }
+  // 3. 시민 퇴장
+  else if (mtype === 'peer_leave') {
     removeRemotePeer(msg.id);
     updateOnlineCount(msg.count);
-  } else if (mtype === 'peer_move') {
+  }
+  // 4. 시민 이동 동기화
+  else if (mtype === 'peer_move') {
     const peer = STATE.peers[msg.id];
     if (peer) {
       peer.targetPos.set(msg.x, msg.y, msg.z);
@@ -2038,13 +2191,17 @@ function handleServerMessage(msg) {
       peer.mesh.userData.isJumping = !!msg.jump;
       peer.mesh.userData.isWalking = true;
     }
-  } else if (mtype === 'peer_chat') {
+  }
+  // 5. 채팅 동기화
+  else if (mtype === 'peer_chat') {
     addTestimonyItem(msg.name, msg.text);
     const peer = STATE.peers[msg.id];
     if (peer) {
       showSpeechBubble(peer.mesh, msg.text);
     }
-  } else if (mtype === 'podium_broadcast') {
+  }
+  // 6. 시민 발언대 외치기
+  else if (mtype === 'podium_broadcast') {
     showPodiumBanner(msg.name, msg.text);
     addTestimonyItem(`[📢 발언대] ${msg.name}`, msg.text);
     if (window.busanAudio) window.busanAudio.playMegaphoneSound();
@@ -2056,13 +2213,14 @@ function addRemotePeer(id, info) {
 
   const mesh = createCuteCitizenMesh({
     name: info.name || "시민",
-    title: info.title || "시민",
+    title: info.title || "열린시민",
     level: info.level || 1,
     robeColor: info.robe || "blue",
     hatType: info.hat || "camellia",
     wingsType: info.wings || "seagull"
   });
   mesh.position.set(info.x || 0, info.y || 0, info.z || 30);
+  mesh.rotation.y = info.ry || 0;
   scene.add(mesh);
 
   STATE.peers[id] = {
@@ -2071,6 +2229,7 @@ function addRemotePeer(id, info) {
     targetPos: mesh.position.clone(),
     targetRotY: mesh.rotation.y
   };
+  console.log(`[부산ON] 원격 동료 시민 스폰 완료: ${info.name} (${id})`);
 }
 
 function removeRemotePeer(id) {
@@ -2087,7 +2246,7 @@ function updateOnlineCount(count) {
 }
 
 // ========================================================
-// 11. 제스처, 시민 발언대 외치기 & 실시간 채팅 피드
+// 12. 제스처, 시민 발언대 외치기 & 실시간 채팅 피드
 // ========================================================
 function performGesture(type) {
   if (!localPlayer) return;
@@ -2105,7 +2264,6 @@ function performGesture(type) {
     if (window.busanAudio) window.busanAudio.playClick();
   }
 
-  // 네트워크 액션 전송
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     STATE.ws.send(JSON.stringify({
       type: 'action',
@@ -2147,15 +2305,11 @@ function addTestimonyItem(author, text) {
   item.innerHTML = `<span class="testimony-author">${author}</span><span>${escapeHtml(text)}</span>`;
   feed.appendChild(item);
 
-  // 스크롤 최하단 유지
   feed.scrollTop = feed.scrollHeight;
-
-  // 최대 50개 유지
   while (feed.children.length > 50) {
     feed.removeChild(feed.firstChild);
   }
 
-  // 전체 기록 모달에도 추가
   const fullList = document.getElementById('fullChatHistoryList');
   if (fullList) {
     const fullItem = document.createElement('div');
@@ -2209,7 +2363,7 @@ function showPodiumBanner(author, text) {
 }
 
 // ========================================================
-// 12. 게이미피케이션 & 시민 등급 레벨업 시스템
+// 13. 게이미피케이션 & 시민 등급 레벨업 시스템
 // ========================================================
 const CITIZEN_RANKS = [
   { level: 1, title: "첫 방문 시민", minExp: 0 },
@@ -2271,7 +2425,7 @@ function collectStamp(id, name) {
 }
 
 // ========================================================
-// 13. 2층 행복민원실 순번 대기표 키오스크 시스템
+// 14. 2층 행복민원실 순번 대기표 키오스크 시스템
 // ========================================================
 let ticketSeq = 108;
 
@@ -2303,7 +2457,7 @@ function dispenseTicket(serviceName, prefix) {
 }
 
 // ========================================================
-// 14. 부산 시정 상식 퀴즈 룰렛 시스템
+// 15. 부산 시정 상식 퀴즈 룰렛 시스템
 // ========================================================
 const BUSAN_QUIZZES = [
   {
@@ -2395,7 +2549,7 @@ function submitQuizAnswer(userChoice, correctChoice, desc) {
 }
 
 // ========================================================
-// 15. 모달 및 기존 3개 연동 서비스 (AI, Division, Office, Wall)
+// 16. 모달 및 기존 서비스 (AI, Division, Office, Wall)
 // ========================================================
 function openModal(id) {
   const el = document.getElementById(id);
@@ -2443,7 +2597,6 @@ function resetAutoServerHost() {
   autoDiscoverHostServer().then(() => connectMultiplayerWebSocket());
 }
 
-// (1) AI 행정상담 질문 전송
 async function submitAiQuestion() {
   const input = document.getElementById('ai-question-input');
   if (!input) return;
@@ -2508,7 +2661,6 @@ function renderAiResponseBubble(data) {
   addCitizenExp(50);
 }
 
-// (2) 소관부서 검색기 (division-in-charge 연동)
 async function searchDivision() {
   const input = document.getElementById('division-input');
   const kw = input ? input.value.trim() : '';
@@ -2544,7 +2696,6 @@ function renderDivisionCards(list) {
   });
 }
 
-// (3) 청사 사무실 안내 (sejong-office-app 연동)
 let selectedOfficeFloor = '';
 
 function filterOfficeFloor(fl) {
@@ -2586,7 +2737,6 @@ function renderOfficeTable(list) {
   });
 }
 
-// (4) 시민 자유담벼락
 let currentWallCategory = '전체';
 
 function filterWallCategory(cat) {
@@ -2663,7 +2813,6 @@ async function submitNewWallPost() {
   }
 }
 
-// (5) 16개 구·군 디오라마 로드
 async function loadDistricts() {
   const apiUrl = getApiUrl('/api/districts');
   try {
@@ -2694,7 +2843,6 @@ async function loadDistricts() {
   }
 }
 
-// (6) 청사 사진 갤러리 로드
 async function loadPhotos() {
   const apiUrl = getApiUrl('/api/busan-photos');
   try {
@@ -2722,7 +2870,6 @@ async function loadPhotos() {
   }
 }
 
-// (7) 스토리 퀘스트 수첩
 function loadStoryActs() {
   const acts = [
     { act: "ACT 1", name: "첫 만남의 광장", desc: "시민광장의 '부산의 닻' 조형물과 등대광장을 방문해 첫 스탬프를 획득하세요.", done: STATE.stamps.anchor && STATE.stamps.lighthouse },
@@ -2749,7 +2896,6 @@ function loadStoryActs() {
   });
 }
 
-// (8) 캐릭터 커스터마이징 저장
 function saveCustomization() {
   const nameInput = document.getElementById('custom-name');
   const robeSelect = document.getElementById('custom-robe');
@@ -2765,14 +2911,16 @@ function saveCustomization() {
 
   closeModal('modal-customize');
 
-  // 로컬 플레이어 모델 교체 갱신
   if (localPlayer) {
+    const pos = localPlayer.position.clone();
+    const rotY = localPlayer.rotation.y;
     scene.remove(localPlayer);
     createLocalPlayer();
+    localPlayer.position.copy(pos);
+    localPlayer.rotation.y = rotY;
   }
   updatePlayerBadgeUI();
 
-  // 서버에 커스텀 외형 동기화
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     STATE.ws.send(JSON.stringify({
       type: 'update_look',
@@ -2784,7 +2932,6 @@ function saveCustomization() {
   }
 }
 
-// 룸 채널 전환
 function switchRealm(realmCode) {
   STATE.currentRoom = realmCode;
   const sel = document.getElementById('realm-select');
@@ -2796,7 +2943,10 @@ function switchRealm(realmCode) {
       room: realmCode,
       name: STATE.playerName,
       title: STATE.playerTitle,
-      level: STATE.playerLevel
+      level: STATE.playerLevel,
+      x: localPlayer ? localPlayer.position.x : 0,
+      y: localPlayer ? localPlayer.position.y : 0,
+      z: localPlayer ? localPlayer.position.z : 38
     }));
   }
 
@@ -2832,10 +2982,10 @@ function escapeHtml(str) {
 }
 
 // ========================================================
-// 16. 페이지 로드 초기화 진입점
+// 17. 진입점
 // ========================================================
 window.addEventListener('DOMContentLoaded', () => {
-  console.log("🌊 [부산ON 월드] 고품격 시민소통 메타버스 시작");
+  console.log("🌊 [부산ON 월드] 프리미엄 3D 메타버스 가동");
   initThreeWorld();
   updatePlayerBadgeUI();
   connectMultiplayerWebSocket();
