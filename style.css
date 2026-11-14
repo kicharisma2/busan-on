@@ -1315,3 +1315,676 @@ body, html {
     height: 200px;
   }
 }
+
+/* ========================================================
+   가즈아교 대성전 스타일 고도화 인터페이스 (부산시청 컨셉 승화)
+   ======================================================== */
+
+/* 1. 컨트롤 가이드 바 */
+.control-guide {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 5px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--primary-deep);
+  box-shadow: 0 4px 15px rgba(2, 132, 199, 0.08);
+  pointer-events: auto;
+  z-index: 45;
+  white-space: nowrap;
+}
+
+/* 2. 실시간 접속 시민 카운터 (펄스 도트) */
+.cult-counter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse-green 1.8s infinite;
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.counter-num {
+  font-weight: 800;
+  color: #0284c7;
+}
+
+/* 3. 중앙 실시간 시정 현황 HUD */
+.center-hud {
+  position: absolute;
+  top: 115px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+  z-index: 40;
+}
+
+.banner-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 6px 18px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.12);
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.hud-temp-val {
+  color: #0284c7;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.hud-temp-delta {
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ritual-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 4px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  font-size: 11px;
+}
+
+.ritual-bar-bg {
+  width: 110px;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.ritual-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7, #10b981);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* 4. 우측 플로팅 원형 퀵 액션 사이드바 (가즈아교 대성전 시그니처 9대 버튼) */
+.event-sidebar {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+  z-index: 45;
+}
+
+.sidebar-circle-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1.5px solid rgba(2, 132, 199, 0.28);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sidebar-circle-btn:hover {
+  transform: scale(1.12) translateX(-4px);
+  background: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.28);
+}
+
+.sidebar-circle-btn:active {
+  transform: scale(0.95);
+}
+
+.circle-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.circle-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--primary-deep);
+  margin-top: 2px;
+}
+
+/* 5. 중간 영역: 실시간 시민 한마디 스트림 (가즈아교 실시간 간증 스타일) */
+.middle-area {
+  position: absolute;
+  left: 20px;
+  bottom: 84px;
+  width: 320px;
+  pointer-events: auto;
+  z-index: 35;
+}
+
+.testimony-container {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(2, 132, 199, 0.22);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 26px rgba(2, 132, 199, 0.12);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.testimony-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--primary-deep);
+}
+
+.live-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.chat-expand-btn {
+  background: rgba(2, 132, 199, 0.1);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-deep);
+  cursor: pointer;
+}
+
+.testimony-list {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.testimony-list::-webkit-scrollbar {
+  width: 4px;
+}
+.testimony-list::-webkit-scrollbar-thumb {
+  background: rgba(2, 132, 199, 0.3);
+  border-radius: 4px;
+}
+
+.testimony-item {
+  font-size: 11.5px;
+  line-height: 1.4;
+  background: rgba(240, 249, 255, 0.7);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border-left: 3px solid #0284c7;
+}
+
+.testimony-author {
+  font-weight: 800;
+  color: #0369a1;
+  margin-right: 4px;
+}
+
+.testimony-input-box {
+  display: flex;
+  gap: 6px;
+}
+
+.testimony-input {
+  flex: 1;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.testimony-input:focus {
+  border-color: #0284c7;
+}
+
+.testimony-submit {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* 6. 모바일 가상 조이스틱 */
+.virtual-joystick {
+  display: none;
+  position: absolute;
+  bottom: 84px;
+  left: 20px;
+  width: 100px;
+  height: 100px;
+  z-index: 45;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.joystick-base {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(2, 132, 199, 0.25) 0%, rgba(2, 132, 199, 0.08) 70%);
+  border: 2px solid rgba(2, 132, 199, 0.4);
+  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.joystick-knob {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #38bdf8 0%, #0284c7 80%);
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.5);
+  position: absolute;
+  transform: translate(0, 0);
+  transition: transform 0.05s ease-out;
+}
+
+.knob-core {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  margin: 13px auto;
+  opacity: 0.8;
+}
+
+/* 7. 모바일 전용 플로팅 점프 버튼 */
+.mobile-jump-floating-btn {
+  display: none;
+  position: absolute;
+  bottom: 90px;
+  right: 18px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  color: white;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 46;
+  pointer-events: auto;
+}
+
+/* 8. 하단 제스처 & 액션 툴바 (가즈아교 대성전 포맷) */
+.toolbar-container {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  border-radius: var(--radius-full);
+  box-shadow: 0 10px 30px rgba(2, 132, 199, 0.16);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 50;
+}
+
+.prayer-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  white-space: nowrap;
+}
+
+.prayer-btn:hover {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0369a1;
+  transform: translateY(-2px);
+}
+
+.prayer-btn.jump {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border-color: #047857;
+  color: white;
+}
+
+.prayer-btn.shout {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-color: #b45309;
+  color: white;
+}
+
+/* 9. 순번 대기표 발급기 모달 스타일 */
+.ticket-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.ticket-option-btn {
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ticket-option-btn:hover {
+  border-color: #0284c7;
+  background: #f0f9ff;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.12);
+}
+
+.ticket-icon {
+  font-size: 26px;
+}
+
+.ticket-btn-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ticket-btn-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.issued-ticket-card {
+  margin-top: 18px;
+  background: #fffef5;
+  border: 2px dashed #0284c7;
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+  animation: slideDownTicket 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideDownTicket {
+  from { opacity: 0; transform: translateY(-15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ticket-stub-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.ticket-number {
+  font-size: 38px;
+  font-weight: 900;
+  color: #0284c7;
+  letter-spacing: -1px;
+}
+
+.ticket-service-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 4px 0;
+}
+
+.ticket-wait-info {
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.ticket-barcode {
+  font-family: monospace;
+  font-size: 16px;
+  color: #94a3b8;
+  letter-spacing: 4px;
+}
+
+/* 10. 퀴즈 모달 스타일 */
+.quiz-question-card {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.quiz-badge {
+  display: inline-block;
+  background: #0284c7;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.quiz-question {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+.quiz-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quiz-opt-btn {
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quiz-opt-btn:hover {
+  background: #f8fafc;
+  border-color: #0284c7;
+  transform: translateX(4px);
+}
+
+.quiz-result-msg {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.quiz-result-msg.correct {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.quiz-result-msg.wrong {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+/* 11. 전체 대화 기록 리스트 */
+.full-chat-history-list {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 6px;
+}
+
+.full-chat-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.full-chat-author {
+  font-weight: 800;
+  color: #0284c7;
+  margin-right: 6px;
+}
+
+.full-chat-time {
+  font-size: 10px;
+  color: #94a3b8;
+  float: right;
+}
+
+/* 모바일 화면 반응형 최적화 */
+@media (max-width: 900px), (pointer: coarse) {
+  .virtual-joystick {
+    display: block !important;
+  }
+  .mobile-jump-floating-btn {
+    display: flex !important;
+  }
+  .prayer-btn.jump {
+    display: none !important;
+  }
+  .control-guide {
+    display: none !important;
+  }
+  .middle-area {
+    display: none !important;
+  }
+  .event-sidebar {
+    right: 8px;
+    gap: 6px;
+  }
+  .sidebar-circle-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .circle-icon {
+    font-size: 17px;
+  }
+  .circle-label {
+    display: none;
+  }
+  .toolbar-container {
+    bottom: 8px;
+    padding: 4px 10px;
+    gap: 6px;
+  }
+  .prayer-btn {
+    padding: 5px 9px;
+    font-size: 11.5px;
+  }
+}

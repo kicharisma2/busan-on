@@ -464,6 +464,38 @@ class BusanCivicHTTPHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_ROOT, **kwargs)
 
+    def translate_path(self, path):
+        # 1. 기본 WEB_ROOT 디렉터리 기준 파일 탐색
+        res = super().translate_path(path)
+        if os.path.exists(res):
+            return res
+
+        # 2. 어떤 실행 환경(dist, exe, 소스폴더 등)에서도 404가 발생하지 않도록 대체 후보 탐색
+        norm_path = path.lstrip('/')
+        if not norm_path or norm_path == 'index.htm':
+            norm_path = 'index.html'
+
+        candidates = [
+            WEB_ROOT,
+            os.getcwd(),
+            os.path.dirname(os.path.abspath(__file__)),
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ]
+        if getattr(sys, 'frozen', False):
+            if hasattr(sys, '_MEIPASS'):
+                candidates.insert(0, getattr(sys, '_MEIPASS'))
+            exe_d = os.path.dirname(os.path.abspath(sys.executable))
+            candidates.insert(0, exe_d)
+            candidates.insert(1, os.path.dirname(exe_d))
+
+        for c in candidates:
+            if c:
+                cand = os.path.join(c, norm_path)
+                if os.path.exists(cand):
+                    return cand
+
+        return res
+
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         super().end_headers()

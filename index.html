@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>부산ON 월드 (BUSAN ON WORLD) | 부산광역시청 시민소통 메타버스</title>
-  <meta name="description" content="부산광역시청을 실제와 동일하게 구현한 시민소통 3D 메타버스. 5대 시청광장, 1층 들락날락, 2층 행복민원실, AI 행정상담, 소관부서 검색, 청사 사무실 안내, 시민 자유담벼락, 16개 구·군 확장">
+  <meta name="description" content="부산광역시청을 실제와 동일하게 구현한 시민소통 3D 메타버스. 5대 시민광장, 1층 들락날락, 2층 행복민원실, AI 행정상담, 소관부서 검색, 청사 사무실 안내, 시민 자유담벼락, 16개 구·군 확장">
 
   <!-- Open Graph -->
   <meta property="og:title" content="부산ON 월드 - 시민이 연결되는 부산광역시청">
@@ -17,7 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=20261113_busan">
+  <link rel="stylesheet" href="style.css?v=20261114_busan_pro">
 
   <!-- Three.js & OrbitControls -->
   <script src="three.min.js"></script>
@@ -33,187 +33,256 @@
   <!-- UI Overlay Layer -->
   <div class="ui-layer">
 
-    <!-- 1. TOP NAVIGATION HEADER -->
+    <!-- 1. TOP HEADER NAVIGATION (가즈아교 고도화 인터페이스 반영) -->
     <header class="top-nav">
-      <div class="brand-section" onclick="openStoryModal()">
+      <!-- 성전 브랜드 로고 -> 부산ON 시청 로고 -->
+      <div class="brand-section clickable" onclick="openStoryModal()">
         <div class="brand-logo">🌊</div>
         <div class="brand-info">
           <span class="brand-title">부산ON 월드</span>
-          <span class="brand-sub">BUSAN ON : 열린 시민소통</span>
+          <span class="brand-sub">부산광역시청 열린 메타버스</span>
         </div>
       </div>
 
-      <!-- District Realm Selector -->
-      <div class="realm-badge-container">
+      <!-- 16개 구·군 + 시청 본청 룸 채널 선택기 -->
+      <div class="realm-badge-container clickable">
         <span class="realm-icon">🏛️</span>
         <select id="realm-select" class="realm-select" onchange="switchRealm(this.value)">
-          <option value="BUSAN-HQ">부산광역시청 본관 (시민광장)</option>
-          <option value="DIST-YEONJE">연제구청 (시청 소재지)</option>
-          <option value="DIST-HAEUNDAE">해운대구청 (해변·센텀)</option>
-          <option value="DIST-BUSANJIN">부산진구청 (서면·시민공원)</option>
-          <option value="DIST-DONGNAE">동래구청 (온천·읍성)</option>
+          <option value="BUSAN-HQ">🏢 부산광역시청 본관 (시민광장·들락날락·민원실)</option>
+          <option value="DIST-YEONJE">연제구청 (시청 소재지·행정중심)</option>
+          <option value="DIST-HAEUNDAE">해운대구청 (해변·센텀시티)</option>
+          <option value="DIST-BUSANJIN">부산진구청 (서면·부산시민공원)</option>
+          <option value="DIST-DONGNAE">동래구청 (역사문화·동래온천)</option>
           <option value="DIST-SUYEONG">수영구청 (광안리·드론쇼)</option>
-          <option value="DIST-NAM">남구청 (UN평화특구)</option>
-          <option value="DIST-JUNG">중구청 (자갈치·용두산)</option>
-          <option value="DIST-SEO">서구청 (송도해수욕장)</option>
-          <option value="DIST-DONG">동구청 (부산역·북항)</option>
-          <option value="DIST-YEONGDO">영도구청 (태종대·흰여울)</option>
-          <option value="DIST-BUK">북구청 (구포시장·화명)</option>
-          <option value="DIST-SAHA">사하구청 (다대포·감천)</option>
-          <option value="DIST-GEUMJEONG">금정구청 (범어사·금정산)</option>
-          <option value="DIST-GANGSEO">강서구청 (명지·가덕신공항)</option>
-          <option value="DIST-SASANG">사상구청 (삼락생태공원)</option>
-          <option value="DIST-GIJANG">기장군청 (오시리아·해동용궁사)</option>
+          <option value="DIST-NAM">남구청 (UN평화특구·금융단지)</option>
+          <option value="DIST-JUNG">중구청 (자갈치·용두산타워)</option>
+          <option value="DIST-SEO">서구청 (송도해수욕장·암남공원)</option>
+          <option value="DIST-DONG">동구청 (부산역·북항재개발)</option>
+          <option value="DIST-YEONGDO">영도구청 (태종대·흰여울문화마을)</option>
+          <option value="DIST-BUK">북구청 (낙동강생태·구포시장)</option>
+          <option value="DIST-SAHA">사하구청 (다대포낙조·감천문화마을)</option>
+          <option value="DIST-GEUMJEONG">금정구청 (범어사·금정산성)</option>
+          <option value="DIST-GANGSEO">강서구청 (명지국제도시·가덕신공항)</option>
+          <option value="DIST-SASANG">사상구청 (삼락생태공원·첨단스마트산단)</option>
+          <option value="DIST-GIJANG">기장군청 (오시리아관광단지·해동용궁사)</option>
         </select>
       </div>
 
-      <!-- Citizen Explorer Progression -->
-      <div class="explorer-progress clickable" onclick="openStoryModal()">
-        <span class="explorer-rank-badge" id="player-rank-badge">탐험가 Lv.1</span>
+      <!-- 시민 탐험가 레벨 & 프로그레스 바 (클릭 시 수첩/스토리) -->
+      <div class="explorer-progress clickable" onclick="openStoryModal()" title="시민 등급 및 탐험 수첩">
+        <span class="explorer-rank-badge" id="player-rank-badge">시민 Lv.1</span>
         <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" id="player-xp-fill"></div>
+          <div class="progress-bar-fill" id="player-xp-fill" style="width: 20%;"></div>
         </div>
-        <span class="explorer-level-text" id="player-title-text">[첫 방문 시민]</span>
+        <span class="explorer-level-text" id="player-title-text">[첫 방문 시민] 김부산</span>
       </div>
 
-      <!-- Nav Actions -->
+      <!-- 우측 상단 상태 뱃지 및 액션 버튼들 -->
       <div class="nav-actions">
-        <div id="server-status-pill" class="server-status-pill waiting" onclick="showServerConfigPrompt()" title="실시간 서버 연결 상태 (클릭 시 확인)">
+        <!-- 서버 연결 상태 버튼 -->
+        <div id="server-status-pill" class="server-status-pill waiting clickable" onclick="showServerConfigPrompt()" title="실시간 서버 연결 상태 (클릭 시 연동 설정)">
           <span id="server-status-dot">🟡</span>
           <span id="server-status-text">서버 연결 중</span>
         </div>
-        <button class="nav-btn primary" onclick="openAiGuideModal()">
-          <span>🤖</span> AI 행정상담
-        </button>
-        <button class="nav-btn" onclick="openDivisionModal()">
-          <span>🔍</span> 소관부서 검색
-        </button>
-        <button class="nav-btn" onclick="openOfficeModal()">
-          <span>🏢</span> 청사 안내
-        </button>
-        <button class="nav-btn" onclick="openWallModal()">
-          <span>📢</span> 시민 담벼락
-        </button>
-        <button class="nav-icon-btn" id="bgm-toggle-btn" title="음악 켜기/끄기" onclick="toggleAudio()">
+
+        <!-- 실시간 접속 시민 수 카운터 (펄스 도트) -->
+        <div class="cult-counter glass clickable" id="onlineCounterBtn" title="현재 같은 공간에서 소통 중인 실제 시민 수">
+          <div class="pulse-dot"></div>
+          <span class="counter-label">시민 소통: </span><b id="cultistCount" class="counter-num">1</b><span>명</span>
+        </div>
+
+        <!-- BGM 토글 버튼 -->
+        <button class="nav-icon-btn clickable" id="bgm-toggle-btn" title="희망찬 부산 시정 BGM ON/OFF" onclick="toggleAudio()">
           🎵
         </button>
-        <button class="nav-icon-btn" title="캐릭터 꾸미기" onclick="openCustomizeModal()">
+
+        <!-- 캐릭터 의상 커스터마이징 버튼 -->
+        <button class="nav-icon-btn clickable" title="시민 의상 및 아바타 꾸미기" onclick="openCustomizeModal()">
           👤
-        </button>
-        <button class="nav-icon-btn" title="2D 빠른 행정 모드 전환" onclick="toggle2DMode()">
-          ⚡
         </button>
       </div>
     </header>
 
-    <!-- 2. STORY & QUEST TRACKER (Top-Left) -->
-    <div class="quest-tracker">
-      <div class="quest-header">
-        <span class="quest-badge" id="quest-act-badge">ACT 1. 첫 만남</span>
-        <span style="font-size: 11px; color:#64748b;" id="online-count-badge">접속자 1명</span>
+    <!-- 컨트롤 가이드 바 -->
+    <div class="control-guide glass">
+      <span>🎮 <b>WASD / 방향키 / 바닥 클릭</b> 이동 &nbsp;|&nbsp; <b>Spacebar 점프</b> &nbsp;|&nbsp; <b>마우스 드래그</b> 360도 시점 회전</span>
+    </div>
+
+    <!-- 2. 중앙 실시간 시정 현황 & 시민 소통 대결 HUD -->
+    <div class="center-hud">
+      <div class="banner-pill glass">
+        <span>🌡️ 시민 소통 온도:</span>
+        <span id="hudTemp" class="hud-temp-val">36.5°C</span>
+        <span id="hudTempDelta" class="hud-temp-delta">▲ +0.8°C 오늘 상승</span>
+        <span style="opacity:0.3; margin:0 6px;">|</span>
+        <span>🌤️ 부산 날씨:</span>
+        <span style="color:#0284c7; font-weight:700;">맑음 18°C</span>
       </div>
-      <div class="quest-title" id="quest-title">부산시청 앞 광장 탐방</div>
-      <div class="quest-desc" id="quest-desc">시민광장의 '부산의 닻' 조형물과 등대광장을 방문하고 스탬프를 모아보세요.</div>
-      <div class="quest-progress-tags" id="quest-tags">
-        <span class="quest-tag" id="tag-anchor">닻 조형물 미방문</span>
-        <span class="quest-tag" id="tag-lighthouse">등대광장 미방문</span>
-        <span class="quest-tag" id="tag-lobby">1층 로비 미방문</span>
-        <span class="quest-tag" id="tag-civil">2층 민원실 미방문</span>
+
+      <div class="ritual-bar-wrap glass">
+        <span style="color:#0284c7; font-size:11px; font-weight:700;">시민 제안 공감도:</span>
+        <div class="ritual-bar-bg">
+          <div id="civicBarFill" class="ritual-bar-fill" style="width:85%;"></div>
+        </div>
+        <span id="civicGaugeText" style="color:#0284c7; font-weight:bold; font-size:11px;">85% 공감</span>
       </div>
     </div>
 
-    <!-- 3. QUICK CIVIC SERVICE DOCK (Left-Center) -->
-    <div class="service-dock">
-      <button class="dock-btn" onclick="openAiGuideModal()">
-        <span class="dock-icon">💡</span>
-        <span>공무원 묻기 전 AI</span>
+    <!-- 3. 우측 플로팅 원형 퀵 액션 사이드바 (가즈아교 대성전 시그니처 9대 기능) -->
+    <aside class="event-sidebar">
+      <button class="sidebar-circle-btn clickable" onclick="openAiGuideModal()" title="AI 행정안내원 (다온 & 부기) 질의응답">
+        <span class="circle-icon">🤖</span>
+        <span class="circle-label">AI 상담</span>
       </button>
-      <button class="dock-btn" onclick="openDivisionModal()">
-        <span class="dock-icon">⚖️</span>
-        <span>시청 vs 구청 판별</span>
+
+      <button class="sidebar-circle-btn clickable" onclick="openDivisionModal()" title="소관부서 판별 (시청 본청 vs 16개 구청 업무 자동 검색)">
+        <span class="circle-icon">⚖️</span>
+        <span class="circle-label">부서판별</span>
       </button>
-      <button class="dock-btn" onclick="openOfficeModal()">
-        <span class="dock-icon">🗺️</span>
-        <span>1~28층 사무실 찾기</span>
+
+      <button class="sidebar-circle-btn clickable" onclick="openOfficeModal()" title="1층~28층 부산시청 사무실 및 직통 전화번호 검색 (세종청사 스타일)">
+        <span class="circle-icon">🏢</span>
+        <span class="circle-label">청사안내</span>
       </button>
-      <button class="dock-btn" onclick="openWallModal()">
-        <span class="dock-icon">🗣️</span>
-        <span>속 시원한 불만 광장</span>
+
+      <button class="sidebar-circle-btn clickable" onclick="openPodiumPrompt()" title="시민광장 발언대 확성기 외치기">
+        <span class="circle-icon">📢</span>
+        <span class="circle-label">발언대</span>
       </button>
-      <button class="dock-btn" onclick="openDistrictsModal()">
-        <span class="dock-icon">🌐</span>
-        <span>16개 구·군 디오라마</span>
+
+      <button class="sidebar-circle-btn clickable" onclick="openWallModal()" title="시민 자유담벼락 & 불만 분출 광장">
+        <span class="circle-icon">📝</span>
+        <span class="circle-label">담벼락</span>
       </button>
-      <button class="dock-btn" onclick="openPhotosModal()">
-        <span class="dock-icon">📸</span>
-        <span>실제 청사 사진 투어</span>
+
+      <button class="sidebar-circle-btn clickable" onclick="openDistrictsModal()" title="부산미래도시관 16개 구·군 디오라마 포털">
+        <span class="circle-icon">🌐</span>
+        <span class="circle-label">16구군</span>
       </button>
+
+      <button class="sidebar-circle-btn clickable" onclick="openPhotosModal()" title="실제 부산시청 고화질 공식 사진 및 청사 구조 갤러리">
+        <span class="circle-icon">📸</span>
+        <span class="circle-label">청사사진</span>
+      </button>
+
+      <button class="sidebar-circle-btn clickable" onclick="openTicketKioskModal()" title="2층 행복민원실 실시간 순번 대기표 발급기">
+        <span class="circle-icon">🎫</span>
+        <span class="circle-label">번호표</span>
+      </button>
+
+      <button class="sidebar-circle-btn clickable" onclick="openQuizModal()" title="부산 시정 상식 퀴즈 룰렛 (EXP 획득 및 레벨업)">
+        <span class="circle-icon">🎡</span>
+        <span class="circle-label">시정퀴즈</span>
+      </button>
+    </aside>
+
+    <!-- 4. 중간 영역: 실시간 시민 한마디 스트림 (가즈아교 실시간 간증 승화) -->
+    <div class="middle-area">
+      <div class="testimony-container glass clickable">
+        <div class="testimony-header">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span>🌊 시민들의 실시간 열린 목소리</span>
+            <span class="live-pulse"></span>
+          </div>
+          <button id="btnOpenChatHistory" class="chat-expand-btn clickable" onclick="openFullChatHistoryModal()" title="전체 대화 기록 보기">🗖 전체보기</button>
+        </div>
+
+        <div id="testimonyFeed" class="testimony-list">
+          <!-- JS 동적 스트리밍 렌더링 -->
+          <div class="testimony-item">
+            <span class="testimony-author">[안내원 다온]</span>
+            <span>부산시민 여러분, 부산ON 월드에 오신 것을 진심으로 환영합니다!</span>
+          </div>
+          <div class="testimony-item">
+            <span class="testimony-author">[열린시민]</span>
+            <span>시청 앞 광장 분수대랑 닻 조형물이랑 똑같이 되어 있네요!</span>
+          </div>
+        </div>
+
+        <div class="testimony-input-box">
+          <input type="text" id="testimonyInput" class="testimony-input" placeholder="시민들과 실시간 한마디 나누기..." maxlength="80">
+          <button id="testimonySubmit" class="testimony-submit clickable" onclick="submitQuickCitizenVoice()">전송</button>
+        </div>
+      </div>
     </div>
 
-    <!-- 4. PROXIMITY INTERACT PROMPT (Center) -->
-    <div class="interact-prompt" id="interact-prompt" onclick="triggerInteraction()">
+    <!-- 5. 근접 상호작용 프롬프트 (E키) -->
+    <div class="interact-prompt clickable" id="interact-prompt" onclick="triggerProximityAction()">
       <span class="prompt-key">E</span>
-      <span id="prompt-text">안내데스크와 대화하기</span>
+      <span id="prompt-text">상호작용</span>
     </div>
 
-    <!-- 5. CITIZEN PODIUM SHOUT BANNER (Top Center) -->
+    <!-- 6. 시민 발언대 전체 공지 배너 -->
     <div class="podium-banner" id="podium-banner">
-      <span style="font-size: 20px;">📢</span>
+      <span style="font-size: 24px;">📢</span>
       <div style="display: flex; flex-direction: column;">
         <span style="font-size: 11px; font-weight: 700; opacity: 0.9;" id="podium-author">시민 발언대 외침</span>
-        <span style="font-size: 14px; font-weight: 800;" id="podium-text">부산을 살기 좋은 도시로!</span>
+        <span style="font-size: 15px; font-weight: 800;" id="podium-text">부산을 살기 좋은 도시로!</span>
       </div>
     </div>
 
-    <!-- 6. MINI-MAP (Top-Right) -->
-    <div class="minimap-container">
-      <div class="minimap-header">
-        <span>시청광장 미니맵</span>
-        <span id="coord-display">X:0 Z:0</span>
-      </div>
-      <div class="minimap-canvas-wrap">
-        <canvas id="minimap-canvas"></canvas>
-      </div>
-    </div>
-
-    <!-- 7. GESTURE TOOLBAR (Bottom-Center) -->
-    <div class="gesture-toolbar">
-      <button class="gesture-btn" onclick="performGesture('wave')">👋 인사</button>
-      <button class="gesture-btn" onclick="performGesture('clap')">👏 박수</button>
-      <button class="gesture-btn" onclick="performGesture('cheer')">🙌 환호</button>
-      <button class="gesture-btn" onclick="performGesture('dance')">💃 댄스</button>
-      <button class="gesture-btn shout-btn" onclick="openPodiumPrompt()">📢 발언대 외치기</button>
-    </div>
-
-    <!-- 8. CHAT BOX (Bottom-Left) -->
-    <div class="chat-container">
-      <div class="chat-header">
-        <div class="chat-tabs">
-          <button class="chat-tab active" onclick="switchChatTab('all')">전체</button>
-          <button class="chat-tab" onclick="switchChatTab('square')">광장</button>
-          <button class="chat-tab" onclick="switchChatTab('wall')">담벼락</button>
-        </div>
-        <span style="font-size: 11px; color:#94a3b8;">엔터(Enter) 채팅</span>
-      </div>
-      <div class="chat-messages" id="chat-messages">
-        <div class="chat-msg">
-          <span class="msg-title">[안내]</span>
-          <span class="msg-author">다온(AI):</span>
-          <span>부산ON 월드에 오신 것을 환영합니다! WASD키로 이동하고 마우스로 주변을 둘러보세요.</span>
-          <span class="msg-time">10:00</span>
+    <!-- 7. 하단 툴바 & 모바일 가상 조이스틱 영역 -->
+    <!-- 모바일 360도 원형 가상 조이스틱 -->
+    <div class="virtual-joystick" id="virtualJoystickContainer">
+      <div class="joystick-base" id="joystickBase">
+        <div class="joystick-knob" id="joystickKnob">
+          <div class="knob-core"></div>
         </div>
       </div>
-      <div class="chat-input-bar">
-        <input type="text" id="chat-input" class="chat-input" placeholder="시민들과 나눌 대화를 입력하세요..." maxlength="120">
-        <button class="chat-send-btn" onclick="sendChatMessage()">➤</button>
-      </div>
+    </div>
+
+    <!-- 모바일 전용 우측 플로팅 점프 버튼 -->
+    <button class="mobile-jump-floating-btn clickable" id="mobileJumpFloatingBtn" onclick="triggerPlayerJump()">
+      <span style="font-size: 20px;">🦘</span>
+      <span style="font-size: 10px; font-weight: 800;">점프</span>
+    </button>
+
+    <!-- 하단 제스처 & 액션 툴바 -->
+    <div class="toolbar-container glass clickable">
+      <button class="prayer-btn jump" onclick="triggerPlayerJump()" title="스페이스바를 눌러 점프하고 계단과 단상을 훌쩍 뛰어넘습니다">
+        <span class="btn-icon">🦘</span>
+        <span class="btn-text">점프!</span>
+      </button>
+
+      <button class="prayer-btn" onclick="performGesture('wave')" title="주변 시민들에게 반갑게 손을 흔듭니다">
+        <span class="btn-icon">👋</span>
+        <span class="btn-text">인사</span>
+      </button>
+
+      <button class="prayer-btn" onclick="performGesture('clap')" title="박수를 칩니다">
+        <span class="btn-icon">👏</span>
+        <span class="btn-text">박수</span>
+      </button>
+
+      <button class="prayer-btn" onclick="performGesture('cheer')" title="부산 시정에 환호합니다">
+        <span class="btn-icon">🙌</span>
+        <span class="btn-text">환호</span>
+      </button>
+
+      <button class="prayer-btn" onclick="performGesture('dance')" title="즐겁게 댄스를 춥니다">
+        <span class="btn-icon">💃</span>
+        <span class="btn-text">댄스</span>
+      </button>
+
+      <button class="prayer-btn shout" onclick="openPodiumPrompt()" title="시민 발언대에 올라 확성기로 외칩니다">
+        <span class="btn-icon">📢</span>
+        <span class="btn-text">외치기</span>
+      </button>
+
+      <button class="prayer-btn" onclick="openFullChatHistoryModal()" title="전체 채팅 기록 및 채널 대화">
+        <span class="btn-icon">💬</span>
+        <span class="btn-text">채팅</span>
+      </button>
     </div>
 
   </div> <!-- End UI Layer -->
 
+
   <!-- ========================================================
-       MODAL 1: AI 행정안내소 (다온 & 부기)
+       MODALS SYSTEM (모든 팝업 창)
        ======================================================== -->
+
+  <!-- MODAL 1: AI 행정안내소 (다온 & 부기) -->
   <div class="modal-overlay" id="modal-ai-guide">
     <div class="modal-content">
       <div class="modal-header">
@@ -248,15 +317,13 @@
         </div>
         <div class="ai-input-wrap">
           <input type="text" id="ai-question-input" class="ai-input" placeholder="궁금한 시정 업무나 불편사항을 적어보세요 (예: 공사장 소음 신고)...">
-          <button class="ai-send-btn" onclick="submitAiQuestion()">질문하기</button>
+          <button class="ai-send-btn clickable" onclick="submitAiQuestion()">질문하기</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 2: 소관부서 & 사무분장 검색기 (division-in-charge)
-       ======================================================== -->
+  <!-- MODAL 2: 소관부서 & 사무분장 검색기 (division-in-charge 연동) -->
   <div class="modal-overlay" id="modal-division">
     <div class="modal-content">
       <div class="modal-header">
@@ -280,9 +347,7 @@
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 3: 청사 사무실 & 층별 안내기 (sejong-office-app)
-       ======================================================== -->
+  <!-- MODAL 3: 청사 사무실 & 층별 안내기 (sejong-office-app 연동) -->
   <div class="modal-overlay" id="modal-office">
     <div class="modal-content">
       <div class="modal-header">
@@ -333,9 +398,7 @@
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 4: 시민 자유담벼락 & 불만 분출 광장 (Citizen Wall)
-       ======================================================== -->
+  <!-- MODAL 4: 시민 자유담벼락 & 불만 분출 광장 (Citizen Wall) -->
   <div class="modal-overlay" id="modal-wall">
     <div class="modal-content">
       <div class="modal-header">
@@ -360,7 +423,7 @@
             <button class="wall-cat-btn" onclick="filterWallCategory('칭찬합니다')">👏 칭찬합니다</button>
             <button class="wall-cat-btn" onclick="filterWallCategory('궁금해요')">❓ 궁금해요</button>
           </div>
-          <button class="nav-btn primary" onclick="openNewPostModal()">✏️ 담벼락 글쓰기</button>
+          <button class="nav-btn primary clickable" onclick="openNewPostModal()">✏️ 담벼락 글쓰기</button>
         </div>
         <div class="wall-posts-list" id="wall-posts-list">
           <!-- Populated by JS -->
@@ -369,9 +432,7 @@
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 5: 새 담벼락 글쓰기 모달
-       ======================================================== -->
+  <!-- MODAL 5: 새 담벼락 글쓰기 모달 -->
   <div class="modal-overlay" id="modal-new-post">
     <div class="modal-content" style="max-width: 580px;">
       <div class="modal-header">
@@ -422,15 +483,13 @@
             <label style="font-size: 12px; font-weight: 700; color: #475569;">내용</label>
             <textarea id="post-content" rows="4" style="width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px; font-family: inherit; font-size: 13px; margin-top: 4px;" placeholder="생활 속 불편이나 의견을 자유롭게 적어주세요..."></textarea>
           </div>
-          <button class="nav-btn primary" style="width: 100%; justify-content: center; height: 42px;" onclick="submitNewWallPost()">담벼락에 등록하기</button>
+          <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 42px;" onclick="submitNewWallPost()">담벼락에 등록하기</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 6: 16개 구·군 디오라마 미래도시관 포털
-       ======================================================== -->
+  <!-- MODAL 6: 16개 구·군 디오라마 미래도시관 포털 -->
   <div class="modal-overlay" id="modal-districts">
     <div class="modal-content">
       <div class="modal-header">
@@ -451,9 +510,7 @@
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 7: 부산시청 공식 사진 & 청사 안내 갤러리
-       ======================================================== -->
+  <!-- MODAL 7: 부산시청 공식 사진 & 청사 안내 갤러리 -->
   <div class="modal-overlay" id="modal-photos">
     <div class="modal-content">
       <div class="modal-header">
@@ -474,9 +531,7 @@
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 8: 시민 탐험가 스토리 퀘스트 수첩 (ACT 1~5)
-       ======================================================== -->
+  <!-- MODAL 8: 시민 탐험가 스토리 퀘스트 수첩 (ACT 1~5) -->
   <div class="modal-overlay" id="modal-story">
     <div class="modal-content" style="max-width: 680px;">
       <div class="modal-header">
@@ -498,49 +553,13 @@
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;" id="story-acts-list">
-          <div class="division-card">
-            <div class="division-card-header">
-              <span class="division-task-name">ACT 1. 첫 만남의 광장</span>
-              <span class="division-authority-badge" id="act1-badge">진행 중</span>
-            </div>
-            <div class="division-row">시민광장의 '부산의 닻' 조형물과 등대광장을 방문해 첫 스탬프를 획득하세요.</div>
-          </div>
-          <div class="division-card">
-            <div class="division-card-header">
-              <span class="division-task-name">ACT 2. 들락날락 지혜의 숲</span>
-              <span class="division-authority-badge" id="act2-badge">미완료</span>
-            </div>
-            <div class="division-row">1층 로비의 들락날락에 방문하고 AI 다온에게 첫 행정 질문을 남겨보세요.</div>
-          </div>
-          <div class="division-card">
-            <div class="division-card-header">
-              <span class="division-task-name">ACT 3. 행복민원실의 온기</span>
-              <span class="division-authority-badge" id="act3-badge">미완료</span>
-            </div>
-            <div class="division-row">2층 행복민원실에 올라가 여권창구와 120콜센터 부스를 둘러보세요.</div>
-          </div>
-          <div class="division-card">
-            <div class="division-card-header">
-              <span class="division-task-name">ACT 4. 시민의 목소리</span>
-              <span class="division-authority-badge" id="act4-badge">미완료</span>
-            </div>
-            <div class="division-row">시민 자유담벼락에 첫 글을 작성하거나 발언대에서 힘차게 의견을 외쳐보세요.</div>
-          </div>
-          <div class="division-card">
-            <div class="division-card-header">
-              <span class="division-task-name">ACT 5. 16개 구·군으로 펼쳐지는 부산</span>
-              <span class="division-authority-badge" id="act5-badge">미완료</span>
-            </div>
-            <div class="division-row">부산미래도시관에서 16개 구·군 지도를 확인하고 다른 구청 월드로 여행해 보세요.</div>
-          </div>
+          <!-- Populated by JS -->
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 9: 캐릭터 커스터마이징 룸
-       ======================================================== -->
+  <!-- MODAL 9: 캐릭터 커스터마이징 룸 -->
   <div class="modal-overlay" id="modal-customize">
     <div class="modal-content" style="max-width: 500px;">
       <div class="modal-header">
@@ -569,6 +588,7 @@
               <option value="camellia">동백꽃 핀</option>
               <option value="seagull">부산 갈매기 모자</option>
               <option value="halo">시민 후광</option>
+              <option value="headset">120 콜센터 헤드셋</option>
               <option value="none">없음</option>
             </select>
           </div>
@@ -580,15 +600,13 @@
               <option value="none">없음</option>
             </select>
           </div>
-          <button class="nav-btn primary" style="width: 100%; justify-content: center; height: 42px;" onclick="saveCustomization()">저장 및 적용</button>
+          <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 42px;" onclick="saveCustomization()">저장 및 적용</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ========================================================
-       MODAL 10: 시민 발언대 외치기 프롬프트
-       ======================================================== -->
+  <!-- MODAL 10: 시민 발언대 확성기 외치기 프롬프트 -->
   <div class="modal-overlay" id="modal-podium-shout">
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
@@ -600,13 +618,158 @@
           시민 발언대에 올라 부산시민 모두에게 울려 퍼질 목소리를 입력해 주세요! 확성기 효과음과 함께 전광판에 등록됩니다.
         </div>
         <input type="text" id="podium-input-text" class="division-search-input" placeholder="부산시에 바라는 점이나 불만을 시원하게 외쳐보세요!" maxlength="50">
-        <button class="nav-btn primary" style="width: 100%; justify-content: center; height: 42px; margin-top: 14px;" onclick="submitPodiumShout()">확성기로 외치기</button>
+        <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 42px; margin-top: 14px;" onclick="submitPodiumShout()">확성기로 외치기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 11: 2층 행복민원실 순번 대기표 발급기 (신규) -->
+  <div class="modal-overlay" id="modal-ticket">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">🎫</div>
+          <div>
+            <div class="modal-title">2층 행복민원실 순번 대기표 발급기</div>
+            <div class="modal-sub">원하시는 민원 업무를 선택하시면 실시간 번호표가 출력됩니다</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-ticket')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="ticket-select-grid">
+          <button class="ticket-option-btn clickable" onclick="dispenseTicket('여권 발급', 'A')">
+            <span class="ticket-icon">🛂</span>
+            <span class="ticket-btn-title">1번 여권 발급</span>
+            <span class="ticket-btn-sub">대기인원: 3명</span>
+          </button>
+          <button class="ticket-option-btn clickable" onclick="dispenseTicket('가족관계·주민등록', 'B')">
+            <span class="ticket-icon">📑</span>
+            <span class="ticket-btn-title">2번 주민등록·가족</span>
+            <span class="ticket-btn-sub">대기인원: 1명</span>
+          </button>
+          <button class="ticket-option-btn clickable" onclick="dispenseTicket('지적·토지관리', 'C')">
+            <span class="ticket-icon">🗺️</span>
+            <span class="ticket-btn-title">3번 지적·토지민원</span>
+            <span class="ticket-btn-sub">대기인원: 0명 (즉시 상담)</span>
+          </button>
+          <button class="ticket-option-btn clickable" onclick="dispenseTicket('지방세·세무상담', 'D')">
+            <span class="ticket-icon">💰</span>
+            <span class="ticket-btn-title">4번 세무·취득세</span>
+            <span class="ticket-btn-sub">대기인원: 2명</span>
+          </button>
+          <button class="ticket-option-btn clickable" onclick="dispenseTicket('차량등록·교통', 'E')">
+            <span class="ticket-icon">🚗</span>
+            <span class="ticket-btn-title">5번 차량등록·교통</span>
+            <span class="ticket-btn-sub">대기인원: 1명</span>
+          </button>
+          <button class="ticket-option-btn clickable" onclick="dispenseTicket('복지·어르신지원', 'F')">
+            <span class="ticket-icon">👵</span>
+            <span class="ticket-btn-title">6번 어르신·사회복지</span>
+            <span class="ticket-btn-sub">대기인원: 0명</span>
+          </button>
+        </div>
+
+        <!-- 발급된 번호표 프리뷰 -->
+        <div id="issuedTicketCard" class="issued-ticket-card" style="display:none;">
+          <div class="ticket-stub-header">
+            <span>부산광역시청 행복민원실</span>
+            <span id="ticketIssuedTime">14:30:15</span>
+          </div>
+          <div class="ticket-number" id="ticketNumberDisplay">A-108</div>
+          <div class="ticket-service-name" id="ticketServiceNameDisplay">여권 발급</div>
+          <div class="ticket-wait-info" id="ticketWaitInfoDisplay">내 앞 대기인원: 3명 | 예상 대기시간: 약 6분</div>
+          <div class="ticket-barcode">||| | |||| | ||| || |||</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 12: 부산 시정 상식 퀴즈 룰렛 (신규) -->
+  <div class="modal-overlay" id="modal-quiz">
+    <div class="modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">🎡</div>
+          <div>
+            <div class="modal-title">부산 시정 상식 퀴즈 룰렛</div>
+            <div class="modal-sub">부산의 역사와 시정 퀴즈를 풀고 시민 레벨과 경험치를 획득하세요!</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-quiz')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="quizContainer">
+          <div class="quiz-question-card">
+            <span class="quiz-badge" id="quizNumberBadge">문제 1 / 5</span>
+            <div class="quiz-question" id="quizQuestionText">부산광역시를 대표하는 시화(市花)는 무엇일까요?</div>
+          </div>
+          <div class="quiz-options-grid" id="quizOptionsGrid">
+            <!-- Populated by JS -->
+          </div>
+          <div id="quizResultMsg" class="quiz-result-msg" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 13: 실시간 전체 대화 기록 모달 (신규) -->
+  <div class="modal-overlay" id="modal-chat-history">
+    <div class="modal-content" style="max-width: 640px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">💬</div>
+          <div>
+            <div class="modal-title">실시간 시민 대화 전체 기록</div>
+            <div class="modal-sub">현재 성전 및 채널에서 오간 시민들의 모든 대화 내역입니다</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-chat-history')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="full-chat-history-list" id="fullChatHistoryList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 14: 서버 연동 설정 모달 -->
+  <div class="modal-overlay" id="modal-server-config">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">⚙️</div>
+          <div>
+            <div class="modal-title">부산ON 서버 연동 설정</div>
+            <div class="modal-sub">GitHub Pages 및 WebSocket 실시간 멀티플레이 호스트 연결</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-server-config')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="font-size:13px; color:#475569; line-height:1.5;">
+            현재 연결된 호스트 주소와 클라우드 상태를 확인하거나 수동으로 호스트 주소를 지정할 수 있습니다.
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:700;">호스트 주소 (HTTP / WebSocket)</label>
+            <input type="text" id="cfg-server-host" class="division-search-input" placeholder="예: https://xxxx.trycloudflare.com 또는 localhost:8080" style="margin-top:4px;">
+          </div>
+          <div style="font-size:11px; color:#64748b;" id="cfg-status-detail">
+            자동 감지 중: GitHub Gist (8bd7ddc5c6df9538c8092e1f01c9b2fa)
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="nav-btn primary clickable" style="flex:1; justify-content:center;" onclick="applyCustomServerHost()">연결하기</button>
+            <button class="nav-btn clickable" style="flex:1; justify-content:center;" onclick="resetAutoServerHost()">자동 감지로 재설정</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Scripts -->
-  <script src="audio.js"></script>
-  <script src="app.js"></script>
+  <script src="audio.js?v=20261114_pro"></script>
+  <script src="app.js?v=20261114_pro"></script>
 </body>
 </html>

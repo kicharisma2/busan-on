@@ -273,6 +273,97 @@ class BusanAudioEngine {
     gain.connect(this.masterGain);
     noise.start(now);
   }
+
+  // (6) 점프 도약 휘익 효과음
+  playJump() {
+    this.ensureContext();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(540, now + 0.15);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+
+  // (7) 동전 소원 연못 퐁당 효과음
+  playCoinToss() {
+    this.ensureContext();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    // 쨍그랑 동전
+    const osc1 = this.ctx.createOscillator();
+    const g1 = this.ctx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(2400, now);
+    osc1.frequency.exponentialRampToValueAtTime(1800, now + 0.1);
+    g1.gain.setValueAtTime(0.2, now);
+    g1.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+    osc1.connect(g1);
+    g1.connect(this.masterGain);
+    osc1.start(now);
+    osc1.stop(now + 0.16);
+
+    // 물 퐁당
+    const osc2 = this.ctx.createOscillator();
+    const g2 = this.ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(600, now + 0.12);
+    osc2.frequency.exponentialRampToValueAtTime(300, now + 0.25);
+    g2.gain.setValueAtTime(0.18, now + 0.12);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    osc2.connect(g2);
+    g2.connect(this.masterGain);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.3);
+  }
+
+  // (8) 시민 박수 소리 합성
+  playApplause() {
+    this.ensureContext();
+    if (!this.ctx) return;
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.04, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let j = 0; j < d.length; j++) d[j] = Math.random() * 2 - 1;
+        const s = this.ctx.createBufferSource();
+        s.buffer = buf;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.15, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        s.connect(g);
+        g.connect(this.masterGain);
+        s.start(now);
+      }, i * 65 + Math.random() * 20);
+    }
+  }
+
+  // (9) UI 버튼 클릭 가벼운 틱
+  playClick() {
+    this.ensureContext();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.04);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
 }
 
 // 싱글톤 글로벌 인스턴스

@@ -1,1104 +1,1873 @@
 // ========================================================
-// 부산ON 월드 (BUSAN ON WORLD) - 메인 클라이언트 스크립트
-// Three.js 3D 부산시청 메타버스, 멀티플레이어 동기화,
-// AI 행정안내소, 소관부서 검색기, 층별 사무실 안내, 시민 자유담벼락
+// 부산ON 월드 (BUSAN ON WORLD) - 메인 3D 메타버스 엔진
+// 부산광역시청 5대 시민광장, 1층 들락날락 도서관, 2층 행복민원실
+// SD 치비 시민 아바타 시스템, 물리 충돌 및 층간 계단 이동, 실시간 멀티플레이
 // ========================================================
 
-const CLOUD_REGISTRY_GIST_ID = '8bd7ddc5c6df9538c8092e1f01c9b2fa';
-
+// --------------------------------------------------------
+// 1. 글로벌 상태 및 상수 정의
+// --------------------------------------------------------
 const STATE = {
-  currentRealm: 'BUSAN-HQ',
-  playerName: '부산시민_' + Math.floor(Math.random() * 899 + 100),
+  playerName: "열린시민",
   playerLevel: 1,
-  playerExp: 0,
-  playerTitle: '[첫 방문 시민]',
-  playerRobe: 'blue',
-  playerHat: 'camellia',
-  playerWings: 'seagull',
-  playerBelt: 'citizen',
-
-  // 스탬프 및 퀘스트 진행 상태
-  stamps: {
-    anchor: false,
-    lighthouse: false,
-    lobby: false,
-    civil: false,
-    shout: false
-  },
-  currentAct: 1,
-
-  // 피어(다른 시민들)
-  peers: {},
+  playerExp: 20,
+  playerTitle: "첫 방문 시민",
+  robeColor: "blue",
+  hatType: "camellia",
+  wingsType: "seagull",
+  currentRoom: "BUSAN-HQ",
   onlineCount: 1,
-
-  // 웹소켓 및 호스트 서버
+  peers: {},             // { id: { mesh, info, targetPos, targetRotY, isWalking, nameTagMesh, bubbleMesh } }
+  keys: { w: false, a: false, s: false, d: false, space: false, shift: false },
+  joystickDir: { x: 0, y: 0 },
+  clickTargetPos: null,
+  activeHostUrl: null,
   ws: null,
-  clientId: null,
-  apiBase: '',
-  serverHost: window.location.host,
-  serverConnected: false,
-
-  // 2D 모드 활성화 여부
-  is2DMode: false
+  lastMoveSend: 0,
+  lastPingTime: 0,
+  stamps: { anchor: false, lighthouse: false, lobby: false, civil: false },
+  quizIndex: 0,
+  quizScore: 0,
+  interactionTarget: null
 };
 
-function getApiUrl(path) {
-  if (STATE.apiBase) {
-    return `${STATE.apiBase}${path}`;
-  }
-  return path;
-}
+const COLOR_PALETTE = {
+  blue: 0x0284c7,     // 부산 마린 블루
+  white: 0xf8fafc,    // 순백 화이트
+  camellia: 0xe11d48, // 동백꽃 레드
+  gold: 0xf59e0b,     // 햇살 골드
+  green: 0x10b981     // 녹음 그린
+};
 
-function updateServerStatusUI(online, text) {
-  const pill = document.getElementById('server-status-pill');
-  const dot = document.getElementById('server-status-dot');
-  const label = document.getElementById('server-status-text');
-  if (pill && dot && label) {
-    dot.innerText = online ? '🟢' : '🟡';
-    label.innerText = text;
-    pill.className = `server-status-pill ${online ? 'online' : 'waiting'}`;
-  }
-}
+// 3D 렌더링 핵심 전역 변수
+let scene, camera, renderer, controls, clock;
+let localPlayer = null;
+let clickMarkerMesh = null;
+let fountainParticles = [];
+let fallingPetals = [];
+let seagulls = [];
+let interactiveObjects = [];
+let lighthouseBeamMesh = null;
+let busanCityHallObstacles = [];
 
-function showServerConfigPrompt() {
-  const current = STATE.apiBase || `http://${window.location.host}`;
-  const custom = prompt(
-    "🌐 [부산ON 호스트 서버 주소 설정]\n\n" +
-    "현재 연결된 서버 주소:\n" + current + "\n\n" +
-    "수동으로 다른 Cloudflare 주소나 IP를 지정하시려면 아래에 입력하세요 (비워두면 자동 감지 유지):",
-    STATE.apiBase
-  );
-  if (custom !== null && custom.trim() !== "") {
-    let clean = custom.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    STATE.serverHost = clean;
-    STATE.apiBase = `https://${clean}`;
-    updateServerStatusUI(true, '수동 연결');
-    if (STATE.ws) {
-      STATE.ws.close();
-    }
-    connectWebSocket();
-    loadWallPosts();
-  }
-}
+// ========================================================
+// 2. 호스트 서버 자동 감지 및 API URL 헬퍼
+// ========================================================
+const GIST_REGISTRY_ID = "8bd7ddc5c6df9538c8092e1f01c9b2fa";
 
 async function autoDiscoverHostServer() {
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  if (isLocal) {
-    STATE.apiBase = '';
-    STATE.serverHost = window.location.host;
-    updateServerStatusUI(true, '로컬 서버');
-    return window.location.host;
+  // 1. 이미 지정된 로컬/사용자 호스트가 있다면 사용
+  const savedHost = localStorage.getItem('busan_custom_host');
+  if (savedHost) {
+    STATE.activeHostUrl = savedHost;
+    updateServerStatusUI(true, "수동 지정 호스트");
+    return savedHost;
   }
 
-  if (window.location.hostname.includes('trycloudflare.com')) {
-    STATE.apiBase = '';
-    STATE.serverHost = window.location.host;
-    updateServerStatusUI(true, '터널 라이브');
-    return window.location.host;
+  // 2. 로컬호스트 실행 환경인 경우
+  const loc = window.location;
+  if (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1' || loc.port === '8080') {
+    STATE.activeHostUrl = `${loc.protocol}//${loc.host}`;
+    updateServerStatusUI(true, "로컬 서버 (포트 8080)");
+    return STATE.activeHostUrl;
   }
 
-  // GitHub Pages 등 외부 웹사이트에서 실행될 때: Gist에서 실시간 호스트 주소 탐색
-  console.log('[부산ON] 외부 환경 감지: Gist에서 라이브 호스트 서버 주소 조회 중...');
-  updateServerStatusUI(false, '호스트 찾는 중');
-
-  const cacheBuster = Date.now();
-  // 1. Raw Gist 조회
+  // 3. GitHub Pages 환경: Gist에서 실시간 Cloudflare 공인 호스트 주소 획득
+  updateServerStatusUI(false, "호스트 서버 탐색 중...");
   try {
-    const rawRes = await fetch(`https://gist.githubusercontent.com/kicharisma2/${CLOUD_REGISTRY_GIST_ID}/raw/host.json?_nocache=${cacheBuster}`, { cache: 'no-store' });
-    if (rawRes.ok) {
-      const parsed = await rawRes.json();
-      const targetUrl = parsed.url || parsed.host;
-      if (parsed.status === 'online' && targetUrl) {
-        const cleanHost = targetUrl.trim().replace(/^https?:\/\//i, '').replace(/^wss?:\/\//i, '').replace(/\/+.*$/, '');
-        STATE.serverHost = cleanHost;
-        STATE.apiBase = `https://${cleanHost}`;
-        console.log('[부산ON] Gist Raw 라이브 호스트 발견:', cleanHost);
-        updateServerStatusUI(true, '실시간 연결됨');
-        return cleanHost;
-      }
-    }
-  } catch (e1) {
-    console.warn('[부산ON] Gist raw 조회 알림:', e1);
-  }
-
-  // 2. Gist REST API 폴백
-  try {
-    const res = await fetch(`https://api.github.com/gists/${CLOUD_REGISTRY_GIST_ID}?_nocache=${cacheBuster}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.files && data.files['host.json']) {
-        const parsed = JSON.parse(data.files['host.json'].content);
-        const targetUrl = parsed.url || parsed.host;
-        if (parsed.status === 'online' && targetUrl) {
-          const cleanHost = targetUrl.trim().replace(/^https?:\/\//i, '').replace(/^wss?:\/\//i, '').replace(/\/+.*$/, '');
-          STATE.serverHost = cleanHost;
-          STATE.apiBase = `https://${cleanHost}`;
-          console.log('[부산ON] Gist API 라이브 호스트 발견:', cleanHost);
-          updateServerStatusUI(true, '실시간 연결됨');
-          return cleanHost;
+    const gistRes = await fetch(`https://api.github.com/gists/${GIST_REGISTRY_ID}?t=${Date.now()}`);
+    if (gistRes.ok) {
+      const gistData = await gistRes.json();
+      if (gistData.files && gistData.files['host.json']) {
+        const hostInfo = JSON.parse(gistData.files['host.json'].content);
+        if (hostInfo.status === 'online' && hostInfo.url) {
+          STATE.activeHostUrl = hostInfo.url.replace(/\/+$/, '');
+          updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
+          return STATE.activeHostUrl;
         }
       }
     }
-  } catch (e2) {
-    console.warn('[부산ON] Gist API 조회 알림:', e2);
+  } catch (err) {
+    console.warn("[부산ON] Gist 레지스트리 조회 실패:", err);
   }
 
-  updateServerStatusUI(false, '호스트 대기');
-  return null;
+  // 4. Fallback: 기본 로컬 주소
+  STATE.activeHostUrl = "http://localhost:8080";
+  updateServerStatusUI(false, "로컬 대기 모드");
+  return STATE.activeHostUrl;
 }
 
-// 9단계 시민 탐험가 계급 체계
-const CITIZEN_RANKS = [
-  { level: 1, title: '첫 방문 시민', minExp: 0 },
-  { level: 2, title: '광장 산책자', minExp: 100 },
-  { level: 3, title: '청사 길잡이', minExp: 250 },
-  { level: 4, title: '행정 탐구자', minExp: 450 },
-  { level: 5, title: '소통 참여자', minExp: 700 },
-  { level: 6, title: '우리동네 보안관', minExp: 1050 },
-  { level: 7, title: '시민 지킴이', minExp: 1500 },
-  { level: 8, title: '16개 구·군 탐험가', minExp: 2100 },
-  { level: 9, title: '부산ON 마스터', minExp: 3000 }
-];
+function getApiUrl(path) {
+  const base = STATE.activeHostUrl || "http://localhost:8080";
+  return `${base}${path.startsWith('/') ? path : '/' + path}`;
+}
 
-// 3D 전역 변수
-let scene, camera, renderer, controls;
-let localPlayerMesh = null;
-let animMixers = [];
-let clock = new THREE.Clock();
-let interactiveObjects = []; // E키 상호작용 트리거 목록
-let seagulls = [];
-let fountainParticles = [];
-let camelliaPetals = [];
-
-// 키보드 입력 상태
-const KEYS = { w: false, a: false, s: false, d: false, space: false, shift: false };
+function updateServerStatusUI(online, text) {
+  const dot = document.getElementById('server-status-dot');
+  const txt = document.getElementById('server-status-text');
+  const pill = document.getElementById('server-status-pill');
+  if (dot) dot.innerText = online ? "🟢" : "🟡";
+  if (txt) txt.innerText = text;
+  if (pill) {
+    pill.className = `server-status-pill clickable ${online ? 'online' : 'waiting'}`;
+  }
+}
 
 // ========================================================
-// 1. 초기화 (INIT)
+// 3. Three.js 씬 초기화 및 환경광 / 그림자
 // ========================================================
-window.addEventListener('DOMContentLoaded', () => {
-  initThree();
-  buildBusanWorld();
-  setupEventListeners();
-  connectWebSocket();
-  loadInitialData();
-  animate();
-});
+const SHARED_GEO = {};
+const SHARED_MAT = {};
 
-function initThree() {
+function initSharedGeometries() {
+  SHARED_GEO.head = new THREE.SphereGeometry(0.38, 20, 18);
+  SHARED_GEO.eye = new THREE.SphereGeometry(0.048, 12, 10);
+  SHARED_GEO.shine = new THREE.SphereGeometry(0.02, 8, 8);
+  SHARED_GEO.blush = new THREE.SphereGeometry(0.052, 10, 8);
+  SHARED_GEO.body = new THREE.CylinderGeometry(0.24, 0.36, 0.58, 18);
+  SHARED_GEO.limb = new THREE.CylinderGeometry(0.08, 0.08, 0.36, 12);
+  SHARED_GEO.camelliaFlower = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 8);
+  SHARED_GEO.camelliaCenter = new THREE.SphereGeometry(0.045, 8, 8);
+  SHARED_GEO.halo = new THREE.TorusGeometry(0.34, 0.038, 10, 24);
+  SHARED_GEO.wing = new THREE.BoxGeometry(0.42, 0.18, 0.03);
+
+  SHARED_MAT.skin = new THREE.MeshStandardMaterial({ color: 0xffdfd3, roughness: 0.45 });
+  SHARED_MAT.eye = new THREE.MeshBasicMaterial({ color: 0x111827 });
+  SHARED_MAT.shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  SHARED_MAT.blush = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
+  SHARED_MAT.gold = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 });
+  SHARED_MAT.camellia = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 });
+  SHARED_MAT.halo = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+  SHARED_MAT.wing = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+}
+
+function initThreeWorld() {
   const container = document.getElementById('canvas-container');
   const canvas = document.getElementById('gl-canvas');
 
+  clock = new THREE.Clock();
+
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbbe1fa); // 상쾌한 부산 하늘색
-  scene.fog = new THREE.FogExp2(0xcfe9f7, 0.005);
+  scene.background = new THREE.Color(0xbfe3f7);
+  scene.fog = new THREE.FogExp2(0xbfe3f7, 0.008);
 
   // Camera
-  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 1000);
-  camera.position.set(0, 18, 48);
+  camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 800);
+  camera.position.set(0, 14, 52);
 
   // Renderer
-  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  // Controls
+  // OrbitControls
   controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.maxPolarAngle = Math.PI / 2 - 0.05; // 지면 아래 회전 방지
-  controls.minDistance = 6;
-  controls.maxDistance = 140;
-  controls.target.set(0, 3, 20);
+  controls.dampingFactor = 0.06;
+  controls.maxPolarAngle = Math.PI / 2 - 0.03; // 바닥 밑으로 카메라 관통 방지
+  controls.minDistance = 2.5;
+  controls.maxDistance = 65;
+  controls.target.set(0, 1.4, 28);
 
-  // Lights
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.82);
   scene.add(ambientLight);
 
-  const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.2);
-  sunLight.position.set(80, 150, 70);
+  const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.25);
+  sunLight.position.set(45, 60, 40);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
-  sunLight.shadow.camera.near = 10;
-  sunLight.shadow.camera.far = 400;
-  const d = 100;
+  sunLight.shadow.camera.near = 0.5;
+  sunLight.shadow.camera.far = 180;
+  const d = 55;
   sunLight.shadow.camera.left = -d;
   sunLight.shadow.camera.right = d;
   sunLight.shadow.camera.top = d;
   sunLight.shadow.camera.bottom = -d;
   scene.add(sunLight);
 
-  const seaHemiLight = new THREE.HemisphereLight(0x0284c7, 0x10b981, 0.35);
-  scene.add(seaHemiLight);
-}
+  const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x0369a1, 0.45);
+  scene.add(hemiLight);
 
-// ========================================================
-// 2. 3D 부산시청 및 5대 시청광장 모델링
-// ========================================================
-function buildBusanWorld() {
-  // (1) 넓은 지면 및 잔디밭
-  const groundGeo = new THREE.PlaneGeometry(350, 350);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.8 });
-  const ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  // 중앙대로 아스팔트 도로 (정문 앞)
-  const roadGeo = new THREE.PlaneGeometry(350, 24);
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 });
-  const road = new THREE.Mesh(roadGeo, roadMat);
-  road.rotation.x = -Math.PI / 2;
-  road.position.set(0, 0.02, 75);
-  road.receiveShadow = true;
-  scene.add(road);
-
-  // 중앙대로 황색 차선
-  const lineGeo = new THREE.PlaneGeometry(350, 0.8);
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-  const line = new THREE.Mesh(lineGeo, lineMat);
-  line.rotation.x = -Math.PI / 2;
-  line.position.set(0, 0.03, 75);
-  scene.add(line);
-
-  // (2) 부산광역시청 본관 건물 (28층 메인 타워 + 저층 로비 캐노피)
-  buildBusanCityHallBuilding();
-
-  // (3) 시민광장 중앙 '부산의 닻' 거대 조형물
-  buildAnchorSculpture(0, 0, 15);
-
-  // (4) 바닥 분수대
-  buildFountain(0, 0, 28);
-
-  // (5) 등대광장 (오륙도 등대 조형물 + 소원 연못)
-  buildLighthouseSquare(-45, 0, 12);
-
-  // (6) 동백광장 (동백나무 군락 산책로)
-  buildCamelliaSquare(45, 0, 12);
-
-  // (7) 녹음광장 & 야외공연장 버스킹 무대
-  buildGreenPlazaAmphitheater(-50, 0, 45);
-
-  // (8) 잔디광장 & 속 시원한 시민 발언대
-  buildFreeSpeechPodium(50, 0, 45);
-
-  // (9) 시청 1층 들락날락 & 로비 실내 인터랙션 구역
-  buildDeullakLobbyArea(0, 0, -25);
-
-  // (10) 하늘의 갈매기 애니메이션
-  createFlockOfSeagulls();
-
-  // (11) 로컬 플레이어 생성
+  initSharedGeometries();
+  setupClickMarker();
+  buildBusanCityHallWorld();
   createLocalPlayer();
+  setupMovementControls();
+  setupVirtualJoystick();
+  setupResizeHandler();
+
+  animate();
 }
 
-// 부산시청 본관 (28층 주타워)
-function buildBusanCityHallBuilding() {
-  const cityHallGroup = new THREE.Group();
+// ========================================================
+// 4. 부산광역시청 및 5대 시민광장 3D 건축 모델링
+// ========================================================
+function buildBusanCityHallWorld() {
+  busanCityHallObstacles = [];
 
-  // 저층 기단부 (1~3층 열린로비 & 행복민원실)
-  const baseGeo = new THREE.BoxGeometry(90, 14, 50);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
-  const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-  baseMesh.position.set(0, 7, -35);
-  baseMesh.castShadow = true;
-  baseMesh.receiveShadow = true;
-  cityHallGroup.add(baseMesh);
+  // (1) 메인 지형 베이스 (푸른 녹지 공원 & 화강석 광장)
+  const terrainGeo = new THREE.PlaneGeometry(220, 220);
+  const terrainMat = new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.85 }); // 부드러운 잔디
+  const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+  terrain.rotation.x = -Math.PI / 2;
+  terrain.position.y = -0.02;
+  terrain.receiveShadow = true;
+  scene.add(terrain);
 
-  // 정문 유리 파사드 & 캐노피
-  const glassGeo = new THREE.BoxGeometry(60, 10, 2);
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x0284c7,
-    roughness: 0.1,
-    metalness: 0.8,
-    transparent: true,
-    opacity: 0.75
-  });
-  const glassMesh = new THREE.Mesh(glassGeo, glassMat);
-  glassMesh.position.set(0, 5, -9);
-  cityHallGroup.add(glassMesh);
+  // 시민광장 대리석 석재 바닥 (Z: 12 ~ 50, X: -24 ~ 24)
+  const plazaFloorGeo = new THREE.PlaneGeometry(48, 44);
+  const plazaFloorMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35 });
+  const plazaFloor = new THREE.Mesh(plazaFloorGeo, plazaFloorMat);
+  plazaFloor.rotation.x = -Math.PI / 2;
+  plazaFloor.position.set(0, 0.01, 31);
+  plazaFloor.receiveShadow = true;
+  scene.add(plazaFloor);
 
-  // 정문 캐노피 지붕
-  const canopyGeo = new THREE.BoxGeometry(34, 1.5, 12);
-  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x0369a1 });
-  const canopy = new THREE.Mesh(canopyGeo, canopyMat);
-  canopy.position.set(0, 9, -5);
-  canopy.castShadow = true;
-  cityHallGroup.add(canopy);
+  // (2) 부산광역시청 본관 외관 타워 (28층 트윈 고층 유리 타워 파사드)
+  buildCityHallTowerFacade();
 
-  // 28층 고층 주타워 (28-Story High-Rise Tower)
-  const towerGeo = new THREE.BoxGeometry(68, 70, 36);
+  // (3) 시민광장: 부산의 닻 조형물 & 음악 분수대
+  buildAnchorSculpture(0, 0, 26);
+  buildDancingFountain(0, 0, 42);
+
+  // (4) 등대광장: 해양 등대 & 소원 연못
+  buildLighthouseSquare(34, 0, 30);
+
+  // (5) 동백광장: 붉은 동백나무 군락 & 정원 벤치
+  buildCamelliaSquare(-34, 0, 30);
+
+  // (6) 녹음광장 야외공연장: 반원형 관람석 & 버스킹 무대
+  buildGreenPlazaAmphitheater(-33, 0, 60);
+
+  // (7) 잔디광장 시민 발언대: 확성기 발언대
+  buildFreeSpeechPodium(33, 0, 60);
+
+  // (8) 1층 들락날락 어린이 복합문화도서관 & 16구군 미래도시관 & 안내데스크
+  buildFirstFloorAtriumLobby();
+
+  // (9) 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터
+  buildCentralGrandStairs();
+
+  // (10) 2층 행복민원실 (여권창구, 120콜센터, 아주라 수유실, 순번 키오스크)
+  buildSecondFloorCivilServiceHall();
+
+  // (11) 갈매기 및 자연 환경 요소
+  createFlockOfSeagulls();
+}
+
+// --------------------------------------------------------
+// [건축 1] 부산시청 본관 28층 타워 외관 파사드
+// --------------------------------------------------------
+function buildCityHallTowerFacade() {
+  const buildingGroup = new THREE.Group();
+
+  // 메인 타워 베이스 (28층 모던 글래스 타워 볼륨)
+  const towerGeo = new THREE.BoxGeometry(84, 42, 70);
   const towerMat = new THREE.MeshStandardMaterial({
-    color: 0x0ea5e9,
-    roughness: 0.2,
-    metalness: 0.5
+    color: 0x38bdf8,
+    metalness: 0.35,
+    roughness: 0.25,
+    transparent: true,
+    opacity: 0.88
   });
   const tower = new THREE.Mesh(towerGeo, towerMat);
-  tower.position.set(0, 49, -38);
-  tower.castShadow = true;
-  tower.receiveShadow = true;
-  cityHallGroup.add(tower);
+  tower.position.set(0, 21, -50);
+  buildingGroup.add(tower);
 
-  // 타워 측면 화강석 기둥 프레임
-  [-34, 34].forEach(x => {
-    const colGeo = new THREE.BoxGeometry(4, 72, 38);
-    const colMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9 });
-    const col = new THREE.Mesh(colGeo, colMat);
-    col.position.set(x, 49, -38);
-    col.castShadow = true;
-    cityHallGroup.add(col);
-  });
+  // 외벽 프레임 (화강석 스팬드럴 띠)
+  const frameGeo = new THREE.BoxGeometry(85, 1.2, 71);
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });
+  for (let y = 6; y <= 40; y += 4.5) {
+    const spandrel = new THREE.Mesh(frameGeo, frameMat);
+    spandrel.position.set(0, y, -50);
+    buildingGroup.add(spandrel);
+  }
 
-  // 타워 상단 부산광역시 심볼 전광판
-  const signGeo = new THREE.BoxGeometry(30, 6, 2);
-  const signMat = new THREE.MeshStandardMaterial({ color: 0x0369a1 });
-  const sign = new THREE.Mesh(signGeo, signMat);
-  sign.position.set(0, 84, -18);
-  cityHallGroup.add(sign);
+  // 1층 캐노피 지붕 & 시청 간판
+  const canopyGeo = new THREE.BoxGeometry(28, 1.2, 8);
+  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.6, roughness: 0.2 });
+  const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+  canopy.position.set(0, 5.2, -1);
+  canopy.castShadow = true;
+  buildingGroup.add(canopy);
 
-  scene.add(cityHallGroup);
+  // 간판 텍스트 플레이트 ("부산광역시청 BUSAN METROPOLITAN CITY")
+  createSignBoard(0, 5.9, 3.1, "부산광역시청 BUSAN METROPOLITAN CITY", 0x0369a1, buildingGroup);
 
-  // 정문 진입 트리거 등록 (1층 로비)
-  registerInteractiveObject({
-    id: 'lobby_entrance',
-    name: '부산시청 1층 열린로비 입장 (들락날락)',
-    pos: new THREE.Vector3(0, 1, -8),
-    radius: 7,
-    action: () => openOfficeModal()
-  });
+  // 유리 자동문 입구 (Z: 0, X: -6 ~ 6)
+  const doorGeo = new THREE.BoxGeometry(10, 4.2, 0.4);
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.55 });
+  const doors = new THREE.Mesh(doorGeo, doorMat);
+  doors.position.set(0, 2.1, 0);
+  buildingGroup.add(doors);
+
+  scene.add(buildingGroup);
+
+  // 건물 외벽 물리 충돌 등록 (출입구 X: -6 ~ 6 제외)
+  busanCityHallObstacles.push({ type: 'box', x: -28, z: 0, w: 32, d: 2, h: 10 });
+  busanCityHallObstacles.push({ type: 'box', x: 28, z: 0, w: 32, d: 2, h: 10 });
+  busanCityHallObstacles.push({ type: 'box', x: -42, z: -45, w: 2, d: 80, h: 15 });
+  busanCityHallObstacles.push({ type: 'box', x: 42, z: -45, w: 2, d: 80, h: 15 });
+  busanCityHallObstacles.push({ type: 'box', x: 0, z: -84, w: 86, d: 2, h: 15 });
 }
 
-// 시민광장 '부산의 닻 (Anchor)' 은빛 상징 조형물
+// --------------------------------------------------------
+// [건축 2] 시민광장: 부산의 닻(Anchor) 상징 조형물
+// --------------------------------------------------------
 function buildAnchorSculpture(x, y, z) {
-  const anchorGroup = new THREE.Group();
-  anchorGroup.position.set(x, y, z);
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-  // 화강암 원형 기단
-  const plinthGeo = new THREE.CylinderGeometry(6, 6.5, 1.2, 32);
-  const plinthMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
-  const plinth = new THREE.Mesh(plinthGeo, plinthMat);
-  plinth.position.y = 0.6;
-  plinth.receiveShadow = true;
-  anchorGroup.add(plinth);
+  // 화강석 단상 (Y: 1.0, 발로 밟고 올라설 수 있음)
+  const baseGeo = new THREE.BoxGeometry(5.0, 1.0, 5.0);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4 });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.5;
+  base.receiveShadow = true;
+  base.castShadow = true;
+  group.add(base);
 
-  // 은빛 강철 닻 샤프트 (기둥)
-  const shaftGeo = new THREE.CylinderGeometry(0.5, 0.5, 10, 16);
-  const steelMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
-  const shaft = new THREE.Mesh(shaftGeo, steelMat);
-  shaft.position.y = 6;
-  shaft.castShadow = true;
-  anchorGroup.add(shaft);
+  // 실버 크롬 닻(Anchor) 메탈 조각
+  const anchorMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.92, roughness: 0.15 });
 
-  // 닻 상단 고리 (Ring)
-  const ringGeo = new THREE.TorusGeometry(1.4, 0.35, 16, 32);
-  const ring = new THREE.Mesh(ringGeo, steelMat);
-  ring.position.y = 11;
-  ring.castShadow = true;
-  anchorGroup.add(ring);
+  // 세로 축 (Shank)
+  const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 4.2, 16), anchorMat);
+  shank.position.y = 3.0;
+  shank.castShadow = true;
+  group.add(shank);
 
-  // 닻 하단 양 날개 곡선 (Arms)
-  const armGeo = new THREE.TorusGeometry(3.6, 0.45, 16, 32, Math.PI);
-  const arm = new THREE.Mesh(armGeo, steelMat);
-  arm.rotation.z = Math.PI;
-  arm.position.y = 4.2;
-  arm.castShadow = true;
-  anchorGroup.add(arm);
+  // 가로 빗장 (Stock)
+  const stock = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 3.4, 16), anchorMat);
+  stock.rotation.z = Math.PI / 2;
+  stock.position.y = 4.4;
+  group.add(stock);
 
-  // 상징 명판
-  const plaqueGeo = new THREE.BoxGeometry(3, 1, 0.2);
-  const plaqueMat = new THREE.MeshStandardMaterial({ color: 0x0369a1 });
-  const plaque = new THREE.Mesh(plaqueGeo, plaqueMat);
-  plaque.position.set(0, 0.9, 6.1);
-  anchorGroup.add(plaque);
+  // 하단 닻고리 (Flukes)
+  const ringGeo = new THREE.TorusGeometry(1.6, 0.22, 12, 24, Math.PI);
+  const flukes = new THREE.Mesh(ringGeo, anchorMat);
+  flukes.rotation.z = Math.PI;
+  flukes.position.y = 2.4;
+  group.add(flukes);
 
-  scene.add(anchorGroup);
+  // 상단 로프 링
+  const topRing = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.08, 10, 20), anchorMat);
+  topRing.position.y = 5.2;
+  group.add(topRing);
 
-  // 닻 조형물 인터랙션 트리거 (스탬프 획득)
+  scene.add(group);
+
+  // 상호작용 등록
   registerInteractiveObject({
     id: 'anchor',
-    name: '부산의 닻 조형물 감상하기',
-    pos: new THREE.Vector3(x, 1, z),
-    radius: 7,
+    pos: { x, y: 1.0, z },
+    radius: 3.5,
+    prompt: "부산의 닻 기념비 살펴보기",
     action: () => {
-      collectStamp('anchor', '부산의 닻 스탬프');
-      openPhotosModal();
+      collectStamp('anchor', "부산의 닻");
+      showSpeechBubble(localPlayer, "⚓ 해양 수도 부산의 상징 '부산의 닻' 조형물입니다! 굳건한 번영을 염원합니다.");
+      if (window.busanAudio) window.busanAudio.playStampSound();
     }
   });
+
+  // 충돌체 등록
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 5.0, d: 5.0, h: 1.0 });
 }
 
-// 바닥 분수대
-function buildFountain(x, y, z) {
-  const fountainGeo = new THREE.CylinderGeometry(7, 7.5, 0.8, 32);
-  const fountainMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2, metalness: 0.1 });
-  const fountain = new THREE.Mesh(fountainGeo, fountainMat);
-  fountain.position.set(x, 0.4, z);
-  fountain.receiveShadow = true;
-  scene.add(fountain);
+// --------------------------------------------------------
+// [건축 3] 음악 분수대 (Dancing Fountain)
+// --------------------------------------------------------
+function buildDancingFountain(x, y, z) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-  // 분수 물줄기 파티클
-  for (let i = 0; i < 24; i++) {
-    const angle = (i / 24) * Math.PI * 2;
-    const dropGeo = new THREE.SphereGeometry(0.18, 8, 8);
-    const dropMat = new THREE.MeshBasicMaterial({ color: 0xbae6fd });
-    const drop = new THREE.Mesh(dropGeo, dropMat);
-    drop.position.set(x + Math.cos(angle) * 3.5, 1, z + Math.sin(angle) * 3.5);
-    drop.userData = { baseY: 0.6, speed: 2 + Math.random() * 2, phase: Math.random() * Math.PI * 2 };
-    scene.add(drop);
-    fountainParticles.push(drop);
+  // 원형 분수대 수조 테두리
+  const basinGeo = new THREE.CylinderGeometry(6.2, 6.4, 0.7, 32);
+  const basinMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });
+  const basin = new THREE.Mesh(basinGeo, basinMat);
+  basin.position.y = 0.35;
+  basin.receiveShadow = true;
+  group.add(basin);
+
+  // 푸른 물 표면
+  const waterGeo = new THREE.CylinderGeometry(5.8, 5.8, 0.65, 32);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    roughness: 0.1,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.82
+  });
+  const water = new THREE.Mesh(waterGeo, waterMat);
+  water.position.y = 0.38;
+  group.add(water);
+
+  // 중앙 분수 분사 노즐 파티클
+  for (let i = 0; i < 16; i++) {
+    const pGeo = new THREE.SphereGeometry(0.12, 8, 8);
+    const pMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.85 });
+    const p = new THREE.Mesh(pGeo, pMat);
+    const angle = (i / 16) * Math.PI * 2;
+    p.position.set(Math.cos(angle) * 3.5, 0.6, Math.sin(angle) * 3.5);
+    p.userData = { baseY: 0.6, speed: 3.5 + Math.random(), phase: i * 0.4 };
+    fountainParticles.push(p);
+    group.add(p);
   }
+
+  scene.add(group);
+
+  // 상호작용 등록
+  registerInteractiveObject({
+    id: 'fountain',
+    pos: { x, y, z },
+    radius: 7.0,
+    prompt: "음악 분수대 물줄기 감상하기",
+    action: () => {
+      showSpeechBubble(localPlayer, "⛲ 시원한 분수대 물줄기를 보니 마음까지 상쾌해집니다!");
+      if (window.busanAudio) window.busanAudio.playFountainSplash();
+      addCitizenExp(30);
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'cyl', x, z, r: 6.2, h: 0.7 });
 }
 
-// 등대광장 (오륙도 등대 조형물 + 소원 연못)
+// --------------------------------------------------------
+// [건축 4] 등대광장: 해양 등대 & 소원 연못
+// --------------------------------------------------------
 function buildLighthouseSquare(x, y, z) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 빨간색 & 하얀색 스트라이프 등대 탑 (높이 12m)
   const lhGroup = new THREE.Group();
-  lhGroup.position.set(x, y, z);
+  lhGroup.position.set(0, 0, 0);
 
-  // 연못 지면
-  const pondGeo = new THREE.CylinderGeometry(10, 10.5, 0.5, 32);
-  const pondMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.1, metalness: 0.4 });
-  const pond = new THREE.Mesh(pondGeo, pondMat);
-  pond.position.y = 0.25;
-  lhGroup.add(pond);
+  // 베이스
+  const baseGeo = new THREE.CylinderGeometry(2.4, 2.8, 1.2, 18);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x64748b });
+  const lhBase = new THREE.Mesh(baseGeo, baseMat);
+  lhBase.position.y = 0.6;
+  lhGroup.add(lhBase);
 
-  // 오륙도 클래식 등대 타워 (빨강 + 흰색 줄무늬)
-  const towerGeo = new THREE.CylinderGeometry(1.6, 2.5, 14, 16);
-  const towerMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e });
-  const tower = new THREE.Mesh(towerGeo, towerMat);
-  tower.position.y = 7.5;
-  tower.castShadow = true;
-  lhGroup.add(tower);
+  // 몸통 4단 스트라이프
+  const colors = [0xe11d48, 0xffffff, 0xe11d48, 0xffffff];
+  for (let i = 0; i < 4; i++) {
+    const segGeo = new THREE.CylinderGeometry(1.9 - i * 0.25, 2.15 - i * 0.25, 2.2, 18);
+    const segMat = new THREE.MeshStandardMaterial({ color: colors[i], roughness: 0.4 });
+    const seg = new THREE.Mesh(segGeo, segMat);
+    seg.position.y = 1.2 + 1.1 + i * 2.2;
+    seg.castShadow = true;
+    lhGroup.add(seg);
+  }
 
-  // 등대 흰색 띠
-  const bandGeo = new THREE.CylinderGeometry(1.85, 2.05, 3.5, 16);
-  const bandMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  const band = new THREE.Mesh(bandGeo, bandMat);
-  band.position.y = 7.5;
-  lhGroup.add(band);
+  // 상단 조명실 (Lantern Room)
+  const lanternGeo = new THREE.CylinderGeometry(1.2, 1.2, 1.4, 16);
+  const lanternMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfef08a, emissiveIntensity: 0.8 });
+  const lantern = new THREE.Mesh(lanternGeo, lanternMat);
+  lantern.position.y = 11.2;
+  lhGroup.add(lantern);
 
-  // 등대 램프 룸 (상단)
-  const lampGeo = new THREE.CylinderGeometry(1.5, 1.5, 2.2, 16);
-  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-  const lamp = new THREE.Mesh(lampGeo, lampMat);
-  lamp.position.y = 15;
-  lhGroup.add(lamp);
+  // 회전 라이트 빔 콘 (Light Cone)
+  const beamGeo = new THREE.ConeGeometry(8, 28, 16, 1, true);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xfef08a,
+    transparent: true,
+    opacity: 0.22,
+    side: THREE.DoubleSide
+  });
+  lighthouseBeamMesh = new THREE.Mesh(beamGeo, beamMat);
+  lighthouseBeamMesh.rotation.x = Math.PI / 2;
+  lighthouseBeamMesh.position.set(0, 11.2, 14);
+  lhGroup.add(lighthouseBeamMesh);
 
-  // 등대 회전 탐조등 광선 (Beam)
-  const beamGeo = new THREE.ConeGeometry(5, 22, 16, 1, true);
-  const beamMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
-  const beam = new THREE.Mesh(beamGeo, beamMat);
-  beam.rotation.x = Math.PI / 2;
-  beam.position.set(0, 15, 11);
-  lhGroup.add(beam);
-  lhGroup.userData = { beamMesh: beam };
+  group.add(lhGroup);
 
-  scene.add(lhGroup);
+  // 소원 연못 (Wish Pond)
+  const pondGroup = new THREE.Group();
+  pondGroup.position.set(0, 0, 10);
+  const pondRim = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.4, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+  pondRim.position.y = 0.2;
+  pondGroup.add(pondRim);
 
+  const pondWater = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 0.38, 20), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, transparent: true, opacity: 0.85 }));
+  pondWater.position.y = 0.22;
+  pondGroup.add(pondWater);
+  group.add(pondGroup);
+
+  scene.add(group);
+
+  // 상호작용 등록
   registerInteractiveObject({
     id: 'lighthouse',
-    name: '등대광장 소원 연못 방문하기',
-    pos: new THREE.Vector3(x, 1, z),
-    radius: 8,
+    pos: { x, y, z },
+    radius: 4.5,
+    prompt: "부산 해양 등대 둘러보기",
     action: () => {
-      collectStamp('lighthouse', '오륙도 등대 스탬프');
-      if (window.busanAudio) window.busanAudio.playDingDong();
-      alert("✨ 등대광장 소원 연못에 오셨습니다! 오늘의 시민 소원을 빌어보세요.");
+      collectStamp('lighthouse', "해양 등대");
+      showSpeechBubble(localPlayer, "🏮 부산의 밤바다를 환히 밝히는 희망의 등대입니다!");
+      if (window.busanAudio) window.busanAudio.playStampSound();
     }
   });
+
+  registerInteractiveObject({
+    id: 'wish_pond',
+    pos: { x, y, z: z + 10 },
+    radius: 3.5,
+    prompt: "동전 소원 연못에 행운 빌기",
+    action: () => {
+      if (window.busanAudio) window.busanAudio.playCoinToss();
+      showSpeechBubble(localPlayer, "🪙 동전을 퐁당 던졌습니다! 부산시민 모두의 소원이 이루어지길!");
+      addCitizenExp(50);
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'cyl', x, z, r: 2.8, h: 12 });
+  busanCityHallObstacles.push({ type: 'cyl', x, z: z + 10, r: 3.4, h: 0.4 });
 }
 
-// 동백광장 (동백나무 군락)
+// --------------------------------------------------------
+// [건축 5] 동백광장: 부산 시화(市花) 동백나무 정원
+// --------------------------------------------------------
 function buildCamelliaSquare(x, y, z) {
-  const camelliaGroup = new THREE.Group();
-  camelliaGroup.position.set(x, y, z);
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-  // 붉은 동백나무 8그루 배치
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const dist = 5 + (i % 2) * 3;
-    const treeX = Math.cos(angle) * dist;
-    const treeZ = Math.sin(angle) * dist;
+  // 8그루의 풍성한 동백나무 배치
+  const treePositions = [
+    { dx: -6, dz: -6 }, { dx: 0, dz: -8 }, { dx: 6, dz: -6 },
+    { dx: -8, dz: 0 }, { dx: 8, dz: 0 },
+    { dx: -6, dz: 6 }, { dx: 0, dz: 8 }, { dx: 6, dz: 6 }
+  ];
 
-    // 나무 기둥
-    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
-    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-    trunk.position.set(treeX, 1.5, treeZ);
-    trunk.castShadow = true;
-    camelliaGroup.add(trunk);
+  treePositions.forEach(p => {
+    const tree = createCamelliaTree();
+    tree.position.set(p.dx, 0, p.dz);
+    group.add(tree);
+    busanCityHallObstacles.push({ type: 'cyl', x: x + p.dx, z: z + p.dz, r: 0.8, h: 4.5 });
+  });
 
-    // 진녹색 잎사귀
-    const leavesGeo = new THREE.SphereGeometry(1.8, 12, 12);
-    const leavesMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.8 });
-    const leaves = new THREE.Mesh(leavesGeo, leavesMat);
-    leaves.position.set(treeX, 3.8, treeZ);
-    leaves.castShadow = true;
-    camelliaGroup.add(leaves);
+  // 정원 원목 벤치 2개
+  const bench1 = createParkBench();
+  bench1.position.set(-2, 0, 0);
+  group.add(bench1);
 
-    // 붉은 동백꽃 꽃송이
-    for (let f = 0; f < 5; f++) {
-      const flowerGeo = new THREE.SphereGeometry(0.3, 6, 6);
-      const flowerMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
-      const flower = new THREE.Mesh(flowerGeo, flowerMat);
-      flower.position.set(
-        treeX + (Math.random() - 0.5) * 2.2,
-        3.5 + Math.random() * 1.5,
-        treeZ + (Math.random() - 0.5) * 2.2
-      );
-      camelliaGroup.add(flower);
+  const bench2 = createParkBench();
+  bench2.position.set(2, 0, 0);
+  bench2.rotation.y = Math.PI;
+  group.add(bench2);
+
+  // 흩날리는 붉은 동백꽃잎 파티클 초기화
+  for (let i = 0; i < 24; i++) {
+    const petal = new THREE.Mesh(SHARED_GEO.camelliaFlower, SHARED_MAT.camellia);
+    petal.scale.set(0.6, 0.6, 0.6);
+    petal.position.set(
+      x + (Math.random() - 0.5) * 16,
+      1.5 + Math.random() * 3.5,
+      z + (Math.random() - 0.5) * 16
+    );
+    petal.userData = { vy: 0.015 + Math.random() * 0.02, rotSpeed: Math.random() * 0.04 };
+    fallingPetals.push(petal);
+    scene.add(petal);
+  }
+
+  scene.add(group);
+
+  registerInteractiveObject({
+    id: 'camellia',
+    pos: { x, y, z },
+    radius: 4.5,
+    prompt: "동백꽃 정원 벤치에서 쉬어가기",
+    action: () => {
+      showSpeechBubble(localPlayer, "🌺 붉은 동백꽃 향기가 가득합니다. 부산의 시화는 아름다운 동백꽃입니다!");
+      if (window.busanAudio) window.busanAudio.playClick();
+      addCitizenExp(30);
     }
-  }
-
-  // 휴식 벤치
-  const benchGeo = new THREE.BoxGeometry(4, 0.6, 1.4);
-  const benchMat = new THREE.MeshStandardMaterial({ color: 0xb45309 });
-  const bench = new THREE.Mesh(benchGeo, benchMat);
-  bench.position.set(0, 0.5, 0);
-  bench.castShadow = true;
-  camelliaGroup.add(bench);
-
-  scene.add(camelliaGroup);
-}
-
-// 녹음광장 & 야외 버스킹 공연장
-function buildGreenPlazaAmphitheater(x, y, z) {
-  const ampGroup = new THREE.Group();
-  ampGroup.position.set(x, y, z);
-
-  // 반원형 원형 스탠드 계단 3단
-  for (let i = 1; i <= 3; i++) {
-    const tierGeo = new THREE.CylinderGeometry(8 + i * 2, 8 + i * 2, 0.6, 24, 1, false, 0, Math.PI);
-    const tierMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1 });
-    const tier = new THREE.Mesh(tierGeo, tierMat);
-    tier.position.y = (4 - i) * 0.6;
-    tier.receiveShadow = true;
-    ampGroup.add(tier);
-  }
-
-  // 버스킹 무대 바닥
-  const stageGeo = new THREE.CylinderGeometry(6, 6, 0.5, 24);
-  const stageMat = new THREE.MeshStandardMaterial({ color: 0xb45309 });
-  const stage = new THREE.Mesh(stageGeo, stageMat);
-  stage.position.y = 0.25;
-  stage.receiveShadow = true;
-  ampGroup.add(stage);
-
-  // 마이크 스탠드
-  const micGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.2, 8);
-  const micMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 });
-  const mic = new THREE.Mesh(micGeo, micMat);
-  mic.position.set(0, 1.4, 0);
-  ampGroup.add(mic);
-
-  scene.add(ampGroup);
-
-  registerInteractiveObject({
-    id: 'busking_stage',
-    name: '야외공연장 버스킹 무대 (댄스/음악)',
-    pos: new THREE.Vector3(x, 1, z),
-    radius: 6,
-    action: () => performGesture('dance')
   });
 }
 
-// 속 시원한 시민 발언대 (Free Speech Podium)
-function buildFreeSpeechPodium(x, y, z) {
-  const podGroup = new THREE.Group();
-  podGroup.position.set(x, y, z);
+function createCamelliaTree() {
+  const tree = new THREE.Group();
+  // 갈색 줄기
+  const trunkGeo = new THREE.CylinderGeometry(0.24, 0.32, 2.4, 10);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = 1.2;
+  trunk.castShadow = true;
+  tree.add(trunk);
 
-  // 나무 발언대 단상
-  const deckGeo = new THREE.BoxGeometry(6, 0.8, 6);
-  const deckMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 });
-  const deck = new THREE.Mesh(deckGeo, deckMat);
-  deck.position.y = 0.4;
-  deck.receiveShadow = true;
-  podGroup.add(deck);
+  // 짙은 초록 잎 군락
+  const foliageGeo = new THREE.SphereGeometry(1.6, 12, 10);
+  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7 });
+  const foliage = new THREE.Mesh(foliageGeo, foliageMat);
+  foliage.position.y = 2.8;
+  foliage.castShadow = true;
+  tree.add(foliage);
 
-  // 연단 (Podium Stand)
-  const standGeo = new THREE.BoxGeometry(1.6, 2.4, 1.2);
-  const standMat = new THREE.MeshStandardMaterial({ color: 0x92400e });
-  const stand = new THREE.Mesh(standGeo, standMat);
-  stand.position.set(0, 1.6, -1.5);
-  podGroup.add(stand);
-
-  // 대형 황동 확성기 스피커 (Megaphone Speakers)
-  const hornGeo = new THREE.ConeGeometry(0.9, 2.2, 16);
-  const hornMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 });
-  const horn = new THREE.Mesh(hornGeo, hornMat);
-  horn.rotation.x = -Math.PI / 2;
-  horn.position.set(0, 3.2, -1.5);
-  podGroup.add(horn);
-
-  scene.add(podGroup);
-
-  registerInteractiveObject({
-    id: 'free_podium',
-    name: '속 시원한 시민 발언대 (확성기 외치기)',
-    pos: new THREE.Vector3(x, 1, z),
-    radius: 6,
-    action: () => openPodiumPrompt()
-  });
-}
-
-// 1층 들락날락 & 열린로비 실내 데스크
-function buildDeullakLobbyArea(x, y, z) {
-  const lobbyGroup = new THREE.Group();
-  lobbyGroup.position.set(x, y, z);
-
-  // 안내데스크 카운터
-  const deskGeo = new THREE.BoxGeometry(12, 1.8, 3.5);
-  const deskMat = new THREE.MeshStandardMaterial({ color: 0x0284c7 });
-  const desk = new THREE.Mesh(deskGeo, deskMat);
-  desk.position.set(0, 1, 0);
-  lobbyGroup.add(desk);
-
-  // 16개 구·군 3D 축소 디오라마 테이블
-  const tableGeo = new THREE.CylinderGeometry(6, 6.2, 1.4, 24);
-  const tableMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4 });
-  const table = new THREE.Mesh(tableGeo, tableMat);
-  table.position.set(-18, 0.7, 0);
-  lobbyGroup.add(table);
-
-  // 디오라마 위 작은 미니어처 빌딩들
+  // 붉은 동백꽃 송이들 장식
   for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const bGeo = new THREE.BoxGeometry(0.8, 1.2 + Math.random(), 0.8);
-    const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const bMesh = new THREE.Mesh(bGeo, bMat);
-    bMesh.position.set(-18 + Math.cos(angle) * 3.5, 2, Math.sin(angle) * 3.5);
-    lobbyGroup.add(bMesh);
+    const flower = new THREE.Mesh(SHARED_GEO.camelliaFlower, SHARED_MAT.camellia);
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.random() * Math.PI;
+    flower.position.set(
+      Math.sin(v) * Math.cos(u) * 1.5,
+      2.8 + Math.cos(v) * 1.4,
+      Math.sin(v) * Math.sin(u) * 1.5
+    );
+    flower.rotation.set(Math.random(), Math.random(), Math.random());
+    tree.add(flower);
+  }
+  return tree;
+}
+
+function createParkBench() {
+  const bench = new THREE.Group();
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.6 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 });
+
+  // 좌판
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.7), seatMat);
+  seat.position.y = 0.45;
+  bench.add(seat);
+
+  // 등받이
+  const back = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 0.1), seatMat);
+  back.position.set(0, 0.85, -0.3);
+  bench.add(back);
+
+  // 다리 2쌍
+  [-0.9, 0.9].forEach(dx => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.45, 0.65), legMat);
+    leg.position.set(dx, 0.225, 0);
+    bench.add(leg);
+  });
+  return bench;
+}
+
+// --------------------------------------------------------
+// [건축 6] 녹음광장 야외공연장 버스킹 무대
+// --------------------------------------------------------
+function buildGreenPlazaAmphitheater(x, y, z) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 원목 버스킹 무대 (Y: 0.4)
+  const stageGeo = new THREE.CylinderGeometry(5.2, 5.4, 0.4, 24);
+  const stageMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.6 });
+  const stage = new THREE.Mesh(stageGeo, stageMat);
+  stage.position.y = 0.2;
+  stage.receiveShadow = true;
+  group.add(stage);
+
+  // 무대 스탠드 마이크
+  const micMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 });
+  const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 8), micMat);
+  stand.position.set(0, 0.9, 0);
+  group.add(stand);
+
+  const micHead = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+  micHead.position.set(0, 1.6, 0);
+  group.add(micHead);
+
+  // 반원형 관람석 계단 (3단 티어: Y 0.5, 1.0, 1.5)
+  for (let tier = 1; tier <= 3; tier++) {
+    const tierGeo = new THREE.CylinderGeometry(5.2 + tier * 2.5, 5.2 + tier * 2.5, 0.5, 24, 1, false, Math.PI * 0.2, Math.PI * 0.6);
+    const tierMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.5 });
+    const tierMesh = new THREE.Mesh(tierGeo, tierMat);
+    tierMesh.position.y = tier * 0.5 - 0.25;
+    group.add(tierMesh);
   }
 
-  // 2층 행복민원실 번호표 발급기 키오스크
-  const kioskGeo = new THREE.BoxGeometry(1.2, 3.2, 1.2);
-  const kioskMat = new THREE.MeshStandardMaterial({ color: 0x0369a1 });
-  const kiosk = new THREE.Mesh(kioskGeo, kioskMat);
-  kiosk.position.set(18, 1.6, 0);
-  lobbyGroup.add(kiosk);
+  scene.add(group);
+
+  registerInteractiveObject({
+    id: 'amphitheater',
+    pos: { x, y, z },
+    radius: 4.5,
+    prompt: "야외공연장 무대에서 댄스 버스킹하기",
+    action: () => {
+      performGesture('dance');
+      showSpeechBubble(localPlayer, "💃 녹음광장 버스킹 무대에서 신나는 댄스를 펼칩니다!");
+      if (window.busanAudio) window.busanAudio.playApplause();
+      addCitizenExp(60);
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'cyl', x, z, r: 5.2, h: 0.4 });
+}
+
+// --------------------------------------------------------
+// [건축 7] 잔디광장 시민 발언대 (Free Speech Podium)
+// --------------------------------------------------------
+function buildFreeSpeechPodium(x, y, z) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 발언대 원목 단상 (Y: 0.8)
+  const podiumBase = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.8, 4.2), new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.6 }));
+  podiumBase.position.y = 0.4;
+  group.add(podiumBase);
+
+  // 연탁
+  const lectern = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x78350f }));
+  lectern.position.set(0, 1.35, -1.0);
+  group.add(lectern);
+
+  // 황동 확성기 스피커 (Megaphone)
+  const megaMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.3 });
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 14), megaMat);
+  horn.rotation.x = Math.PI / 2;
+  horn.position.set(0, 1.95, -1.0);
+  group.add(horn);
+
+  scene.add(group);
+
+  registerInteractiveObject({
+    id: 'speech_podium',
+    pos: { x, y: 0.8, z },
+    radius: 3.5,
+    prompt: "시민 발언대에 올라 확성기로 외치기",
+    action: () => {
+      openPodiumPrompt();
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 4.2, d: 4.2, h: 0.8 });
+}
+
+// --------------------------------------------------------
+// [건축 8] 1층 로비: '들락날락' 어린이 복합문화도서관 & 16구군 미래도시관 & 안내데스크
+// --------------------------------------------------------
+function buildFirstFloorAtriumLobby() {
+  const lobbyGroup = new THREE.Group();
+
+  // 1층 대리석 바닥 (Z: 0 ~ -38, X: -40 ~ 40)
+  const floorGeo = new THREE.PlaneGeometry(80, 38);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25, metalness: 0.1 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0.02, -19);
+  floor.receiveShadow = true;
+  lobbyGroup.add(floor);
+
+  // (1) 서관 들락날락 어린이 복합문화공간 (Curved Bookshelves & Lounge)
+  buildDeullakLibrarySection(-24, 0, -18, lobbyGroup);
+
+  // (2) 중앙 미래도시관 16개 자치구군 원형 디오라마 테이블
+  buildFutureCityDistrictTable(0, 0, -16, lobbyGroup);
+
+  // (3) 동관 종합안내데스크 & AI 다온 NPC
+  buildAiGuideReceptionDesk(24, 0, -14, lobbyGroup);
 
   scene.add(lobbyGroup);
+}
 
-  // AI 다온 안내데스크 트리거
-  registerInteractiveObject({
-    id: 'daon_desk',
-    name: '다온 AI 행정상담 데스크',
-    pos: new THREE.Vector3(x, 1, z + 2),
-    radius: 7,
-    action: () => openAiGuideModal()
+function buildDeullakLibrarySection(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 들락날락 간판 보드
+  createSignBoard(0, 3.8, 0, "들락날락 어린이 복합문화공간", 0x0284c7, group);
+
+  // 원목 곡선형 책장 2개 (Colorful Bookshelves)
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
+  [-4.5, 4.5].forEach(dx => {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(6.5, 3.2, 0.8), shelfMat);
+    shelf.position.set(dx, 1.6, -4);
+    group.add(shelf);
+    busanCityHallObstacles.push({ type: 'box', x: x + dx, z: z - 4, w: 6.5, d: 0.8, h: 3.2 });
   });
 
-  // 16개 구·군 디오라마 포털 트리거
-  registerInteractiveObject({
-    id: 'diorama_portal',
-    name: '16개 구·군 디오라마 포털 열기',
-    pos: new THREE.Vector3(x - 18, 1, z),
-    radius: 6,
-    action: () => openDistrictsModal()
+  // 라운지 독서 원형 테이블과 알록달록 스툴
+  const table = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+  table.position.set(0, 0.3, 0);
+  group.add(table);
+
+  [-1.8, 1.8].forEach(sx => {
+    const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.35, 12), new THREE.MeshStandardMaterial({ color: sx > 0 ? 0x06b6d4 : 0xf43f5e }));
+    stool.position.set(sx, 0.18, 0);
+    group.add(stool);
   });
 
-  // 번호표 발급기 트리거
+  parent.add(group);
+
   registerInteractiveObject({
-    id: 'ticket_kiosk',
-    name: '2층 행복민원실 번호표 뽑기',
-    pos: new THREE.Vector3(x + 18, 1, z),
-    radius: 6,
+    id: 'deullak_library',
+    pos: { x, y, z },
+    radius: 4.5,
+    prompt: "들락날락 어린이 도서관 둘러보기",
     action: () => {
-      if (window.busanAudio) window.busanAudio.playDingDong();
-      alert("🎟️ [행복민원실 번호표 발급 완료]\n대기번호: 104번 (현재 대기인수: 2명)\n친절하게 모시겠습니다.");
-      collectStamp('civil', '행복민원실 스탬프');
+      collectStamp('lobby', "1층 들락날락");
+      showSpeechBubble(localPlayer, "📚 1층 '들락날락' 복합문화도서관입니다. 책과 미디어가 가득한 시민 휴식처입니다!");
+      if (window.busanAudio) window.busanAudio.playStampSound();
     }
   });
 }
 
-// 갈매기 편대 생성
-function createFlockOfSeagulls() {
-  for (let i = 0; i < 6; i++) {
-    const sGroup = new THREE.Group();
-    // 날개 2개
-    const wingGeo = new THREE.BoxGeometry(1.2, 0.05, 0.4);
-    const wingMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const leftWing = new THREE.Mesh(wingGeo, wingMat);
-    leftWing.position.x = -0.6;
-    const rightWing = new THREE.Mesh(wingGeo, wingMat);
-    rightWing.position.x = 0.6;
-    sGroup.add(leftWing, rightWing);
+function buildFutureCityDistrictTable(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-    sGroup.position.set(
-      (Math.random() - 0.5) * 120,
-      35 + Math.random() * 20,
-      (Math.random() - 0.5) * 120
-    );
-    sGroup.userData = {
-      angle: Math.random() * Math.PI * 2,
-      speed: 0.015 + Math.random() * 0.01,
-      radius: 40 + Math.random() * 30,
-      height: sGroup.position.y,
-      leftWing: leftWing,
-      rightWing: rightWing
-    };
-    scene.add(sGroup);
-    seagulls.push(sGroup);
+  // 대형 원형 디오라마 테이블 (반경 4.5m)
+  const tableGeo = new THREE.CylinderGeometry(4.5, 4.7, 0.85, 32);
+  const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 });
+  const table = new THREE.Mesh(tableGeo, tableMat);
+  table.position.y = 0.425;
+  group.add(table);
+
+  // 상단 16개 구·군 홀로그램 발광 맵
+  const mapTop = new THREE.Mesh(new THREE.CylinderGeometry(4.3, 4.3, 0.88, 32), new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    emissive: 0x0369a1,
+    emissiveIntensity: 0.4,
+    roughness: 0.2
+  }));
+  mapTop.position.y = 0.44;
+  group.add(mapTop);
+
+  // 16개 자치구군 미니어처 핀
+  for (let i = 0; i < 16; i++) {
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.35, 8), new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b }));
+    const angle = (i / 16) * Math.PI * 2;
+    pin.position.set(Math.cos(angle) * 3.2, 0.95, Math.sin(angle) * 3.2);
+    group.add(pin);
   }
+
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'future_districts',
+    pos: { x, y, z },
+    radius: 5.5,
+    prompt: "16개 구·군 디오라마 미래도시관 포털 열기",
+    action: () => {
+      openDistrictsModal();
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'cyl', x, z, r: 4.6, h: 0.9 });
 }
 
-// ========================================================
-// 3. 로컬 및 피어(멀티플레이어) 플레이어 아바타
-// ========================================================
-function createLocalPlayer() {
-  localPlayerMesh = createAvatarMesh(STATE.playerRobe, STATE.playerHat, STATE.playerWings);
-  localPlayerMesh.position.set(0, 0, 35); // 시민광장 앞 시작 위치
-  scene.add(localPlayerMesh);
+function buildAiGuideReceptionDesk(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 안내데스크 카운터
+  const counterGeo = new THREE.BoxGeometry(6.5, 1.1, 1.6);
+  const counterMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, metalness: 0.3 });
+  const counter = new THREE.Mesh(counterGeo, counterMat);
+  counter.position.y = 0.55;
+  group.add(counter);
+
+  createSignBoard(0, 1.8, 0, "종합안내데스크 (AI 다온)", 0xffffff, group);
+
+  // AI 다온 NPC 모델링 (안내데스크 뒤편)
+  const daonNpc = createCuteCitizenMesh({
+    name: "안내원 다온",
+    title: "AI 시정 길잡이",
+    robeColor: "blue",
+    hatType: "headset",
+    wingsType: "none",
+    isNpc: true
+  });
+  daonNpc.position.set(0, 0, -1.0);
+  group.add(daonNpc);
+
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'ai_daon_desk',
+    pos: { x, y, z: z + 1.2 },
+    radius: 3.5,
+    prompt: "AI 안내원 다온과 상담하기 (질의응답)",
+    action: () => {
+      openAiGuideModal();
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 6.5, d: 1.6, h: 1.1 });
 }
 
-function createAvatarMesh(robeColor, hatType, wingsType) {
-  const avatar = new THREE.Group();
+// --------------------------------------------------------
+// [건축 9] 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터 (물리 이동 보장)
+// --------------------------------------------------------
+function buildCentralGrandStairs() {
+  const group = new THREE.Group();
 
-  // 색상 매핑
-  const colorMap = {
-    blue: 0x0284c7,
-    white: 0xffffff,
-    camellia: 0xf43f5e,
-    gold: 0xf59e0b,
-    green: 0x10b981
-  };
-  const bodyColor = colorMap[robeColor] || 0x0284c7;
+  // 계단 램프 경사로: Z: -22 ~ -38, X: -6 ~ 6, Y: 0 ~ 5.0
+  const stairLength = 16.0;
+  const stairHeight = 5.0;
+  const rampGeo = new THREE.BoxGeometry(12.0, 0.4, stairLength);
+  const rampMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4 });
+  const ramp = new THREE.Mesh(rampGeo, rampMat);
 
-  // 몸체 (Robe)
-  const bodyGeo = new THREE.CylinderGeometry(0.45, 0.75, 1.8, 16);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.5 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 1.1;
-  body.castShadow = true;
-  avatar.add(body);
+  // 램프 중심점 배치 및 회전
+  ramp.position.set(0, 2.5, -30.0);
+  ramp.rotation.x = Math.atan2(stairHeight, stairLength);
+  group.add(ramp);
 
-  // 머리 (Head)
-  const headGeo = new THREE.SphereGeometry(0.5, 16, 16);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffedd5, roughness: 0.8 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 2.4;
-  head.castShadow = true;
-  avatar.add(head);
+  // 중앙 에스컬레이터 황금 손잡이 난간 레일
+  [-5.8, 5.8].forEach(rx => {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, stairLength + 1, 10), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8 }));
+    rail.position.set(rx, 3.4, -30.0);
+    rail.rotation.x = Math.PI / 2 + Math.atan2(stairHeight, stairLength);
+    group.add(rail);
+  });
 
-  // 모자/헤어 액세서리
-  if (hatType === 'camellia') {
-    // 붉은 동백꽃 핀
-    const fGeo = new THREE.SphereGeometry(0.18, 8, 8);
-    const fMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
-    const flower = new THREE.Mesh(fGeo, fMat);
-    flower.position.set(0.35, 2.7, 0.2);
-    avatar.add(flower);
-  } else if (hatType === 'seagull') {
-    // 갈매기 모자
-    const sGeo = new THREE.ConeGeometry(0.3, 0.7, 8);
-    const sMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const sMesh = new THREE.Mesh(sGeo, sMat);
-    sMesh.position.y = 2.95;
-    avatar.add(sMesh);
-  } else if (hatType === 'halo') {
-    // 시민 후광
-    const hGeo = new THREE.TorusGeometry(0.5, 0.06, 8, 24);
-    const hMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-    const halo = new THREE.Mesh(hGeo, hMat);
-    halo.rotation.x = Math.PI / 2;
-    halo.position.y = 3.1;
-    avatar.add(halo);
-  }
-
-  // 날개
-  if (wingsType === 'seagull' || wingsType === 'angel') {
-    const wGeo = new THREE.BoxGeometry(0.8, 0.3, 0.05);
-    const wMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const wLeft = new THREE.Mesh(wGeo, wMat);
-    wLeft.position.set(-0.65, 1.6, -0.4);
-    wLeft.rotation.y = 0.3;
-    const wRight = new THREE.Mesh(wGeo, wMat);
-    wRight.position.set(0.65, 1.6, -0.4);
-    wRight.rotation.y = -0.3;
-    avatar.add(wLeft, wRight);
-  }
-
-  return avatar;
+  scene.add(group);
 }
 
-// ========================================================
-// 4. WebSocket 멀티플레이 동기화
-// ========================================================
-async function connectWebSocket() {
-  if (!STATE.serverHost || (window.location.hostname.includes('github.io') && !STATE.apiBase)) {
-    await autoDiscoverHostServer();
-  }
+// --------------------------------------------------------
+// [건축 10] 2층 행복민원실 (Happy Civil Service Hall)
+// --------------------------------------------------------
+function buildSecondFloorCivilServiceHall() {
+  const floor2Group = new THREE.Group();
 
-  const host = STATE.serverHost || window.location.host;
-  const isHttps = window.location.protocol === 'https:' || host.includes('trycloudflare.com');
-  const protocol = isHttps ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${host}/ws`;
+  // 2층 바닥 (Y: 5.0, Z: -38 ~ -82, X: -40 ~ 40)
+  const floor2Geo = new THREE.PlaneGeometry(80, 44);
+  const floor2Mat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 });
+  const floor2 = new THREE.Mesh(floor2Geo, floor2Mat);
+  floor2.rotation.x = -Math.PI / 2;
+  floor2.position.set(0, 5.0, -60);
+  floor2.receiveShadow = true;
+  floor2Group.add(floor2);
 
-  console.log(`[BusanWS] 웹소켓 연결 시도: ${wsUrl}`);
-  try {
-    STATE.ws = new WebSocket(wsUrl);
-  } catch (e) {
-    console.error('[BusanWS] WebSocket 생성 실패:', e);
-    updateServerStatusUI(false, '연결 실패');
-    setTimeout(connectWebSocket, 4000);
-    return;
-  }
+  // 남측 2층 난간 (1층 로비가 내려다보이는 안전 강화유리 난간)
+  const glassRailGeo = new THREE.BoxGeometry(80, 1.2, 0.2);
+  const glassRailMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45 });
+  const rail = new THREE.Mesh(glassRailGeo, glassRailMat);
+  rail.position.set(0, 5.6, -38.2);
+  floor2Group.add(rail);
 
-  STATE.ws.onopen = () => {
-    console.log('[BusanWS] 서버 연결 성공!');
-    STATE.serverConnected = true;
-    updateServerStatusUI(true, '실시간 연결됨');
-    // 룸 참가 패킷
-    sendWs({
-      type: 'join',
-      room: STATE.currentRealm,
-      name: STATE.playerName,
-      level: STATE.playerLevel,
-      title: STATE.playerTitle,
-      robe: STATE.playerRobe,
-      hat: STATE.playerHat,
-      wings: STATE.playerWings,
-      belt: STATE.playerBelt,
-      x: localPlayerMesh.position.x,
-      y: localPlayerMesh.position.y,
-      z: localPlayerMesh.position.z,
-      ry: localPlayerMesh.rotation.y
+  // (1) 종합 민원 발급 카운터 (여권, 주민, 토지, 세무 등 8개 창구)
+  buildCivilServiceCounters(-20, 5.0, -62, floor2Group);
+
+  // (2) 실시간 순번 대기표 발급 키오스크 (Queue Ticket Kiosk)
+  buildQueueTicketKiosk(-6, 5.0, -45, floor2Group);
+
+  // (3) 시민 대기 라운지 (가죽 소파 & 테이블 & 안내 TV)
+  buildCivilWaitingLounge(-18, 5.0, -48, floor2Group);
+
+  // (4) 120 부산민원콜센터 상담 부스
+  buildCallCenterBooth(24, 5.0, -48, floor2Group);
+
+  // (5) 아주라(Ajura) 모자휴게실 / 수유실
+  buildAjuraNurseryRoom(24, 5.0, -68, floor2Group);
+
+  scene.add(floor2Group);
+
+  // 2층 난간 물리 충돌 등록 (1층으로 추락 방지, 중앙 계단 통로 제외)
+  busanCityHallObstacles.push({ type: 'box', x: -24, z: -38.2, w: 32, d: 0.4, h: 7.0 });
+  busanCityHallObstacles.push({ type: 'box', x: 24, z: -38.2, w: 32, d: 0.4, h: 7.0 });
+}
+
+function buildCivilServiceCounters(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 메인 카운터 데스크 (길이 28m)
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(28, 1.1, 2.2), new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.2 }));
+  desk.position.y = 0.55;
+  group.add(desk);
+
+  // 8개 창구 번호 LED 사인보드
+  const services = ["여권발급", "가족관계", "지적토지", "세무상담", "차량등록", "건축주택", "어르신복지", "통합민원"];
+  for (let i = 0; i < 8; i++) {
+    const cx = -12 + i * 3.4;
+    const numSign = createSignBoard(cx, 1.8, 0, `${i + 1}번 ${services[i]}`, 0x0f172a, group);
+
+    // 창구 직원 NPC
+    const staff = createCuteCitizenMesh({
+      name: `담당관${i + 1}`,
+      title: services[i],
+      robeColor: "white",
+      hatType: "none",
+      wingsType: "none",
+      isNpc: true
     });
-  };
+    staff.position.set(cx, 0, -1.2);
+    group.add(staff);
+  }
 
-  STATE.ws.onmessage = (event) => {
-    try {
-      const msg = jsonParse(event.data);
-      handleServerMessage(msg);
-    } catch (e) {
-      console.error('[BusanWS] 메시지 파싱 오류:', e);
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'civil_counters',
+    pos: { x, y, z: z + 1.8 },
+    radius: 6.0,
+    prompt: "2층 종합민원 창구 안내 및 상담",
+    action: () => {
+      collectStamp('civil', "2층 행복민원실");
+      openOfficeModal();
+      showSpeechBubble(localPlayer, "📋 행복민원실 1번~8번 창구입니다. 여권 발급과 각종 민원을 상담받으실 수 있습니다!");
+      if (window.busanAudio) window.busanAudio.playStampSound();
     }
-  };
+  });
 
-  STATE.ws.onclose = () => {
-    STATE.serverConnected = false;
-    updateServerStatusUI(false, '재연결 대기');
-    console.warn('[BusanWS] 연결 종료됨. 4초 후 재연결 시도...');
-    setTimeout(connectWebSocket, 4000);
-  };
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 28, d: 2.2, h: 6.5 });
 }
 
-function sendWs(obj) {
-  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
-    STATE.ws.send(JSON.stringify(obj));
-  }
-}
+function buildQueueTicketKiosk(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-function handleServerMessage(msg) {
-  const mtype = msg.type;
+  // 스탠딩 터치 키오스크 몸체
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.6), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7 }));
+  body.position.y = 0.8;
+  group.add(body);
 
-  if (mtype === 'welcome') {
-    STATE.clientId = msg.id;
-    updateOnlineCount(msg.count);
-    // 기존 피어들 생성
-    if (msg.peers) {
-      msg.peers.forEach(addPeer);
+  // 터치 스크린 화면
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.55), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.5 }));
+  screen.position.set(0, 1.15, 0.31);
+  group.add(screen);
+
+  createSignBoard(0, 1.9, 0, "순번 대기표 발급기", 0x0284c7, group);
+
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'queue_kiosk',
+    pos: { x, y, z },
+    radius: 2.5,
+    prompt: "순번 대기표 발급기 터치하기 (번호표 출력)",
+    action: () => {
+      openTicketKioskModal();
     }
-  } else if (mtype === 'peer_join') {
-    updateOnlineCount(msg.count);
-    addPeer(msg.peer);
-    addSystemChat(`[입장] ${msg.peer.name} 님이 부산ON 월드에 오셨습니다.`);
-  } else if (mtype === 'peer_leave') {
-    updateOnlineCount(msg.count);
-    removePeer(msg.id);
-  } else if (mtype === 'peer_move') {
-    updatePeerPosition(msg.id, msg.x, msg.y, msg.z, msg.ry, msg.jump);
-  } else if (mtype === 'peer_chat') {
-    appendChatMessage(msg.name, msg.text, msg.title, msg.time);
-  } else if (mtype === 'podium_broadcast') {
-    showPodiumBanner(msg.name, msg.text);
-    if (window.busanAudio) window.busanAudio.playMegaphoneSound();
-  } else if (mtype === 'wall_new_post') {
-    addSystemChat(`📢 [새 담벼락 글] ${msg.post.author}: "${msg.post.title}"`);
-  }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 0.8, d: 0.6, h: 6.6 });
 }
 
-function addPeer(info) {
-  if (!info || info.id === STATE.clientId || STATE.peers[info.id]) return;
-  const mesh = createAvatarMesh(info.robe || 'blue', info.hat || 'camellia', info.wings || 'seagull');
-  mesh.position.set(info.x || 0, info.y || 0, info.z || 0);
-  scene.add(mesh);
+function buildCivilWaitingLounge(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-  STATE.peers[info.id] = {
-    info: info,
-    mesh: mesh,
-    targetPos: new THREE.Vector3(info.x || 0, info.y || 0, info.z || 0),
-    targetRotY: info.ry || 0
-  };
+  // 소파 3개
+  const sofaMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
+  [-4, 0, 4].forEach(sx => {
+    const sofa = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.7, 1.2), sofaMat);
+    sofa.position.set(sx, 0.35, 0);
+    group.add(sofa);
+    busanCityHallObstacles.push({ type: 'box', x: x + sx, z, w: 3.2, d: 1.2, h: 5.7 });
+  });
+
+  // 벽걸이 시정 알림 TV 모니터
+  const tv = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x0284c7, emissiveIntensity: 0.3 }));
+  tv.position.set(0, 2.6, -3.5);
+  group.add(tv);
+
+  parent.add(group);
 }
 
-function removePeer(id) {
-  if (STATE.peers[id]) {
-    scene.remove(STATE.peers[id].mesh);
-    delete STATE.peers[id];
-  }
-}
+function buildCallCenterBooth(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
 
-function updatePeerPosition(id, x, y, z, ry, jump) {
-  const peer = STATE.peers[id];
-  if (peer) {
-    peer.targetPos.set(x, y, z);
-    peer.targetRotY = ry;
-    if (jump) {
-      peer.mesh.position.y = 1.2;
+  // 방음 유리 상담 부스
+  const booth = new THREE.Mesh(new THREE.BoxGeometry(8, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.45 }));
+  booth.position.y = 1.3;
+  group.add(booth);
+
+  createSignBoard(0, 2.8, 0, "120 부산민원콜센터 상담실", 0x0284c7, group);
+
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'call_center',
+    pos: { x, y, z: z + 3.2 },
+    radius: 4.0,
+    prompt: "120 부산민원콜센터 상담 부스 연결",
+    action: () => {
+      showSpeechBubble(localPlayer, "📞 120 부산민원콜센터입니다. 전화(국번없이 120)로도 친절히 안내받으실 수 있습니다!");
+      if (window.busanAudio) window.busanAudio.playDingDong();
+      openOfficeModal();
     }
-  }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 8, d: 6, h: 7.6 });
 }
 
-function updateOnlineCount(cnt) {
-  STATE.onlineCount = cnt;
-  const badge = document.getElementById('online-count-badge');
-  if (badge) badge.innerText = `접속자 ${cnt}명`;
+function buildAjuraNurseryRoom(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  const room = new THREE.Mesh(new THREE.BoxGeometry(8, 2.6, 6), new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.4 }));
+  room.position.y = 1.3;
+  group.add(room);
+
+  createSignBoard(0, 2.8, 0, "아주라(Ajura) 모자휴게실 · 수유실", 0xf59e0b, group);
+
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'ajura_room',
+    pos: { x, y, z: z + 3.2 },
+    radius: 4.0,
+    prompt: "아주라 모자휴게실 둘러보기",
+    action: () => {
+      showSpeechBubble(localPlayer, "👶 영유아 동반 시민을 위한 따뜻한 수유실 '아주라' 쉼터입니다.");
+      if (window.busanAudio) window.busanAudio.playClick();
+      addCitizenExp(30);
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 8, d: 6, h: 7.6 });
+}
+
+// --------------------------------------------------------
+// [도우미] 3D 한글 안내 표지판 보드
+// --------------------------------------------------------
+function createSignBoard(x, y, z, textStr, bgHex, parent) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#' + bgHex.toString(16).padStart(6, '0');
+  ctx.roundRect(0, 0, 512, 128, 24);
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 6;
+  ctx.roundRect(4, 4, 504, 120, 20);
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 36px "Noto Sans KR", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(textStr, 256, 64);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), mat);
+  mesh.position.set(x, y, z);
+  parent.add(mesh);
+  return mesh;
+}
+
+// --------------------------------------------------------
+// [환경] 갈매기 비행 무리
+// --------------------------------------------------------
+function createFlockOfSeagulls() {
+  for (let i = 0; i < 5; i++) {
+    const sGroup = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    body.rotation.x = Math.PI / 2;
+    sGroup.add(body);
+
+    const wingGeo = new THREE.BoxGeometry(0.8, 0.04, 0.2);
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 });
+    const lWing = new THREE.Mesh(wingGeo, wingMat);
+    lWing.position.set(-0.45, 0, 0);
+    sGroup.add(lWing);
+
+    const rWing = new THREE.Mesh(wingGeo, wingMat);
+    rWing.position.set(0.45, 0, 0);
+    sGroup.add(rWing);
+
+    const radius = 22 + i * 8;
+    const speed = 0.008 + i * 0.002;
+    sGroup.position.set(0, 18 + i * 2.5, 30);
+    sGroup.userData = { radius, speed, angle: i * 1.2, lWing, rWing };
+
+    seagulls.push(sGroup);
+    scene.add(sGroup);
+  }
 }
 
 // ========================================================
-// 5. 플레이어 조작 및 메인 렌더 루프
+// 5. 귀여운 SD 치비 시민 캐릭터 아바타 엔진 (가즈아교 계승)
 // ========================================================
-let playerVelocityY = 0;
-let isGrounded = true;
+function createCuteCitizenMesh({
+  name = "시민",
+  title = "열린시민",
+  level = 1,
+  robeColor = "blue",
+  hatType = "camellia",
+  wingsType = "seagull",
+  isPlayer = false,
+  isNpc = false
+} = {}) {
+  const root = new THREE.Group();
 
-function setupEventListeners() {
-  window.addEventListener('resize', onWindowResize);
+  // (1) 몸통 (아기자기한 꼬마 바디)
+  const robeHex = COLOR_PALETTE[robeColor] || COLOR_PALETTE.blue;
+  const robeMat = new THREE.MeshStandardMaterial({ color: robeHex, roughness: 0.5 });
+  const body = new THREE.Mesh(SHARED_GEO.body, robeMat);
+  body.position.y = 0.65;
+  if (isPlayer) body.castShadow = true;
+  root.add(body);
 
+  // (2) 귀여운 대두 머리 (Head)
+  const headGroup = new THREE.Group();
+  headGroup.position.y = 1.18;
+  root.add(headGroup);
+
+  const head = new THREE.Mesh(SHARED_GEO.head, SHARED_MAT.skin);
+  if (isPlayer) head.castShadow = true;
+  headGroup.add(head);
+
+  // 반짝이는 큰 눈
+  const eyeL = new THREE.Mesh(SHARED_GEO.eye, SHARED_MAT.eye);
+  eyeL.position.set(-0.13, 0.04, 0.34);
+  const shineL = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
+  shineL.position.set(-0.02, 0.02, 0.035);
+  eyeL.add(shineL);
+  headGroup.add(eyeL);
+
+  const eyeR = new THREE.Mesh(SHARED_GEO.eye, SHARED_MAT.eye);
+  eyeR.position.set(0.13, 0.04, 0.34);
+  const shineR = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
+  shineR.position.set(-0.02, 0.02, 0.035);
+  eyeR.add(shineR);
+  headGroup.add(eyeR);
+
+  // 발그레한 핑크 볼터치 (Blush)
+  const blushL = new THREE.Mesh(SHARED_GEO.blush, SHARED_MAT.blush);
+  blushL.position.set(-0.22, -0.06, 0.3);
+  headGroup.add(blushL);
+
+  const blushR = new THREE.Mesh(SHARED_GEO.blush, SHARED_MAT.blush);
+  blushR.position.set(0.22, -0.06, 0.3);
+  headGroup.add(blushR);
+
+  // (3) 팔 & 다리 (걷기 애니메이션 관절)
+  const armL = new THREE.Mesh(SHARED_GEO.limb, robeMat);
+  armL.position.set(-0.35, 0.68, 0);
+  root.add(armL);
+
+  const armR = new THREE.Mesh(SHARED_GEO.limb, robeMat);
+  armR.position.set(0.35, 0.68, 0);
+  root.add(armR);
+
+  const legL = new THREE.Mesh(SHARED_GEO.limb, SHARED_MAT.skin);
+  legL.position.set(-0.14, 0.22, 0);
+  root.add(legL);
+
+  const legR = new THREE.Mesh(SHARED_GEO.limb, SHARED_MAT.skin);
+  legR.position.set(0.14, 0.22, 0);
+  root.add(legR);
+
+  // (4) 모자 장식 파츠 (Hat Slot)
+  const hatSlot = new THREE.Group();
+  headGroup.add(hatSlot);
+  applyHatDecoration(hatSlot, hatType);
+
+  // (5) 날개 장식 파츠 (Wings Slot)
+  const wingsSlot = new THREE.Group();
+  body.add(wingsSlot);
+  applyWingsDecoration(wingsSlot, wingsType);
+
+  // (6) 머리 위 3D 캔버스 닉네임 명찰
+  const nameTagMesh = createNameTagSprite(name, title, level, isPlayer);
+  nameTagMesh.position.y = 1.95;
+  root.add(nameTagMesh);
+
+  // (7) 머리 위 말풍선 슬롯
+  const bubbleSlot = new THREE.Group();
+  bubbleSlot.position.y = 2.45;
+  bubbleSlot.visible = false;
+  root.add(bubbleSlot);
+
+  // 캐릭터 객체 메타데이터 바인딩
+  root.userData = {
+    name,
+    title,
+    level,
+    robeColor,
+    hatType,
+    wingsType,
+    headGroup,
+    eyeL,
+    eyeR,
+    armL,
+    armR,
+    legL,
+    legR,
+    hatSlot,
+    wingsSlot,
+    nameTagMesh,
+    bubbleSlot,
+    isWalking: false,
+    walkSpeed: 7.8,
+    isJumping: false,
+    jumpVelocity: 0,
+    blinkTimer: 2.0 + Math.random() * 3,
+    blinkDuration: 0
+  };
+
+  return root;
+}
+
+function applyHatDecoration(slot, hatType) {
+  while (slot.children.length > 0) slot.remove(slot.children[0]);
+
+  if (hatType === 'camellia') {
+    const flower = new THREE.Mesh(SHARED_GEO.camelliaFlower, SHARED_MAT.camellia);
+    flower.position.set(0.24, 0.32, 0.15);
+    slot.add(flower);
+    const center = new THREE.Mesh(SHARED_GEO.camelliaCenter, SHARED_MAT.gold);
+    center.position.set(0.24, 0.34, 0.17);
+    slot.add(center);
+  } else if (hatType === 'seagull') {
+    const seagullHat = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    seagullHat.position.set(0, 0.42, 0);
+    seagullHat.rotation.x = Math.PI / 4;
+    slot.add(seagullHat);
+  } else if (hatType === 'halo') {
+    const halo = new THREE.Mesh(SHARED_GEO.halo, SHARED_MAT.halo);
+    halo.position.set(0, 0.52, 0);
+    halo.rotation.x = Math.PI / 2;
+    slot.add(halo);
+  } else if (hatType === 'headset') {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.04, 8, 16, Math.PI), new THREE.MeshStandardMaterial({ color: 0x0284c7 }));
+    band.position.set(0, 0.08, 0);
+    slot.add(band);
+    const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.08, 10), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+    earL.position.set(-0.38, 0.05, 0);
+    earL.rotation.z = Math.PI / 2;
+    slot.add(earL);
+  }
+}
+
+function applyWingsDecoration(slot, wingsType) {
+  while (slot.children.length > 0) slot.remove(slot.children[0]);
+
+  if (wingsType === 'seagull' || wingsType === 'angel') {
+    const lWing = new THREE.Mesh(SHARED_GEO.wing, SHARED_MAT.wing);
+    lWing.position.set(-0.35, 0.1, -0.22);
+    lWing.rotation.y = -0.35;
+    slot.add(lWing);
+
+    const rWing = new THREE.Mesh(SHARED_GEO.wing, SHARED_MAT.wing);
+    rWing.position.set(0.35, 0.1, -0.22);
+    rWing.rotation.y = 0.35;
+    slot.add(rWing);
+
+    slot.userData.lWing = lWing;
+    slot.userData.rWing = rWing;
+  }
+}
+
+function createNameTagSprite(name, title, level, isMe = false) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = isMe ? 'rgba(2, 132, 199, 0.88)' : 'rgba(15, 23, 42, 0.82)';
+  ctx.roundRect(10, 10, 364, 76, 20);
+  ctx.fill();
+
+  ctx.strokeStyle = isMe ? '#f59e0b' : '#38bdf8';
+  ctx.lineWidth = 4;
+  ctx.roundRect(10, 10, 364, 76, 20);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fef08a';
+  ctx.font = 'bold 22px "Noto Sans KR", sans-serif';
+  ctx.fillText(`Lv.${level} ${title}`, 192, 38);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px "Noto Sans KR", sans-serif';
+  ctx.fillText(name, 192, 70);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(2.4, 0.6, 1.0);
+  return sprite;
+}
+
+function createLocalPlayer() {
+  localPlayer = createCuteCitizenMesh({
+    name: STATE.playerName,
+    title: STATE.playerTitle,
+    level: STATE.playerLevel,
+    robeColor: STATE.robeColor,
+    hatType: STATE.hatType,
+    wingsType: STATE.wingsType,
+    isPlayer: true
+  });
+  localPlayer.position.set(0, 0, 38); // 시민광장 중앙에서 시작
+  scene.add(localPlayer);
+}
+
+// ========================================================
+// 6. 충돌 판정 및 다층 계단/슬로프 물리 엔진 (가즈아교 계승)
+// ========================================================
+function getBusanCityHallFloorY(x, z) {
+  // 1. 2층 행복민원실 바닥 (Z: -38 to -82, X: -40 to 40)
+  if (x >= -40 && x <= 40 && z <= -38.0 && z >= -82.0) {
+    return 5.0;
+  }
+
+  // 2. 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터 (Z: -22 to -38, X: -6.5 to 6.5)
+  if (x >= -6.5 && x <= 6.5 && z < -22.0 && z > -38.0) {
+    const progress = (-z - 22.0) / 16.0; // 0.0 ~ 1.0
+    return 5.0 * Math.max(0, Math.min(1, progress));
+  }
+
+  // 3. 시민광장 닻 조형물 화강석 단상 (Z: 23.5 to 28.5, X: -2.5 to 2.5)
+  if (x >= -2.5 && x <= 2.5 && z >= 23.5 && z <= 28.5) {
+    return 1.0;
+  }
+
+  // 4. 녹음광장 야외공연장 관람석 스텝 (Z: 52 to 68, X: -46 to -20)
+  if (x >= -46 && x <= -20 && z >= 52 && z <= 68) {
+    const d = Math.hypot(x - (-33), z - 60);
+    if (d > 4.5 && d <= 7.0) return 0.5;
+    if (d > 7.0 && d <= 10.0) return 1.0;
+    if (d > 10.0 && d <= 13.5) return 1.5;
+  }
+
+  // 5. 잔디광장 시민 발언대 단상 (Z: 58 to 62, X: 31 to 35)
+  if (x >= 31 && x <= 35 && z >= 58 && z <= 62) {
+    return 0.8;
+  }
+
+  // 기본 평지 지표면 & 1층 로비
+  return 0.0;
+}
+
+function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
+  let resX = nextX;
+  let resZ = nextZ;
+  const radius = 0.42;
+
+  // 월드 외곽 경계벽 제한
+  if (resX < -50) resX = -50;
+  if (resX > 50) resX = 50;
+  if (resZ > 72) resZ = 72;
+  if (resZ < -80) resZ = -80;
+
+  for (const obs of busanCityHallObstacles) {
+    if (obs.type === 'box') {
+      const halfW = obs.w / 2;
+      const halfD = obs.d / 2;
+      const minX = obs.x - halfW - radius;
+      const maxX = obs.x + halfW + radius;
+      const minZ = obs.z - halfD - radius;
+      const maxZ = obs.z + halfD + radius;
+
+      if (resX >= minX && resX <= maxX && resZ >= minZ && resZ <= maxZ) {
+        // 발 높이가 장애물 상단보다 높으면 올라서기 허용
+        if (footY >= obs.h - 0.2) {
+          continue;
+        }
+        // 측면 슬라이딩 충돌 분해
+        const overlapL = resX - minX;
+        const overlapR = maxX - resX;
+        const overlapB = resZ - minZ;
+        const overlapF = maxZ - resZ;
+        const minO = Math.min(overlapL, overlapR, overlapB, overlapF);
+
+        if (minO === overlapL) resX = minX;
+        else if (minO === overlapR) resX = maxX;
+        else if (minO === overlapB) resZ = minZ;
+        else resZ = maxZ;
+      }
+    } else if (obs.type === 'cyl') {
+      const dx = resX - obs.x;
+      const dz = resZ - obs.z;
+      const dist = Math.hypot(dx, dz);
+      const minDist = obs.r + radius;
+
+      if (dist < minDist) {
+        if (footY >= obs.h - 0.2) {
+          continue;
+        }
+        const angle = Math.atan2(dz, dx);
+        resX = obs.x + Math.cos(angle) * minDist;
+        resZ = obs.z + Math.sin(angle) * minDist;
+      }
+    }
+  }
+
+  return { x: resX, z: resZ };
+}
+
+// ========================================================
+// 7. 이동 컨트롤 & 3인칭 스마트 카메라 추적
+// ========================================================
+function setupMovementControls() {
   window.addEventListener('keydown', (e) => {
-    const key = e.key.toLowerCase();
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
-      if (e.key === 'Enter' && document.activeElement.id === 'chat-input') {
-        sendChatMessage();
-      }
-      return;
-    }
-
-    if (key === 'w') KEYS.w = true;
-    if (key === 'a') KEYS.a = true;
-    if (key === 's') KEYS.s = true;
-    if (key === 'd') KEYS.d = true;
+    const k = e.key.toLowerCase();
+    if (k === 'w' || k === 'arrowup') STATE.keys.w = true;
+    if (k === 's' || k === 'arrowdown') STATE.keys.s = true;
+    if (k === 'a' || k === 'arrowleft') STATE.keys.a = true;
+    if (k === 'd' || k === 'arrowright') STATE.keys.d = true;
     if (e.code === 'Space') {
-      if (isGrounded) {
-        playerVelocityY = 0.42;
-        isGrounded = false;
-        KEYS.space = true;
-      }
+      e.preventDefault();
+      triggerPlayerJump();
     }
-    if (e.shiftKey) KEYS.shift = true;
-    if (key === 'e') triggerInteraction();
+    if (k === 'e') {
+      triggerProximityAction();
+    }
   });
 
   window.addEventListener('keyup', (e) => {
-    const key = e.key.toLowerCase();
-    if (key === 'w') KEYS.w = false;
-    if (key === 'a') KEYS.a = false;
-    if (key === 's') KEYS.s = false;
-    if (key === 'd') KEYS.d = false;
-    if (!e.shiftKey) KEYS.shift = false;
-    if (e.code === 'Space') KEYS.space = false;
+    const k = e.key.toLowerCase();
+    if (k === 'w' || k === 'arrowup') STATE.keys.w = false;
+    if (k === 's' || k === 'arrowdown') STATE.keys.s = false;
+    if (k === 'a' || k === 'arrowleft') STATE.keys.a = false;
+    if (k === 'd' || k === 'arrowright') STATE.keys.d = false;
+  });
+
+  // 바닥 클릭 이동 (Click to Move)
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  window.addEventListener('pointerdown', (e) => {
+    // UI 레이어 클릭 시 3D 피킹 무시
+    if (e.target.closest('.top-nav, .event-sidebar, .middle-area, .toolbar-container, .modal-overlay, .virtual-joystick')) {
+      return;
+    }
+    if (e.button !== 0) return; // 좌클릭만 반응
+
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+
+    for (const hit of intersects) {
+      if (hit.point && Math.abs(hit.point.y) < 6.0) {
+        STATE.clickTargetPos = new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
+        if (clickMarkerMesh) {
+          clickMarkerMesh.position.set(hit.point.x, hit.point.y + 0.05, hit.point.z);
+          clickMarkerMesh.visible = true;
+        }
+        break;
+      }
+    }
   });
 }
 
-function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+function setupClickMarker() {
+  const markerGeo = new THREE.RingGeometry(0.3, 0.45, 18);
+  const markerMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
+  clickMarkerMesh = new THREE.Mesh(markerGeo, markerMat);
+  clickMarkerMesh.rotation.x = -Math.PI / 2;
+  clickMarkerMesh.visible = false;
+  scene.add(clickMarkerMesh);
 }
 
-let lastNetSync = 0;
+function triggerPlayerJump() {
+  if (!localPlayer) return;
+  const ud = localPlayer.userData;
+  if (!ud.isJumping) {
+    ud.isJumping = true;
+    ud.jumpVelocity = 8.8; // 상쾌한 점프 도약감
+    if (window.busanAudio) window.busanAudio.playJump();
+  }
+}
 
+// 모바일 가상 조이스틱
+function setupVirtualJoystick() {
+  const container = document.getElementById('virtualJoystickContainer');
+  const knob = document.getElementById('joystickKnob');
+  if (!container || !knob) return;
+
+  let activeTouchId = null;
+  const maxRadius = 36;
+
+  function updateKnob(clientX, clientY) {
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > maxRadius) {
+      dx = (dx / dist) * maxRadius;
+      dy = (dy / dist) * maxRadius;
+    }
+
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    STATE.joystickDir.x = dx / maxRadius;
+    STATE.joystickDir.y = -dy / maxRadius; // 전진은 음의 y
+  }
+
+  function resetKnob() {
+    activeTouchId = null;
+    knob.style.transform = 'translate(0px, 0px)';
+    STATE.joystickDir.x = 0;
+    STATE.joystickDir.y = 0;
+  }
+
+  container.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    activeTouchId = t.identifier;
+    updateKnob(t.clientX, t.clientY);
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+    if (activeTouchId === null) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === activeTouchId) {
+        updateKnob(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+        break;
+      }
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', (e) => {
+    if (activeTouchId === null) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === activeTouchId) {
+        resetKnob();
+        break;
+      }
+    }
+  });
+}
+
+function updatePlayerMovement(dt) {
+  if (!localPlayer) return;
+  const ud = localPlayer.userData;
+  const curPos = localPlayer.position;
+
+  const moveDir = new THREE.Vector3();
+  let isMoving = false;
+
+  // 화면(카메라) 기준 전후좌우 벡터 계산
+  if (camera) {
+    const camFwd = new THREE.Vector3();
+    camera.getWorldDirection(camFwd);
+    camFwd.y = 0;
+    camFwd.normalize();
+
+    const camRight = new THREE.Vector3();
+    camRight.crossVectors(camFwd, new THREE.Vector3(0, 1, 0)).normalize();
+
+    // 1. 키보드 입력
+    if (STATE.keys.w) moveDir.add(camFwd);
+    if (STATE.keys.s) moveDir.sub(camFwd);
+    if (STATE.keys.a) moveDir.sub(camRight);
+    if (STATE.keys.d) moveDir.add(camRight);
+
+    // 2. 가상 조이스틱
+    if (Math.abs(STATE.joystickDir.x) > 0.05 || Math.abs(STATE.joystickDir.y) > 0.05) {
+      moveDir.addScaledVector(camFwd, STATE.joystickDir.y);
+      moveDir.addScaledVector(camRight, STATE.joystickDir.x);
+    }
+  }
+
+  let nextX = curPos.x;
+  let nextZ = curPos.z;
+
+  if (moveDir.lengthSq() > 0.001) {
+    moveDir.normalize();
+    isMoving = true;
+    STATE.clickTargetPos = null;
+    if (clickMarkerMesh) clickMarkerMesh.visible = false;
+
+    // 회전각 부드러운 보간 (부드러운 시선 전환)
+    const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+    let diff = targetAngle - localPlayer.rotation.y;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    localPlayer.rotation.y += diff * Math.min(1, dt * 14);
+
+    const step = ud.walkSpeed * dt;
+    nextX += moveDir.x * step;
+    nextZ += moveDir.z * step;
+  } else if (STATE.clickTargetPos) {
+    // 클릭 위치 추적 이동
+    const toTarget = new THREE.Vector3().subVectors(STATE.clickTargetPos, curPos);
+    toTarget.y = 0;
+    const dist = toTarget.length();
+
+    if (dist > 0.4) {
+      toTarget.normalize();
+      isMoving = true;
+
+      const targetAngle = Math.atan2(toTarget.x, toTarget.z);
+      let diff = targetAngle - localPlayer.rotation.y;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      localPlayer.rotation.y += diff * Math.min(1, dt * 14);
+
+      const step = Math.min(dist, ud.walkSpeed * dt);
+      nextX += toTarget.x * step;
+      nextZ += toTarget.z * step;
+    } else {
+      STATE.clickTargetPos = null;
+      if (clickMarkerMesh) clickMarkerMesh.visible = false;
+    }
+  }
+
+  // 충돌 분해 및 바닥 Y 높이 검사
+  const resolved = resolveObstacleCollision(curPos.x, curPos.z, nextX, nextZ, curPos.y);
+  curPos.x = resolved.x;
+  curPos.z = resolved.z;
+
+  const targetFloorY = getBusanCityHallFloorY(curPos.x, curPos.z);
+
+  // 점프 및 수직 물리
+  if (ud.isJumping) {
+    ud.jumpVelocity -= 22 * dt; // 지구 중력
+    curPos.y += ud.jumpVelocity * dt;
+    if (curPos.y <= targetFloorY) {
+      curPos.y = targetFloorY;
+      ud.isJumping = false;
+      ud.jumpVelocity = 0;
+    }
+  } else {
+    // 계단 및 슬로프 부드러운 스냅
+    if (Math.abs(curPos.y - targetFloorY) < 0.25) {
+      curPos.y = targetFloorY;
+    } else if (curPos.y > targetFloorY) {
+      curPos.y = Math.max(targetFloorY, curPos.y - 12 * dt);
+    } else {
+      curPos.y = Math.min(targetFloorY, curPos.y + 12 * dt);
+    }
+  }
+
+  ud.isWalking = isMoving;
+
+  // 3인칭 스마트 카메라 추적 (카메라 타겟과 위치가 플레이어와 함께 이동하여 미끄러짐 방지)
+  if (controls && isMoving) {
+    const curTarget = controls.target.clone();
+    const newTarget = new THREE.Vector3(curPos.x, curPos.y + 1.4, curPos.z);
+    const targetDelta = new THREE.Vector3().subVectors(newTarget, curTarget);
+
+    controls.target.addScaledVector(targetDelta, Math.min(1, dt * 8));
+    camera.position.addScaledVector(targetDelta, Math.min(1, dt * 8));
+  }
+
+  // 네트워크 위치 동기화 (초당 15회 패킷 전송)
+  const now = performance.now();
+  if ((isMoving || ud.isJumping) && STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    if (now - STATE.lastMoveSend > 65) {
+      STATE.lastMoveSend = now;
+      STATE.ws.send(JSON.stringify({
+        type: 'move',
+        x: Math.round(curPos.x * 100) / 100,
+        y: Math.round(curPos.y * 100) / 100,
+        z: Math.round(curPos.z * 100) / 100,
+        ry: Math.round(localPlayer.rotation.y * 100) / 100,
+        jump: ud.isJumping
+      }));
+    }
+  }
+
+  // 근접 인터랙션 검사
+  checkProximityInteractions();
+}
+
+// 치비 아바타 걷기, 눈깜빡임, 날개짓 애니메이션
+function updateCuteCitizenAnimation(c, dt, t) {
+  const ud = c.userData;
+  if (!ud) return;
+
+  // 1. 깜찍한 눈 깜빡임 (Blinking)
+  if (ud.eyeL && ud.eyeR) {
+    ud.blinkTimer -= dt;
+    if (ud.blinkTimer <= 0) {
+      ud.blinkDuration = 0.14;
+      ud.blinkTimer = 2.5 + Math.random() * 3.5;
+    }
+    if (ud.blinkDuration > 0) {
+      ud.blinkDuration -= dt;
+      ud.eyeL.scale.y = 0.12;
+      ud.eyeR.scale.y = 0.12;
+    } else {
+      ud.eyeL.scale.y = 1.0;
+      ud.eyeR.scale.y = 1.0;
+    }
+  }
+
+  // 2. 걷기 시 팔다리 스윙 & 몸통 통통 바운스
+  if (ud.isWalking) {
+    const swing = Math.sin(t * 11) * 0.55;
+    if (ud.armL) ud.armL.rotation.x = swing;
+    if (ud.armR) ud.armR.rotation.x = -swing;
+    if (ud.legL) ud.legL.rotation.x = -swing * 0.9;
+    if (ud.legR) ud.legR.rotation.x = swing * 0.9;
+    if (ud.headGroup) ud.headGroup.position.y = 1.18 + Math.abs(Math.sin(t * 11)) * 0.05;
+  } else {
+    // 숨쉬기 부드러운 유휴 애니메이션
+    if (ud.armL) ud.armL.rotation.x = Math.sin(t * 2.5) * 0.08;
+    if (ud.armR) ud.armR.rotation.x = -Math.sin(t * 2.5) * 0.08;
+    if (ud.legL) ud.legL.rotation.x = 0;
+    if (ud.legR) ud.legR.rotation.x = 0;
+    if (ud.headGroup) ud.headGroup.position.y = 1.18 + Math.sin(t * 3.0) * 0.02;
+  }
+
+  // 3. 날개 펄럭임 (점프 중에는 역동적 파닥임)
+  if (ud.wingsSlot && ud.wingsSlot.userData.lWing) {
+    const flapSpeed = ud.isJumping ? 24 : ud.isWalking ? 14 : 5;
+    const flapAmp = ud.isJumping ? 0.6 : ud.isWalking ? 0.35 : 0.15;
+    const flap = Math.sin(t * flapSpeed) * flapAmp;
+    ud.wingsSlot.userData.lWing.rotation.y = -0.35 + flap;
+    ud.wingsSlot.userData.rWing.rotation.y = 0.35 - flap;
+  }
+}
+
+// ========================================================
+// 8. 렌더 루프 및 파티클 / 동적 환경 업데이트
+// ========================================================
 function animate() {
   requestAnimationFrame(animate);
 
-  const delta = clock.getDelta();
-  const time = clock.getElapsedTime();
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const t = clock.getElapsedTime();
 
-  // (1) 로컬 플레이어 이동 계산
-  if (localPlayerMesh) {
-    const moveSpeed = (KEYS.shift ? 16 : 9) * delta;
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
+  // (1) 로컬 플레이어 물리 및 이동
+  updatePlayerMovement(dt);
 
-    const right = new THREE.Vector3();
-    right.crossVectors(camera.up, forward).normalize().negate();
-
-    const moveDir = new THREE.Vector3();
-    if (KEYS.w) moveDir.add(forward);
-    if (KEYS.s) moveDir.sub(forward);
-    if (KEYS.d) moveDir.add(right);
-    if (KEYS.a) moveDir.sub(right);
-
-    if (moveDir.lengthSq() > 0.001) {
-      moveDir.normalize();
-      localPlayerMesh.position.addScaledVector(moveDir, moveSpeed);
-      localPlayerMesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
-    }
-
-    // 중력 및 점프
-    playerVelocityY -= 1.2 * delta;
-    localPlayerMesh.position.y += playerVelocityY;
-    if (localPlayerMesh.position.y <= 0) {
-      localPlayerMesh.position.y = 0;
-      playerVelocityY = 0;
-      isGrounded = true;
-    }
-
-    // 카메라 추적
-    controls.target.lerp(
-      new THREE.Vector3(localPlayerMesh.position.x, localPlayerMesh.position.y + 2, localPlayerMesh.position.z),
-      0.1
-    );
-
-    // 좌표 표시 업데이트
-    const coordEl = document.getElementById('coord-display');
-    if (coordEl) {
-      coordEl.innerText = `X:${Math.round(localPlayerMesh.position.x)} Z:${Math.round(localPlayerMesh.position.z)}`;
-    }
-
-    // 네트워크 위치 동기화 (초당 15회)
-    if (time - lastNetSync > 0.065) {
-      lastNetSync = time;
-      sendWs({
-        type: 'move',
-        x: localPlayerMesh.position.x,
-        y: localPlayerMesh.position.y,
-        z: localPlayerMesh.position.z,
-        ry: localPlayerMesh.rotation.y,
-        jump: !isGrounded
-      });
-    }
-
-    // 상호작용 프롬프트 검사
-    checkProximityInteraction();
+  // (2) 로컬 및 원격 아바타 애니메이션
+  if (localPlayer) {
+    updateCuteCitizenAnimation(localPlayer, dt, t);
   }
-
-  // (2) 다른 피어들 부드러운 보간 (Interpolation)
   for (const id in STATE.peers) {
     const peer = STATE.peers[id];
-    peer.mesh.position.lerp(peer.targetPos, 0.2);
-    peer.mesh.rotation.y = THREE.MathUtils.lerp(peer.mesh.rotation.y, peer.targetRotY, 0.2);
+    if (peer.mesh) {
+      peer.mesh.position.lerp(peer.targetPos, 0.25);
+      peer.mesh.rotation.y = THREE.MathUtils.lerp(peer.mesh.rotation.y, peer.targetRotY, 0.25);
+      updateCuteCitizenAnimation(peer.mesh, dt, t);
+    }
   }
 
-  // (3) 분수대 물줄기 애니메이션
+  // (3) 분수대 물줄기 춤추는 애니메이션
   fountainParticles.forEach(p => {
-    p.position.y = p.userData.baseY + Math.sin(time * p.userData.speed + p.userData.phase) * 1.8 + 1.2;
+    p.position.y = p.userData.baseY + Math.sin(t * p.userData.speed + p.userData.phase) * 1.6 + 1.2;
   });
 
-  // (4) 갈매기 비행 애니메이션
+  // (4) 등대 탐조등 회전 빔
+  if (lighthouseBeamMesh) {
+    lighthouseBeamMesh.rotation.z = t * 1.5;
+  }
+
+  // (5) 동백꽃잎 흩날림
+  fallingPetals.forEach(p => {
+    p.position.y -= p.userData.vy;
+    p.rotation.z += p.userData.rotSpeed;
+    if (p.position.y < 0.1) {
+      p.position.y = 4.5 + Math.random() * 2.0;
+    }
+  });
+
+  // (6) 갈매기 선회 비행
   seagulls.forEach(s => {
     s.userData.angle += s.userData.speed;
     s.position.x = Math.cos(s.userData.angle) * s.userData.radius;
-    s.position.z = Math.sin(s.userData.angle) * s.userData.radius;
+    s.position.z = 30 + Math.sin(s.userData.angle) * s.userData.radius;
     s.rotation.y = -s.userData.angle + Math.PI / 2;
 
-    const flap = Math.sin(time * 8) * 0.4;
-    s.userData.leftWing.rotation.z = flap;
-    s.userData.rightWing.rotation.z = -flap;
+    const wingFlap = Math.sin(t * 8) * 0.45;
+    s.userData.lWing.rotation.z = wingFlap;
+    s.userData.rWing.rotation.z = -wingFlap;
   });
 
   controls.update();
@@ -1106,382 +1875,719 @@ function animate() {
 }
 
 // ========================================================
-// 6. 상호작용 시스템 & 근접 감지
+// 9. 근접 상호작용 및 실시간 이벤트 시스템
 // ========================================================
-let nearestInteractable = null;
-
 function registerInteractiveObject(obj) {
   interactiveObjects.push(obj);
 }
 
-function checkProximityInteraction() {
-  if (!localPlayerMesh) return;
-  const pPos = localPlayerMesh.position;
-  let found = null;
+function checkProximityInteractions() {
+  if (!localPlayer) return;
+  const p = localPlayer.position;
+  let nearest = null;
   let minDist = Infinity;
 
-  interactiveObjects.forEach(obj => {
-    const d = pPos.distanceTo(obj.pos);
-    if (d < obj.radius && d < minDist) {
-      minDist = d;
-      found = obj;
+  for (const obj of interactiveObjects) {
+    const dist = Math.hypot(p.x - obj.pos.x, p.z - obj.pos.z);
+    if (dist <= obj.radius && dist < minDist) {
+      minDist = dist;
+      nearest = obj;
     }
-  });
+  }
 
-  nearestInteractable = found;
   const promptEl = document.getElementById('interact-prompt');
-  const textEl = document.getElementById('prompt-text');
+  const promptText = document.getElementById('prompt-text');
 
-  if (found) {
-    promptEl.style.display = 'flex';
-    textEl.innerText = `${found.name} (E키)`;
+  if (nearest) {
+    STATE.interactionTarget = nearest;
+    if (promptEl) promptEl.classList.add('visible');
+    if (promptText) promptText.innerText = nearest.prompt;
   } else {
-    promptEl.style.display = 'none';
+    STATE.interactionTarget = null;
+    if (promptEl) promptEl.classList.remove('visible');
   }
 }
 
-function triggerInteraction() {
-  if (nearestInteractable && nearestInteractable.action) {
-    nearestInteractable.action();
+function triggerProximityAction() {
+  if (STATE.interactionTarget && typeof STATE.interactionTarget.action === 'function') {
+    STATE.interactionTarget.action();
   }
 }
 
-// 스탬프 획득 및 퀘스트 진행
-function collectStamp(stampKey, stampName) {
-  if (STATE.stamps[stampKey]) return; // 이미 획득함
-  STATE.stamps[stampKey] = true;
+function showSpeechBubble(characterMesh, text) {
+  if (!characterMesh || !characterMesh.userData.bubbleSlot) return;
+  const slot = characterMesh.userData.bubbleSlot;
 
-  if (window.busanAudio) window.busanAudio.playStampSound();
+  while (slot.children.length > 0) slot.remove(slot.children[0]);
 
-  // 퀘스트 태그 업데이트
-  const tagEl = document.getElementById(`tag-${stampKey}`);
-  if (tagEl) {
-    tagEl.classList.add('done');
-    tagEl.innerText = `✓ ${stampName} 완료`;
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.roundRect(10, 10, 492, 140, 24);
+  ctx.fill();
+
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 6;
+  ctx.roundRect(10, 10, 492, 140, 24);
+  ctx.stroke();
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 28px "Noto Sans KR", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // 2줄 자동 줄바꿈
+  if (text.length > 18) {
+    const line1 = text.substring(0, 18);
+    const line2 = text.substring(18, 36);
+    ctx.fillText(line1, 256, 55);
+    ctx.fillText(line2, 256, 105);
+  } else {
+    ctx.fillText(text, 256, 80);
   }
 
-  addExp(80);
-  addSystemChat(`🌟 [스탬프 달성!] '${stampName}'을 획득하였습니다! (+80 XP)`);
-  sendWs({ type: 'stamp_collected', stamp_id: stampKey, stamp_name: stampName, name: STATE.playerName });
+  const tex = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  sprite.scale.set(3.8, 1.2, 1.0);
+  slot.add(sprite);
+  slot.visible = true;
 
-  // 모든 스탬프 달성 시 ACT 업데이트
-  const allStamps = Object.values(STATE.stamps).filter(Boolean).length;
-  if (allStamps >= 4) {
-    document.getElementById('quest-act-badge').innerText = 'ACT 5. 부산ON 마스터';
-    document.getElementById('quest-title').innerText = '16개 구·군을 잇는 부산의 중심';
-    document.getElementById('quest-desc').innerText = '축하합니다! 시청과 광장의 모든 주요 시설을 탐방 완료하셨습니다.';
-  }
+  setTimeout(() => {
+    slot.visible = false;
+  }, 4500);
 }
 
-function addExp(amount) {
-  STATE.playerExp += amount;
-  let currentRank = CITIZEN_RANKS[0];
-  for (let r of CITIZEN_RANKS) {
-    if (STATE.playerExp >= r.minExp) currentRank = r;
-  }
+// ========================================================
+// 10. WebSocket 실시간 멀티플레이 연동 (가즈아교 계승)
+// ========================================================
+async function connectMultiplayerWebSocket() {
+  const hostUrl = await autoDiscoverHostServer();
+  const wsUrl = hostUrl.replace(/^http/, 'ws');
 
-  if (currentRank.level > STATE.playerLevel) {
-    STATE.playerLevel = currentRank.level;
-    STATE.playerTitle = `[${currentRank.title}]`;
-    document.getElementById('player-rank-badge').innerText = `탐험가 Lv.${STATE.playerLevel}`;
-    document.getElementById('player-title-text').innerText = STATE.playerTitle;
-    if (window.busanAudio) window.busanAudio.playLevelUp();
-    addSystemChat(`🎉 [레벨업!] 시민 등급이 '${currentRank.title}' (Lv.${STATE.playerLevel})로 상승했습니다!`);
-    sendWs({ type: 'level_up', level: STATE.playerLevel, title: STATE.playerTitle, name: STATE.playerName });
-  }
+  console.log(`[부산ON] WebSocket 연결 시도: ${wsUrl}`);
+  try {
+    STATE.ws = new WebSocket(wsUrl);
 
-  // 프로그레스 바 업데이트
-  const nextRank = CITIZEN_RANKS[STATE.playerLevel] || currentRank;
-  const pct = Math.min(100, Math.round((STATE.playerExp / nextRank.minExp) * 100));
-  const fillEl = document.getElementById('player-xp-fill');
-  if (fillEl) fillEl.style.width = `${pct}%`;
-}
+    STATE.ws.onopen = () => {
+      console.log("[부산ON] WebSocket 서버 연결 성공!");
+      updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
 
-// 제스처 모션
-function performGesture(type) {
-  if (!localPlayerMesh) return;
-  if (type === 'wave') {
-    localPlayerMesh.rotation.y += 0.5;
-    setTimeout(() => { localPlayerMesh.rotation.y -= 0.5; }, 300);
-    addSystemChat(`${STATE.playerName} 님이 손을 흔들어 인사합니다.`);
-  } else if (type === 'clap') {
-    if (window.busanAudio) window.busanAudio.playDingDong();
-    addSystemChat(`${STATE.playerName} 님이 박수를 칩니다.`);
-  } else if (type === 'dance') {
-    let count = 0;
-    const interval = setInterval(() => {
-      localPlayerMesh.rotation.y += Math.PI / 4;
-      localPlayerMesh.position.y = 0.5;
-      count++;
-      if (count > 8) {
-        clearInterval(interval);
-        localPlayerMesh.position.y = 0;
+      // 룸 참가 패킷 전송
+      STATE.ws.send(JSON.stringify({
+        type: 'join',
+        room: STATE.currentRoom,
+        name: STATE.playerName,
+        title: STATE.playerTitle,
+        level: STATE.playerLevel,
+        robe: STATE.robeColor,
+        hat: STATE.hatType,
+        wings: STATE.wingsType
+      }));
+    };
+
+    STATE.ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleServerMessage(msg);
+      } catch (err) {
+        console.warn("[부산ON] 메시지 파싱 오류:", err);
       }
-    }, 100);
-    addSystemChat(`${STATE.playerName} 님이 신나게 춤을 춥니다!`);
-  } else if (type === 'cheer') {
-    playerVelocityY = 0.5;
-    isGrounded = false;
-    addSystemChat(`${STATE.playerName} 님이 크게 환호합니다!`);
+    };
+
+    STATE.ws.onclose = () => {
+      console.log("[부산ON] 서버 연결 종료. 3초 후 재연결 시도...");
+      updateServerStatusUI(false, "재연결 시도 중...");
+      setTimeout(connectMultiplayerWebSocket, 3000);
+    };
+
+    STATE.ws.onerror = (e) => {
+      console.warn("[부산ON] WebSocket 에러:", e);
+    };
+  } catch (err) {
+    console.warn("[부산ON] 소켓 연결 실패:", err);
+    setTimeout(connectMultiplayerWebSocket, 4000);
   }
-  sendWs({ type: 'action', act: type });
 }
 
-// 시민 발언대 외치기
+function handleServerMessage(msg) {
+  const mtype = msg.type;
+
+  if (mtype === 'join_ack') {
+    // 기존 동시접속 피어들 일괄 추가
+    if (msg.peers) {
+      for (const pid in msg.peers) {
+        addRemotePeer(pid, msg.peers[pid]);
+      }
+    }
+    updateOnlineCount(msg.count || 1);
+  } else if (mtype === 'peer_join') {
+    addRemotePeer(msg.id, msg.info);
+    updateOnlineCount(msg.count);
+    addTestimonyItem(`[시민 입장]`, `${msg.info.name}님이 시청 광장에 도착했습니다.`);
+  } else if (mtype === 'peer_leave') {
+    removeRemotePeer(msg.id);
+    updateOnlineCount(msg.count);
+  } else if (mtype === 'peer_move') {
+    const peer = STATE.peers[msg.id];
+    if (peer) {
+      peer.targetPos.set(msg.x, msg.y, msg.z);
+      peer.targetRotY = msg.ry;
+      peer.mesh.userData.isJumping = !!msg.jump;
+      peer.mesh.userData.isWalking = true;
+    }
+  } else if (mtype === 'peer_chat') {
+    addTestimonyItem(msg.name, msg.text);
+    const peer = STATE.peers[msg.id];
+    if (peer) {
+      showSpeechBubble(peer.mesh, msg.text);
+    }
+  } else if (mtype === 'podium_broadcast') {
+    showPodiumBanner(msg.name, msg.text);
+    addTestimonyItem(`[📢 발언대] ${msg.name}`, msg.text);
+    if (window.busanAudio) window.busanAudio.playMegaphoneSound();
+  }
+}
+
+function addRemotePeer(id, info) {
+  if (STATE.peers[id]) return;
+
+  const mesh = createCuteCitizenMesh({
+    name: info.name || "시민",
+    title: info.title || "시민",
+    level: info.level || 1,
+    robeColor: info.robe || "blue",
+    hatType: info.hat || "camellia",
+    wingsType: info.wings || "seagull"
+  });
+  mesh.position.set(info.x || 0, info.y || 0, info.z || 30);
+  scene.add(mesh);
+
+  STATE.peers[id] = {
+    mesh,
+    info,
+    targetPos: mesh.position.clone(),
+    targetRotY: mesh.rotation.y
+  };
+}
+
+function removeRemotePeer(id) {
+  if (STATE.peers[id]) {
+    scene.remove(STATE.peers[id].mesh);
+    delete STATE.peers[id];
+  }
+}
+
+function updateOnlineCount(count) {
+  STATE.onlineCount = count || 1;
+  const countEl = document.getElementById('cultistCount');
+  if (countEl) countEl.innerText = STATE.onlineCount;
+}
+
+// ========================================================
+// 11. 제스처, 시민 발언대 외치기 & 실시간 채팅 피드
+// ========================================================
+function performGesture(type) {
+  if (!localPlayer) return;
+  if (type === 'wave') {
+    showSpeechBubble(localPlayer, "👋 부산시민 여러분, 반갑습니다!");
+    if (window.busanAudio) window.busanAudio.playClick();
+  } else if (type === 'clap') {
+    showSpeechBubble(localPlayer, "👏 짝짝짝! 부산 시정 파이팅!");
+    if (window.busanAudio) window.busanAudio.playApplause();
+  } else if (type === 'cheer') {
+    showSpeechBubble(localPlayer, "🙌 와아! 더 살기 좋은 부산을 만듭시다!");
+    if (window.busanAudio) window.busanAudio.playApplause();
+  } else if (type === 'dance') {
+    showSpeechBubble(localPlayer, "💃 즐거운 댄스타임! 모두 함께해요!");
+    if (window.busanAudio) window.busanAudio.playClick();
+  }
+
+  // 네트워크 액션 전송
+  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    STATE.ws.send(JSON.stringify({
+      type: 'action',
+      act: type,
+      text: type
+    }));
+  }
+}
+
+function submitQuickCitizenVoice() {
+  const input = document.getElementById('testimonyInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  addTestimonyItem(`[${STATE.playerName}]`, text);
+  showSpeechBubble(localPlayer, text);
+
+  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    STATE.ws.send(JSON.stringify({
+      type: 'chat',
+      name: STATE.playerName,
+      title: STATE.playerTitle,
+      text: text,
+      scope: 'all'
+    }));
+  }
+
+  input.value = '';
+  addCitizenExp(25);
+}
+
+function addTestimonyItem(author, text) {
+  const feed = document.getElementById('testimonyFeed');
+  if (!feed) return;
+
+  const item = document.createElement('div');
+  item.className = 'testimony-item';
+  item.innerHTML = `<span class="testimony-author">${author}</span><span>${escapeHtml(text)}</span>`;
+  feed.appendChild(item);
+
+  // 스크롤 최하단 유지
+  feed.scrollTop = feed.scrollHeight;
+
+  // 최대 50개 유지
+  while (feed.children.length > 50) {
+    feed.removeChild(feed.firstChild);
+  }
+
+  // 전체 기록 모달에도 추가
+  const fullList = document.getElementById('fullChatHistoryList');
+  if (fullList) {
+    const fullItem = document.createElement('div');
+    fullItem.className = 'full-chat-item';
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    fullItem.innerHTML = `<span class="full-chat-time">${timeStr}</span><span class="full-chat-author">${author}:</span><span>${escapeHtml(text)}</span>`;
+    fullList.appendChild(fullItem);
+  }
+}
+
 function openPodiumPrompt() {
-  document.getElementById('modal-podium-shout').style.display = 'flex';
+  openModal('modal-podium-shout');
 }
 
 function submitPodiumShout() {
   const input = document.getElementById('podium-input-text');
+  if (!input) return;
   const text = input.value.trim();
   if (!text) return;
 
-  sendWs({ type: 'shout_podium', text: text, name: STATE.playerName });
-  showPodiumBanner(STATE.playerName, text);
-  if (window.busanAudio) window.busanAudio.playMegaphoneSound();
-
-  collectStamp('shout', '시민 발언대 스탬프');
   closeModal('modal-podium-shout');
+  showPodiumBanner(STATE.playerName, text);
+
+  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    STATE.ws.send(JSON.stringify({
+      type: 'shout_podium',
+      name: STATE.playerName,
+      text: text
+    }));
+  }
+
+  if (window.busanAudio) window.busanAudio.playMegaphoneSound();
   input.value = '';
+  addCitizenExp(80);
 }
 
 function showPodiumBanner(author, text) {
   const banner = document.getElementById('podium-banner');
   const authorEl = document.getElementById('podium-author');
   const textEl = document.getElementById('podium-text');
-  authorEl.innerText = `[시민 발언대] ${author}:`;
-  textEl.innerText = text;
-  banner.style.display = 'flex';
+  if (!banner) return;
 
+  if (authorEl) authorEl.innerText = `📢 시민 발언대 외침 (${author})`;
+  if (textEl) textEl.innerText = text;
+
+  banner.classList.add('visible');
   setTimeout(() => {
-    banner.style.display = 'none';
+    banner.classList.remove('visible');
   }, 6000);
 }
 
 // ========================================================
-// 7. 실시간 채팅 기능
+// 12. 게이미피케이션 & 시민 등급 레벨업 시스템
 // ========================================================
-function sendChatMessage() {
-  const input = document.getElementById('chat-input');
-  const text = input.value.trim();
-  if (!text) return;
+const CITIZEN_RANKS = [
+  { level: 1, title: "첫 방문 시민", minExp: 0 },
+  { level: 2, title: "골목 탐험가", minExp: 100 },
+  { level: 3, title: "시정 참여자", minExp: 250 },
+  { level: 4, title: "소통의 달인", minExp: 450 },
+  { level: 5, title: "열린 부산시민", minExp: 700 },
+  { level: 6, title: "시정 모니터요원", minExp: 1050 },
+  { level: 7, title: "광장 연설가", minExp: 1500 },
+  { level: 8, title: "정책 제안 마스터", minExp: 2100 },
+  { level: 9, title: "16구군 대사", minExp: 2800 },
+  { level: 10, title: "명예 부산시장", minExp: 3800 }
+];
 
-  appendChatMessage(STATE.playerName, text, STATE.playerTitle, getTimeStr());
-  sendWs({
-    type: 'chat',
-    name: STATE.playerName,
-    title: STATE.playerTitle,
-    text: text
-  });
+function addCitizenExp(amount) {
+  STATE.playerExp += amount;
+  let curRank = CITIZEN_RANKS[0];
+  for (let i = CITIZEN_RANKS.length - 1; i >= 0; i--) {
+    if (STATE.playerExp >= CITIZEN_RANKS[i].minExp) {
+      curRank = CITIZEN_RANKS[i];
+      break;
+    }
+  }
 
-  input.value = '';
+  if (curRank.level > STATE.playerLevel) {
+    STATE.playerLevel = curRank.level;
+    STATE.playerTitle = curRank.title;
+    showLevelUpCelebration(STATE.playerLevel, STATE.playerTitle);
+  }
+
+  updatePlayerBadgeUI();
 }
 
-function appendChatMessage(name, text, title, time) {
-  const container = document.getElementById('chat-messages');
-  const msgEl = document.createElement('div');
-  msgEl.className = 'chat-msg';
-  msgEl.innerHTML = `
-    <span class="msg-title">${escapeHtml(title || '[시민]')}</span>
-    <span class="msg-author">${escapeHtml(name)}:</span>
-    <span>${escapeHtml(text)}</span>
-    <span class="msg-time">${time || getTimeStr()}</span>
-  `;
-  container.appendChild(msgEl);
-  container.scrollTop = container.scrollHeight;
+function updatePlayerBadgeUI() {
+  const badge = document.getElementById('player-rank-badge');
+  const titleTxt = document.getElementById('player-title-text');
+  const fill = document.getElementById('player-xp-fill');
+
+  if (badge) badge.innerText = `시민 Lv.${STATE.playerLevel}`;
+  if (titleTxt) titleTxt.innerText = `[${STATE.playerTitle}] ${STATE.playerName}`;
+
+  const nextRank = CITIZEN_RANKS.find(r => r.level === STATE.playerLevel + 1);
+  if (fill && nextRank) {
+    const curMin = CITIZEN_RANKS.find(r => r.level === STATE.playerLevel).minExp;
+    const pct = Math.min(100, Math.max(10, ((STATE.playerExp - curMin) / (nextRank.minExp - curMin)) * 100));
+    fill.style.width = `${pct}%`;
+  }
 }
 
-function addSystemChat(text) {
-  const container = document.getElementById('chat-messages');
-  const msgEl = document.createElement('div');
-  msgEl.className = 'chat-msg';
-  msgEl.style.color = '#0284c7';
-  msgEl.innerHTML = `<span style="font-weight:700;">[알림]</span> ${escapeHtml(text)}`;
-  container.appendChild(msgEl);
-  container.scrollTop = container.scrollHeight;
+function showLevelUpCelebration(level, title) {
+  if (window.busanAudio) window.busanAudio.playLevelUp();
+  showSpeechBubble(localPlayer, `🎉 축하합니다! 시민 등급이 [Lv.${level} ${title}](으)로 승급했습니다!`);
 }
 
-function switchChatTab(tab) {
-  document.querySelectorAll('.chat-tab').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  if (tab === 'wall') {
-    openWallModal();
+function collectStamp(id, name) {
+  if (STATE.stamps[id]) return;
+  STATE.stamps[id] = true;
+  addCitizenExp(100);
+}
+
+// ========================================================
+// 13. 2층 행복민원실 순번 대기표 키오스크 시스템
+// ========================================================
+let ticketSeq = 108;
+
+function openTicketKioskModal() {
+  openModal('modal-ticket');
+}
+
+function dispenseTicket(serviceName, prefix) {
+  ticketSeq++;
+  const ticketNo = `${prefix}-${ticketSeq}`;
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+  const card = document.getElementById('issuedTicketCard');
+  const timeEl = document.getElementById('ticketIssuedTime');
+  const numEl = document.getElementById('ticketNumberDisplay');
+  const nameEl = document.getElementById('ticketServiceNameDisplay');
+  const waitEl = document.getElementById('ticketWaitInfoDisplay');
+
+  if (card) card.style.display = 'block';
+  if (timeEl) timeEl.innerText = timeStr;
+  if (numEl) numEl.innerText = ticketNo;
+  if (nameEl) nameEl.innerText = serviceName;
+  if (waitEl) waitEl.innerText = `내 앞 대기인원: ${Math.floor(Math.random() * 3) + 1}명 | 예상 대기시간: 약 5분`;
+
+  if (window.busanAudio) window.busanAudio.playDingDong();
+  showSpeechBubble(localPlayer, `🎫 [${serviceName}] 대기번호 ${ticketNo}번 표를 발급받았습니다!`);
+  addCitizenExp(40);
+}
+
+// ========================================================
+// 14. 부산 시정 상식 퀴즈 룰렛 시스템
+// ========================================================
+const BUSAN_QUIZZES = [
+  {
+    q: "부산광역시를 상징하는 시화(市花)는 무엇일까요?",
+    options: ["1. 동백꽃", "2. 무궁화", "3. 개나리", "4. 진달래"],
+    ans: 0,
+    desc: "부산의 시화는 겨울에도 붉게 피어나는 아름다운 '동백꽃'입니다!"
+  },
+  {
+    q: "부산광역시에는 총 몇 개의 자치 구·군이 있을까요?",
+    options: ["1. 12개", "2. 14개", "3. 16개 (15구 1군)", "4. 18개"],
+    ans: 2,
+    desc: "부산광역시는 15개 자치구와 1개 군(기장군)으로 총 16개 구·군으로 이루어져 있습니다."
+  },
+  {
+    q: "부산광역시청 1층 로비에 조성된 어린이 복합문화도서관의 이름은?",
+    options: ["1. 누리봄", "2. 들락날락", "3. 도란도란", "4. 다드림"],
+    ans: 1,
+    desc: "1층 로비의 혁신 복합문화공간은 시민 누구나 편하게 오가는 '들락날락'입니다."
+  },
+  {
+    q: "부산광역시의 대표적인 소통 캐릭터 갈매기 마스코트의 이름은?",
+    options: ["1. 부기", "2. 갈매기동자", "3. 끼룩이", "4. 바다돌이"],
+    ans: 0,
+    desc: "부산의 귀여운 랜드마크 마스코트는 '부기(Boogi)'입니다!"
+  },
+  {
+    q: "부산시민과 함께하는 24시간 전화 행정상담 콜센터 번호는?",
+    options: ["1. 110", "2. 120", "3. 128", "4. 1339"],
+    ans: 1,
+    desc: "부산시정의 모든 궁금증은 국번 없이 '120 부산민원콜센터'에서 안내받으실 수 있습니다."
+  }
+];
+
+function openQuizModal() {
+  STATE.quizIndex = 0;
+  renderQuizCard();
+  openModal('modal-quiz');
+}
+
+function renderQuizCard() {
+  const quiz = BUSAN_QUIZZES[STATE.quizIndex % BUSAN_QUIZZES.length];
+  const badge = document.getElementById('quizNumberBadge');
+  const qText = document.getElementById('quizQuestionText');
+  const grid = document.getElementById('quizOptionsGrid');
+  const resMsg = document.getElementById('quizResultMsg');
+
+  if (badge) badge.innerText = `문제 ${STATE.quizIndex + 1} / ${BUSAN_QUIZZES.length}`;
+  if (qText) qText.innerText = quiz.q;
+  if (resMsg) resMsg.style.display = 'none';
+
+  if (grid) {
+    grid.innerHTML = '';
+    quiz.options.forEach((opt, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-opt-btn clickable';
+      btn.innerText = opt;
+      btn.onclick = () => submitQuizAnswer(idx, quiz.ans, quiz.desc);
+      grid.appendChild(btn);
+    });
+  }
+}
+
+function submitQuizAnswer(userChoice, correctChoice, desc) {
+  const resMsg = document.getElementById('quizResultMsg');
+  if (!resMsg) return;
+
+  if (userChoice === correctChoice) {
+    resMsg.className = 'quiz-result-msg correct';
+    resMsg.innerHTML = `🎉 정답입니다! (+100 EXP)<br><small>${desc}</small>`;
+    resMsg.style.display = 'block';
+    if (window.busanAudio) window.busanAudio.playLevelUp();
+    addCitizenExp(100);
+
+    setTimeout(() => {
+      STATE.quizIndex++;
+      if (STATE.quizIndex < BUSAN_QUIZZES.length) {
+        renderQuizCard();
+      } else {
+        resMsg.innerHTML = "🏆 모든 퀴즈를 완료하셨습니다! 부산 시정 마스터 배지를 획득하셨습니다!";
+      }
+    }, 2200);
+  } else {
+    resMsg.className = 'quiz-result-msg wrong';
+    resMsg.innerHTML = `❌ 아쉽습니다! 다시 한 번 생각해보세요.<br><small>${desc}</small>`;
+    resMsg.style.display = 'block';
+    if (window.busanAudio) window.busanAudio.playClick();
   }
 }
 
 // ========================================================
-// 8. 모달 및 핵심 행정 서비스 연동
+// 15. 모달 및 기존 3개 연동 서비스 (AI, Division, Office, Wall)
 // ========================================================
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('visible');
+  if (window.busanAudio) window.busanAudio.playClick();
+}
+
 function closeModal(id) {
-  document.getElementById(id).style.display = 'none';
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('visible');
 }
 
-function toggleAudio() {
-  if (!window.busanAudio) return;
-  const isPlaying = window.busanAudio.toggleBgm();
-  const btn = document.getElementById('bgm-toggle-btn');
-  btn.style.color = isPlaying ? '#0284c7' : '#64748b';
-  btn.innerText = isPlaying ? '🔊' : '🎵';
+function openAiGuideModal() { openModal('modal-ai-guide'); }
+function openDivisionModal() { searchDivision(); openModal('modal-division'); }
+function openOfficeModal() { searchOffice(); openModal('modal-office'); }
+function openWallModal() { loadWallPosts(); openModal('modal-wall'); }
+function openDistrictsModal() { loadDistricts(); openModal('modal-districts'); }
+function openPhotosModal() { loadPhotos(); openModal('modal-photos'); }
+function openStoryModal() { loadStoryActs(); openModal('modal-story'); }
+function openCustomizeModal() { openModal('modal-customize'); }
+function openNewPostModal() { openModal('modal-new-post'); }
+function openFullChatHistoryModal() { openModal('modal-chat-history'); }
+
+function showServerConfigPrompt() {
+  const input = document.getElementById('cfg-server-host');
+  if (input) input.value = STATE.activeHostUrl || '';
+  openModal('modal-server-config');
 }
 
-function toggle2DMode() {
-  STATE.is2DMode = !STATE.is2DMode;
-  if (STATE.is2DMode) {
-    openOfficeModal();
+function applyCustomServerHost() {
+  const input = document.getElementById('cfg-server-host');
+  if (!input) return;
+  const val = input.value.trim();
+  if (val) {
+    localStorage.setItem('busan_custom_host', val);
+    STATE.activeHostUrl = val;
+    closeModal('modal-server-config');
+    connectMultiplayerWebSocket();
   }
 }
 
-// --------------------------------------------------------
-// MODAL 1: AI 행정안내소
-// --------------------------------------------------------
-function openAiGuideModal() {
-  document.getElementById('modal-ai-guide').style.display = 'flex';
+function resetAutoServerHost() {
+  localStorage.removeItem('busan_custom_host');
+  closeModal('modal-server-config');
+  autoDiscoverHostServer().then(() => connectMultiplayerWebSocket());
 }
 
-function askAiQuestion(q) {
-  document.getElementById('ai-question-input').value = q;
-  submitAiQuestion();
-}
-
-function submitAiQuestion() {
+// (1) AI 행정상담 질문 전송
+async function submitAiQuestion() {
   const input = document.getElementById('ai-question-input');
+  if (!input) return;
   const q = input.value.trim();
   if (!q) return;
 
-  const history = document.getElementById('ai-history');
-
-  // 유저 말풍선 추가
-  const uBubble = document.createElement('div');
-  uBubble.className = 'ai-bubble user';
-  uBubble.innerText = q;
-  history.appendChild(uBubble);
-
+  appendAiBubble('user', q);
   input.value = '';
-  history.scrollTop = history.scrollHeight;
 
-  // 봇 로딩 말풍선
-  const botBubble = document.createElement('div');
-  botBubble.className = 'ai-bubble bot';
-  botBubble.innerHTML = `<em>다온이가 부산시청 및 구·군 행정자료를 검색하고 있습니다...</em>`;
-  history.appendChild(botBubble);
-  history.scrollTop = history.scrollHeight;
-
-  fetch(getApiUrl('/api/ai-guide'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q })
-  })
-  .then(r => r.json())
-  .then(data => {
-    let portalHtml = '';
-    if (data.official_portals) {
-      portalHtml = '<div class="ai-portal-cards">' + data.official_portals.map(p => `
-        <a href="${p.url}" target="_blank" class="ai-portal-card">
-          <span class="card-title">🔗 ${escapeHtml(p.name)}</span>
-          <span class="card-desc">${escapeHtml(p.desc)}</span>
-        </a>
-      `).join('') + '</div>';
+  const apiUrl = getApiUrl('/api/ai-guide');
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderAiResponseBubble(data);
+    } else {
+      appendAiBubble('bot', "현재 안내 서버에 연결할 수 없습니다. 120 콜센터(국번없이 120)로 문의해 주세요.");
     }
+  } catch (err) {
+    appendAiBubble('bot', "질의응답 서버 연결 중 오류가 발생했습니다.");
+  }
+}
 
-    botBubble.innerHTML = `
-      <div class="ai-badge">${escapeHtml(data.badge || '행정 AI 가이드')}</div>
-      <div>${formatMarkdown(data.answer)}</div>
-      ${portalHtml}
-      <div style="font-size: 11px; color:#64748b; margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-        * ${escapeHtml(data.disclaimer)}
+function askAiQuestion(prompt) {
+  const input = document.getElementById('ai-question-input');
+  if (input) {
+    input.value = prompt;
+    submitAiQuestion();
+  }
+}
+
+function appendAiBubble(sender, text) {
+  const hist = document.getElementById('ai-history');
+  if (!hist) return;
+  const b = document.createElement('div');
+  b.className = `ai-bubble ${sender}`;
+  b.innerHTML = escapeHtml(text);
+  hist.appendChild(b);
+  hist.scrollTop = hist.scrollHeight;
+}
+
+function renderAiResponseBubble(data) {
+  const hist = document.getElementById('ai-history');
+  if (!hist) return;
+  const b = document.createElement('div');
+  b.className = 'ai-bubble bot';
+  b.innerHTML = `
+    <div class="ai-badge">${escapeHtml(data.character || '다온')}</div>
+    <div>${escapeHtml(data.answer)}</div>
+    <div style="margin-top: 10px; background: rgba(2, 132, 199, 0.08); padding: 8px 12px; border-radius: 8px; font-size: 12px;">
+      <div><strong>담당 관할:</strong> ${escapeHtml(data.authority || '확인 필요')}</div>
+      <div><strong>추천 부서:</strong> ${escapeHtml(data.dept_recommend || '-')}</div>
+      <div><strong>직통 전화:</strong> <a href="tel:${escapeHtml(data.phone || '120')}" style="color:#0284c7; font-weight:700;">${escapeHtml(data.phone || '120')}</a></div>
+    </div>
+  `;
+  hist.appendChild(b);
+  hist.scrollTop = hist.scrollHeight;
+  addCitizenExp(50);
+}
+
+// (2) 소관부서 검색기 (division-in-charge 연동)
+async function searchDivision() {
+  const input = document.getElementById('division-input');
+  const kw = input ? input.value.trim() : '';
+  const apiUrl = getApiUrl(`/api/division-search?q=${encodeURIComponent(kw)}`);
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const list = await res.json();
+      renderDivisionCards(list);
+    }
+  } catch (err) {
+    console.warn("소관부서 검색 실패:", err);
+  }
+}
+
+function renderDivisionCards(list) {
+  const container = document.getElementById('division-results');
+  if (!container) return;
+  container.innerHTML = '';
+  list.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'division-card';
+    card.innerHTML = `
+      <div class="division-card-header">
+        <span class="division-task-name">${escapeHtml(item.task_name)}</span>
+        <span class="division-authority-badge ${item.authority === '시청본청' ? 'city' : 'district'}">${escapeHtml(item.authority)}</span>
       </div>
+      <div class="division-row"><strong>시청 담당:</strong> ${escapeHtml(item.dept_city)} (${escapeHtml(item.phone_city)})</div>
+      <div class="division-row"><strong>구청 담당:</strong> ${escapeHtml(item.dept_district)} (${escapeHtml(item.phone_district)})</div>
+      <div class="division-law-box">⚖️ 근거 법령: ${escapeHtml(item.law_basis)}</div>
     `;
-    history.scrollTop = history.scrollHeight;
-    if (window.busanAudio) window.busanAudio.playDingDong();
-  })
-  .catch(() => {
-    botBubble.innerHTML = `부산시 120 바로콜센터(☎ 051-120)로 문의하시면 전문 상담원이 상세히 안내해 드립니다.`;
+    container.appendChild(card);
   });
 }
 
-// --------------------------------------------------------
-// MODAL 2: 소관부서 검색기 (division-in-charge)
-// --------------------------------------------------------
-function openDivisionModal() {
-  document.getElementById('modal-division').style.display = 'flex';
-  searchDivision();
-}
-
-function searchDivision() {
-  const q = document.getElementById('division-input').value.trim();
-  fetch(getApiUrl(`/api/division-search?q=${encodeURIComponent(q)}`))
-    .then(r => r.json())
-    .then(list => {
-      const container = document.getElementById('division-results');
-      if (!list || list.length === 0) {
-        container.innerHTML = `<div style="padding: 20px; color:#64748b; text-align:center;">검색 결과가 없습니다. 다른 단어(예: 주차, 포트홀, 여권, 소음)로 검색해 보세요.</div>`;
-        return;
-      }
-      container.innerHTML = list.map(item => `
-        <div class="division-card">
-          <div class="division-card-header">
-            <span class="division-task-name">${escapeHtml(item.task_name)}</span>
-            <span class="division-authority-badge">${escapeHtml(item.authority)}</span>
-          </div>
-          <div class="division-row"><strong>🏢 부산시청 담당:</strong> ${escapeHtml(item.dept_city)}</div>
-          <div class="division-row"><strong>🏛️ 16개 구·군 담당:</strong> ${escapeHtml(item.dept_district)}</div>
-          <div class="division-row"><strong>💡 처리 및 판별 기준:</strong> ${escapeHtml(item.rule_summary)}</div>
-          <div class="division-row"><strong>📜 관련 법령/근거:</strong> ${escapeHtml(item.legal_basis)}</div>
-          <div class="division-row" style="color: #0369a1; font-weight:700;"><strong>🚀 빠른 조치:</strong> ${escapeHtml(item.official_action)}</div>
-        </div>
-      `).join('');
-    });
-}
-
-// --------------------------------------------------------
-// MODAL 3: 청사 사무실 안내 (sejong-office-app)
-// --------------------------------------------------------
-let currentOfficeFloorFilter = '';
-
-function openOfficeModal() {
-  document.getElementById('modal-office').style.display = 'flex';
-  searchOffice();
-}
+// (3) 청사 사무실 안내 (sejong-office-app 연동)
+let selectedOfficeFloor = '';
 
 function filterOfficeFloor(fl) {
-  currentOfficeFloorFilter = fl;
+  selectedOfficeFloor = fl;
   document.querySelectorAll('.floor-chip').forEach(c => c.classList.remove('active'));
   if (event && event.target) event.target.classList.add('active');
   searchOffice();
 }
 
-function searchOffice() {
-  const q = document.getElementById('office-search-input').value.trim();
-  fetch(getApiUrl(`/api/office-search?floor=${encodeURIComponent(currentOfficeFloorFilter)}&q=${encodeURIComponent(q)}`))
-    .then(r => r.json())
-    .then(list => {
-      const tbody = document.getElementById('office-table-body');
-      if (!list || list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color:#64748b;">해당 부서 또는 사무실 정보가 없습니다.</td></tr>`;
-        return;
-      }
-      tbody.innerHTML = list.map(off => `
-        <tr>
-          <td><span class="floor-chip" style="padding:2px 8px;">${off.floor}</span></td>
-          <td style="font-weight:700;">${escapeHtml(off.room)}</td>
-          <td style="font-weight:800; color:#0369a1;">${escapeHtml(off.name)}</td>
-          <td><a href="tel:${off.tel}" style="color:#0284c7; text-decoration:none; font-weight:700;">📞 ${escapeHtml(off.tel)}</a></td>
-          <td>${escapeHtml(off.duties)}</td>
-        </tr>
-      `).join('');
-    });
+async function searchOffice() {
+  const input = document.getElementById('office-search-input');
+  const kw = input ? input.value.trim() : '';
+  const apiUrl = getApiUrl(`/api/office-search?floor=${encodeURIComponent(selectedOfficeFloor)}&q=${encodeURIComponent(kw)}`);
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const list = await res.json();
+      renderOfficeTable(list);
+    }
+  } catch (err) {
+    console.warn("청사 사무실 검색 실패:", err);
+  }
 }
 
-// --------------------------------------------------------
-// MODAL 4: 시민 자유담벼락
-// --------------------------------------------------------
+function renderOfficeTable(list) {
+  const tbody = document.getElementById('office-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  list.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(row.floor)}</strong></td>
+      <td>${escapeHtml(row.room)}</td>
+      <td style="font-weight:700; color:#0369a1;">${escapeHtml(row.name)}</td>
+      <td><a href="tel:${escapeHtml(row.phone)}" style="color:#0284c7; font-weight:700;">${escapeHtml(row.phone)}</a></td>
+      <td style="font-size:12px; color:#475569;">${escapeHtml(row.duties)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// (4) 시민 자유담벼락
 let currentWallCategory = '전체';
-
-function openWallModal() {
-  document.getElementById('modal-wall').style.display = 'flex';
-  loadWallPosts();
-}
 
 function filterWallCategory(cat) {
   currentWallCategory = cat;
@@ -1490,244 +2596,247 @@ function filterWallCategory(cat) {
   loadWallPosts();
 }
 
-function loadWallPosts() {
-  fetch(getApiUrl(`/api/wall?cat=${encodeURIComponent(currentWallCategory)}`))
-    .then(r => r.json())
-    .then(posts => {
-      const container = document.getElementById('wall-posts-list');
-      if (!posts || posts.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:30px; color:#64748b;">등록된 담벼락 글이 없습니다. 첫 번째 글을 남겨보세요!</div>`;
-        return;
-      }
-      container.innerHTML = posts.map(p => {
-        let badgeClass = 'badge-complaint';
-        if (p.category === '개선제안') badgeClass = 'badge-suggestion';
-        if (p.category === '칭찬합니다') badgeClass = 'badge-praise';
-        if (p.category === '궁금해요') badgeClass = 'badge-question';
-
-        const commentsHtml = (p.comments || []).map(c => `
-          <div style="font-size: 11px; background:#f1f5f9; padding: 6px 10px; border-radius: 6px; margin-top: 4px;">
-            <strong style="color:#0369a1;">${escapeHtml(c.author)}:</strong> ${escapeHtml(c.text)}
-          </div>
-        `).join('');
-
-        return `
-          <div class="wall-post-card">
-            <div class="wall-post-header">
-              <span class="wall-post-badge ${badgeClass}">${escapeHtml(p.category)}</span>
-              <span style="font-size: 11px; color:#64748b;">📍 ${escapeHtml(p.district || '부산시')} · ${escapeHtml(p.time || '')}</span>
-            </div>
-            <div class="wall-post-title">${escapeHtml(p.title)}</div>
-            <div class="wall-post-content">${escapeHtml(p.content)}</div>
-            ${commentsHtml}
-            <div class="wall-post-footer">
-              <span>작성자: <strong>${escapeHtml(p.author)}</strong></span>
-              <button class="wall-like-btn" onclick="likeWallPost('${p.id}')">❤️ 공감 ${p.likes || 0}</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-    });
+async function loadWallPosts() {
+  const apiUrl = getApiUrl(`/api/wall?cat=${encodeURIComponent(currentWallCategory)}`);
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const posts = await res.json();
+      renderWallPosts(posts);
+    }
+  } catch (err) {
+    console.warn("담벼락 로드 실패:", err);
+  }
 }
 
-function openNewPostModal() {
-  document.getElementById('modal-new-post').style.display = 'flex';
+function renderWallPosts(posts) {
+  const list = document.getElementById('wall-posts-list');
+  if (!list) return;
+  list.innerHTML = '';
+  posts.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'wall-post-card';
+    item.innerHTML = `
+      <div class="wall-post-header">
+        <span class="wall-post-cat">${escapeHtml(p.category)}</span>
+        <span class="wall-post-district">📍 ${escapeHtml(p.district)}</span>
+        <span class="wall-post-author">${escapeHtml(p.author)}</span>
+      </div>
+      <div class="wall-post-title">${escapeHtml(p.title)}</div>
+      <div class="wall-post-content">${escapeHtml(p.content)}</div>
+      <div class="wall-post-footer">
+        <span class="wall-post-date">${escapeHtml(p.created_at)}</span>
+        <button class="wall-like-btn clickable" onclick="likeWallPost('${p.id}')">👍 공감 ${p.likes || 0}</button>
+      </div>
+    `;
+    list.appendChild(item);
+  });
 }
 
-function submitNewWallPost() {
+async function submitNewWallPost() {
   const cat = document.getElementById('post-category').value;
   const dist = document.getElementById('post-district').value;
-  const author = document.getElementById('post-author').value.trim() || STATE.playerName;
+  const author = document.getElementById('post-author').value.trim() || '익명시민';
   const title = document.getElementById('post-title').value.trim();
   const content = document.getElementById('post-content').value.trim();
 
   if (!title || !content) {
-    alert("제목과 내용을 모두 작성해 주세요.");
+    alert("제목과 내용을 입력해 주세요.");
     return;
   }
 
-  fetch(getApiUrl('/api/wall'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category: cat, district: dist, author: author, title: title, content: content })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.success) {
-      alert("✅ 시민 담벼락에 소중한 의견이 등록되었습니다!");
+  const apiUrl = getApiUrl('/api/wall');
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, district: dist, author, title, content })
+    });
+    if (res.ok) {
       closeModal('modal-new-post');
       loadWallPosts();
-      collectStamp('shout', '시민 담벼락 스탬프');
+      showSpeechBubble(localPlayer, "📝 시민 자유담벼락에 새 의견을 등록했습니다!");
+      addCitizenExp(70);
     }
-  });
+  } catch (err) {
+    alert("담벼락 등록 중 오류가 발생했습니다.");
+  }
 }
 
-function likeWallPost(postId) {
-  fetch(getApiUrl('/api/wall/like'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ post_id: postId })
-  })
-  .then(r => r.json())
-  .then(() => loadWallPosts());
+// (5) 16개 구·군 디오라마 로드
+async function loadDistricts() {
+  const apiUrl = getApiUrl('/api/districts');
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const districts = await res.json();
+      const grid = document.getElementById('districts-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      districts.forEach(d => {
+        const card = document.createElement('div');
+        card.className = 'district-portal-card clickable';
+        card.onclick = () => {
+          switchRealm(d.code);
+          closeModal('modal-districts');
+        };
+        card.innerHTML = `
+          <div class="district-badge-circle">${escapeHtml(d.badge)}</div>
+          <div class="district-name">${escapeHtml(d.name)}</div>
+          <div class="district-feature">${escapeHtml(d.feature)}</div>
+          <div style="font-size:11px; color:#0284c7; font-weight:700; margin-top:6px;">클릭하여 구청 월드 접속 →</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+  } catch (err) {
+    console.warn("구군 디오라마 로드 실패:", err);
+  }
 }
 
-// --------------------------------------------------------
-// MODAL 5: 16개 구·군 디오라마 포털
-// --------------------------------------------------------
-function openDistrictsModal() {
-  document.getElementById('modal-districts').style.display = 'flex';
-  fetch(getApiUrl('/api/districts'))
-    .then(r => r.json())
-    .then(list => {
-      const container = document.getElementById('districts-grid');
-      container.innerHTML = list.map(d => `
-        <div class="district-card" onclick="switchRealm('${d.code}')">
-          <div>
-            <div class="district-name">${escapeHtml(d.name)}</div>
-            <div class="district-landmark">🌟 ${escapeHtml(d.landmark)}</div>
-            <div class="district-desc">${escapeHtml(d.desc)}</div>
-          </div>
-          <button class="district-warp-btn">🏛️ ${escapeHtml(d.name)} 월드로 이동</button>
-        </div>
-      `).join('');
-    });
-}
-
-function switchRealm(realmCode) {
-  if (realmCode === STATE.currentRealm) return;
-  STATE.currentRealm = realmCode;
-  document.getElementById('realm-select').value = realmCode;
-  addSystemChat(`🚀 [공간 이동] '${realmCode}' 월드로 이동하였습니다.`);
-
-  // 기존 피어 청소
-  for (let id in STATE.peers) removePeer(id);
-
-  // 서버에 룸 이동 알림
-  sendWs({
-    type: 'join',
-    room: realmCode,
-    name: STATE.playerName,
-    level: STATE.playerLevel,
-    title: STATE.playerTitle,
-    robe: STATE.playerRobe,
-    hat: STATE.playerHat,
-    wings: STATE.playerWings,
-    belt: STATE.playerBelt,
-    x: 0, y: 0, z: 35, ry: 0
-  });
-
-  closeModal('modal-districts');
-}
-
-// --------------------------------------------------------
-// MODAL 6: 부산시청 공식 사진 갤러리
-// --------------------------------------------------------
-function openPhotosModal() {
-  document.getElementById('modal-photos').style.display = 'flex';
-  fetch(getApiUrl('/api/busan-photos'))
-    .then(r => r.json())
-    .then(photos => {
-      const container = document.getElementById('photo-gallery-grid');
-      container.innerHTML = photos.map(p => `
-        <div class="photo-card">
-          <div class="photo-mockup">🏛️</div>
+// (6) 청사 사진 갤러리 로드
+async function loadPhotos() {
+  const apiUrl = getApiUrl('/api/busan-photos');
+  try {
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const photos = await res.json();
+      const grid = document.getElementById('photo-gallery-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      photos.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'photo-card';
+        card.innerHTML = `
+          <div class="photo-mockup">${escapeHtml(p.category)}</div>
           <div class="photo-card-body">
             <div class="photo-card-title">${escapeHtml(p.title)}</div>
             <div class="photo-card-desc">${escapeHtml(p.desc)}</div>
-            <div style="margin-top: 8px; display:flex; flex-wrap:wrap; gap:4px;">
-              ${(p.features || []).map(f => `<span style="font-size:10px; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px;">#${escapeHtml(f)}</span>`).join('')}
-            </div>
           </div>
-        </div>
-      `).join('');
-    });
-}
-
-// --------------------------------------------------------
-// MODAL 7: 스토리 수첩
-// --------------------------------------------------------
-function openStoryModal() {
-  document.getElementById('modal-story').style.display = 'flex';
-}
-
-// --------------------------------------------------------
-// MODAL 8: 캐릭터 꾸미기
-// --------------------------------------------------------
-function openCustomizeModal() {
-  document.getElementById('custom-name').value = STATE.playerName;
-  document.getElementById('custom-robe').value = STATE.playerRobe;
-  document.getElementById('custom-hat').value = STATE.playerHat;
-  document.getElementById('custom-wings').value = STATE.playerWings;
-  document.getElementById('modal-customize').style.display = 'flex';
-}
-
-function saveCustomization() {
-  const name = document.getElementById('custom-name').value.trim() || STATE.playerName;
-  const robe = document.getElementById('custom-robe').value;
-  const hat = document.getElementById('custom-hat').value;
-  const wings = document.getElementById('custom-wings').value;
-
-  STATE.playerName = name;
-  STATE.playerRobe = robe;
-  STATE.playerHat = hat;
-  STATE.playerWings = wings;
-
-  // 로컬 메시 갱신
-  if (localPlayerMesh) {
-    const pos = localPlayerMesh.position.clone();
-    const rot = localPlayerMesh.rotation.y;
-    scene.remove(localPlayerMesh);
-    localPlayerMesh = createAvatarMesh(robe, hat, wings);
-    localPlayerMesh.position.copy(pos);
-    localPlayerMesh.rotation.y = rot;
-    scene.add(localPlayerMesh);
+        `;
+        grid.appendChild(card);
+      });
+    }
+  } catch (err) {
+    console.warn("사진 로드 실패:", err);
   }
+}
 
-  sendWs({
-    type: 'update_look',
-    name: name,
-    robe: robe,
-    hat: hat,
-    wings: wings,
-    belt: STATE.playerBelt
+// (7) 스토리 퀘스트 수첩
+function loadStoryActs() {
+  const acts = [
+    { act: "ACT 1", name: "첫 만남의 광장", desc: "시민광장의 '부산의 닻' 조형물과 등대광장을 방문해 첫 스탬프를 획득하세요.", done: STATE.stamps.anchor && STATE.stamps.lighthouse },
+    { act: "ACT 2", name: "들락날락 지혜의 숲", desc: "1층 로비의 들락날락에 방문하고 AI 다온에게 첫 행정 질문을 남겨보세요.", done: STATE.stamps.lobby },
+    { act: "ACT 3", name: "행복민원실의 온기", desc: "2층 행복민원실에 올라가 여권창구와 120콜센터 부스를 둘러보세요.", done: STATE.stamps.civil },
+    { act: "ACT 4", name: "시민의 목소리", desc: "시민 자유담벼락에 첫 글을 작성하거나 발언대에서 힘차게 의견을 외쳐보세요.", done: STATE.playerExp >= 200 },
+    { act: "ACT 5", name: "16개 구·군으로 펼쳐지는 부산", desc: "부산미래도시관에서 16개 구·군 지도를 확인하고 다른 구청 월드로 여행해 보세요.", done: STATE.playerLevel >= 3 }
+  ];
+
+  const list = document.getElementById('story-acts-list');
+  if (!list) return;
+  list.innerHTML = '';
+  acts.forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'division-card';
+    card.innerHTML = `
+      <div class="division-card-header">
+        <span class="division-task-name">${a.act}. ${a.name}</span>
+        <span class="division-authority-badge ${a.done ? 'city' : 'district'}">${a.done ? '완료 ✓' : '진행 중'}</span>
+      </div>
+      <div class="division-row">${a.desc}</div>
+    `;
+    list.appendChild(card);
   });
+}
+
+// (8) 캐릭터 커스터마이징 저장
+function saveCustomization() {
+  const nameInput = document.getElementById('custom-name');
+  const robeSelect = document.getElementById('custom-robe');
+  const hatSelect = document.getElementById('custom-hat');
+  const wingsSelect = document.getElementById('custom-wings');
+
+  if (nameInput && nameInput.value.trim()) {
+    STATE.playerName = nameInput.value.trim();
+  }
+  if (robeSelect) STATE.robeColor = robeSelect.value;
+  if (hatSelect) STATE.hatType = hatSelect.value;
+  if (wingsSelect) STATE.wingsType = wingsSelect.value;
 
   closeModal('modal-customize');
-  alert("✨ 시민 아바타 스타일이 새롭게 적용되었습니다!");
+
+  // 로컬 플레이어 모델 교체 갱신
+  if (localPlayer) {
+    scene.remove(localPlayer);
+    createLocalPlayer();
+  }
+  updatePlayerBadgeUI();
+
+  // 서버에 커스텀 외형 동기화
+  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    STATE.ws.send(JSON.stringify({
+      type: 'update_look',
+      name: STATE.playerName,
+      robe: STATE.robeColor,
+      hat: STATE.hatType,
+      wings: STATE.wingsType
+    }));
+  }
 }
 
-// ========================================================
-// 9. 유틸리티 함수
-// ========================================================
-function loadInitialData() {
-  // 초기 담벼락 프리패치
-  fetch(getApiUrl('/api/wall')).then(r => r.json()).catch(() => {});
+// 룸 채널 전환
+function switchRealm(realmCode) {
+  STATE.currentRoom = realmCode;
+  const sel = document.getElementById('realm-select');
+  if (sel) sel.value = realmCode;
+
+  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    STATE.ws.send(JSON.stringify({
+      type: 'join',
+      room: realmCode,
+      name: STATE.playerName,
+      title: STATE.playerTitle,
+      level: STATE.playerLevel
+    }));
+  }
+
+  showSpeechBubble(localPlayer, `🚀 [${realmCode}] 룸 채널로 이동했습니다!`);
 }
 
-function getTimeStr() {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+function toggleAudio() {
+  if (window.busanAudio) {
+    const on = window.busanAudio.toggleBgm();
+    const btn = document.getElementById('bgm-toggle-btn');
+    if (btn) btn.style.color = on ? '#0284c7' : '#94a3b8';
+  }
+}
+
+function setupResizeHandler() {
+  window.addEventListener('resize', () => {
+    if (!renderer || !camera) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
 }
 
 function escapeHtml(str) {
   if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[m]);
 }
 
-function formatMarkdown(str) {
-  if (!str) return '';
-  let out = escapeHtml(str);
-  out = out.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  out = out.replace(/\n/g, '<br>');
-  return out;
-}
-
-function jsonParse(str) {
-  try { return JSON.parse(str); } catch (e) { return {}; }
-}
+// ========================================================
+// 16. 페이지 로드 초기화 진입점
+// ========================================================
+window.addEventListener('DOMContentLoaded', () => {
+  console.log("🌊 [부산ON 월드] 고품격 시민소통 메타버스 시작");
+  initThreeWorld();
+  updatePlayerBadgeUI();
+  connectMultiplayerWebSocket();
+});
