@@ -17,11 +17,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=2.4.0">
+  <link rel="stylesheet" href="style.css?v=2.5.0">
 
-  <!-- Three.js & OrbitControls -->
+  <!-- Three.js, OrbitControls & Tripo3D GLTF Loaders -->
   <script src="three.min.js"></script>
   <script src="OrbitControls.js"></script>
+  <script src="GLTFLoader.js"></script>
+  <script src="DRACOLoader.js"></script>
 </head>
 <body>
 
@@ -1129,8 +1131,8 @@
   </div>
 
   <!-- Scripts -->
-  <script src="audio.js?v=2.4.0"></script>
-  <script src="app.js?v=2.4.0"></script>
+  <script src="audio.js?v=2.5.0"></script>
+  <script src="app.js?v=2.5.0"></script>
 <!-- MODAL 18: 16개 자치 구·군 공식 홈페이지 가상세계관 & 구정 홍보관 -->
   <div class="modal-overlay" id="modal-district-pr">
     <div class="modal-content" style="max-width: 720px; max-height: 88vh;">
@@ -1178,6 +1180,39 @@
         <div class="popular-menu-grid" id="popular-menus-grid">
           <!-- JS 동적 렌더링 -->
         </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL 19: NPC 대화 및 상호작용 종합 창 (RPG 스타일) -->
+  <div class="modal-overlay" id="modal-npc-dialogue" onclick="if(event.target === this) closeModal('modal-npc-dialogue')">
+    <div class="modal-content npc-dialogue-modal-content">
+      <div class="npc-dialogue-header">
+        <div class="npc-profile-badge" id="npcDialogueBadge">🌺</div>
+        <div class="npc-profile-info">
+          <div class="npc-profile-name-row">
+            <span class="npc-profile-name" id="npcDialogueName">동백이</span>
+            <span class="npc-profile-title" id="npcDialogueTitle">부산시청 공식 길잡이 (Lv.15)</span>
+          </div>
+          <div class="npc-profile-sub" id="npcDialogueGreeting">반가워요 시민님! 부산시청 메타버스에 오신 것을 환영해요 🌺</div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-npc-dialogue')">✕</button>
+      </div>
+
+      <div class="npc-dialogue-body">
+        <div class="npc-speech-bubble-box" id="npcDialogueDesc">
+          부산시청 광장과 본관 1·2층의 행정·문화 공간을 안내해 드릴게요. 어떤 정보가 필요하신가요?
+        </div>
+
+        <div class="npc-action-options-grid" id="npcDialogueOptions">
+          <!-- 동적 렌더링 -->
+        </div>
+      </div>
+      
+      <div class="npc-dialogue-footer">
+        <span class="npc-hint-text">💡 팁: NPC를 마우스로 직접 클릭하거나 근처에서 [E키]를 누르면 언제든 대화할 수 있습니다.</span>
+        <button class="npc-close-text-btn" onclick="closeModal('modal-npc-dialogue')">대화 마치기</button>
       </div>
     </div>
   </div>

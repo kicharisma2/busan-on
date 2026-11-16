@@ -134,6 +134,10 @@ class BusanAudioEngine {
   // ======================================================
 
   // (1) 민원 번호표 발급 / 안내 딩동 벨
+  playChime() {
+    this.playDingDong();
+  }
+
   playDingDong() {
     this.ensureContext();
     if (!this.ctx) return;
