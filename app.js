@@ -1,3 +1,90 @@
+
+function addExp(amount, reason = '시민 활동') {
+  if (typeof awardCivicExp === 'function') {
+    awardCivicExp(amount, reason);
+  }
+}
+
+function showToastNotification(text) {
+  if (typeof localPlayer !== 'undefined' && localPlayer) {
+    showSpeechBubble(localPlayer, text);
+  }
+  if (typeof addTestimonyItem === 'function') {
+    addTestimonyItem('시정 안내', text);
+  }
+}
+
+function openCivicRankGuideModal() {
+  if (typeof openCivicLifeModal === 'function') {
+    openCivicLifeModal();
+  }
+}
+
+function safeRoundRect(ctx, x, y, w, h, r = 12) {
+  if (ctx && typeof ctx.roundRect === 'function') {
+    try {
+      safeRoundRect(ctx, x, y, w, h, r);
+      return;
+    } catch (e) {}
+  }
+  if (typeof r === 'number') r = [r, r, r, r];
+  const tl = r[0] || 0, tr = r[1] || tl, br = r[2] || tl, bl = r[3] || tr;
+  ctx.beginPath();
+  ctx.moveTo(x + tl, y);
+  ctx.lineTo(x + w - tr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+  ctx.lineTo(x + w, y + h - br);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+  ctx.lineTo(x + bl, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+  ctx.lineTo(x + tl, y);
+  ctx.quadraticCurveTo(x, y, x + tl, y);
+  ctx.closePath();
+}
+
+// ========================================================
+// [부산ON v2.4] 범용 호환성 폴리필 & 브릿지 (블랙스크린 방지)
+// ========================================================
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r = 0) {
+    if (typeof r === 'number') r = [r, r, r, r];
+    const tl = r[0] || 0, tr = r[1] || tl, br = r[2] || tl, bl = r[3] || tr;
+    this.beginPath();
+    this.moveTo(x + tl, y);
+    this.lineTo(x + w - tr, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + tr);
+    this.lineTo(x + w, y + h - br);
+    this.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+    this.lineTo(x + bl, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - bl);
+    this.lineTo(x, y + tl);
+    this.quadraticCurveTo(x, y, x + tl, y);
+    this.closePath();
+    return this;
+  };
+}
+
+function createCivicNameplate(name, title, level, isNpc = false) {
+  if (typeof createNameTagSprite === 'function') {
+    return createNameTagSprite(name, title, level, false, isNpc);
+  }
+  const s = new THREE.Sprite();
+  s.position.y = 1.95;
+  return s;
+}
+
+function registerInteractionArea({ x, z, y = 0, radius = 3.5, name = '', action }) {
+  if (typeof registerInteractiveObject === 'function') {
+    registerInteractiveObject({
+      id: 'area_' + Math.random().toString(36).substr(2, 6),
+      pos: { x, y: y || 0, z },
+      radius: radius || 3.5,
+      prompt: `E키: [${name}]`,
+      action: action || (() => {})
+    });
+  }
+}
+
 // ========================================================
 // 부산ON 월드 (BUSAN ON WORLD) - 프리미엄 3D 메타버스 엔진
 // 부산광역시청 5대 시민광장, 1층 들락날락 도서관, 2층 행복민원실
@@ -1644,9 +1731,23 @@ const TEXTURES = {};
 // ========================================================
 // 2. 프로시저럴 고품질 텍스처 생성기 (외장 에셋 없이 즉각 로드)
 // ========================================================
-function createProceduralTextures() {
-  // [가즈아 대성전급 프리미엄 텍스처 엔진] 미세 그레인, 크랙, 3D 베벨 줄눈, 천연 광물 노이즈
 
+function applyTexColorSpace(tex, repeatX = 1, repeatY = 1) {
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  if (THREE.SRGBColorSpace) {
+    tex.colorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding) {
+    tex.encoding = THREE.sRGBEncoding;
+  }
+  tex.repeat.set(repeatX, repeatY);
+  return tex;
+}
+
+function createProceduralTextures() {
+  // [가즈아 대성전급 프리미엄 절차적 텍스처 엔진]
+  
   // (1) 시민광장 고급 화강석 판석 타일 (Beveled Granite Paving)
   const c1 = document.createElement('canvas');
   c1.width = 512;
@@ -1655,7 +1756,6 @@ function createProceduralTextures() {
   ctx1.fillStyle = '#cfd8dc';
   ctx1.fillRect(0, 0, 512, 512);
 
-  // 천연 화강석 다채로운 광물 입자 노이즈 (백운모, 석영, 장석)
   const stoneSpots = ['#90a4ae', '#eceff1', '#b0bec5', '#78909c', '#d7ccc8', '#ffffff', '#546e7a'];
   for (let i = 0; i < 28000; i++) {
     ctx1.fillStyle = stoneSpots[Math.floor(Math.random() * stoneSpots.length)];
@@ -1666,7 +1766,6 @@ function createProceduralTextures() {
     ctx1.fill();
   }
 
-  // 자연스러운 화강석 미세 표면 크랙 및 베인
   ctx1.globalAlpha = 0.25;
   ctx1.strokeStyle = '#455a64';
   for (let i = 0; i < 35; i++) {
@@ -1679,7 +1778,6 @@ function createProceduralTextures() {
   }
   ctx1.globalAlpha = 1.0;
 
-  // 128x128 타일 베벨 및 음영 줄눈 (3D 입체감)
   for (let x = 0; x <= 512; x += 128) {
     ctx1.strokeStyle = '#37474f';
     ctx1.lineWidth = 3.5;
@@ -1696,12 +1794,7 @@ function createProceduralTextures() {
     ctx1.lineWidth = 1.5;
     ctx1.beginPath(); ctx1.moveTo(0, y + 2); ctx1.lineTo(512, y + 2); ctx1.stroke();
   }
-  TEXTURES.plaza = new THREE.CanvasTexture(c1);
-  TEXTURES.plaza.wrapS = THREE.RepeatWrapping;
-  TEXTURES.plaza.wrapT = THREE.RepeatWrapping;
-  TEXTURES.plaza.anisotropy = 8;
-  TEXTURES.plaza.colorSpace = THREE.SRGBColorSpace;
-  TEXTURES.plaza.repeat.set(10, 8);
+  TEXTURES.plaza = applyTexColorSpace(new THREE.CanvasTexture(c1), 10, 8);
 
   // (2) 1층 로비 최고급 이탈리아 카라라 대리석 (Polished Carrara Marble)
   const c2 = document.createElement('canvas');
@@ -1711,7 +1804,6 @@ function createProceduralTextures() {
   ctx2.fillStyle = '#fafafa';
   ctx2.fillRect(0, 0, 512, 512);
 
-  // 유기적인 그레이 & 골드 대리석 베인 흐름
   ctx2.globalAlpha = 0.22;
   const marbleColors = ['#78909c', '#607d8b', '#d4af37', '#b0bec5'];
   for (let v = 0; v < 18; v++) {
@@ -1730,7 +1822,6 @@ function createProceduralTextures() {
   }
   ctx2.globalAlpha = 1.0;
 
-  // 대리석 황금 인레이 분할선 (256x256 대형 슬랩)
   ctx2.strokeStyle = 'rgba(202, 138, 4, 0.4)';
   ctx2.lineWidth = 2.5;
   for (let x = 0; x <= 512; x += 256) {
@@ -1739,31 +1830,23 @@ function createProceduralTextures() {
   for (let y = 0; y <= 512; y += 256) {
     ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(512, y); ctx2.stroke();
   }
-  TEXTURES.marble = new THREE.CanvasTexture(c2);
-  TEXTURES.marble.wrapS = THREE.RepeatWrapping;
-  TEXTURES.marble.wrapT = THREE.RepeatWrapping;
-  TEXTURES.marble.anisotropy = 8;
-  TEXTURES.marble.colorSpace = THREE.SRGBColorSpace;
-  TEXTURES.marble.repeat.set(8, 5);
+  TEXTURES.marble = applyTexColorSpace(new THREE.CanvasTexture(c2), 8, 5);
 
   // (3) 시청 28층 커튼월 파사드 (Modern Architectural Glass & Louvers)
   const c3 = document.createElement('canvas');
   c3.width = 512;
   c3.height = 512;
   const ctx3 = c3.getContext('2d');
-  ctx3.fillStyle = '#0f2942'; // 딥 네이비 마린 베이스
+  ctx3.fillStyle = '#0f2942';
   ctx3.fillRect(0, 0, 512, 512);
 
-  // 유리창 패널 & 수평 선셰이드 루버
   for (let y = 0; y < 512; y += 64) {
-    // 층간 스팬드럴 알루미늄 패널
     ctx3.fillStyle = '#1e293b';
     ctx3.fillRect(0, y, 512, 12);
     ctx3.fillStyle = '#334155';
     ctx3.fillRect(0, y + 2, 512, 3);
 
     for (let x = 0; x < 512; x += 32) {
-      // 복층 단열 유리창 (하늘 반사 그라데이션)
       const winGrad = ctx3.createLinearGradient(x, y + 12, x, y + 64);
       winGrad.addColorStop(0, '#1d4ed8');
       winGrad.addColorStop(0.6, '#0284c7');
@@ -1771,7 +1854,6 @@ function createProceduralTextures() {
       ctx3.fillStyle = winGrad;
       ctx3.fillRect(x + 2, y + 14, 28, 48);
 
-      // 창문 내부 은은한 시정 사무실 조명 (현실감)
       if ((x * 7 + y * 13) % 11 < 4) {
         ctx3.fillStyle = 'rgba(254, 240, 138, 0.65)';
         ctx3.fillRect(x + 5, y + 22, 22, 28);
@@ -1780,18 +1862,12 @@ function createProceduralTextures() {
       }
     }
   }
-  // 수직 구조 알루미늄 멀리언
   ctx3.strokeStyle = '#020617';
   ctx3.lineWidth = 3;
   for (let x = 0; x <= 512; x += 32) {
     ctx3.beginPath(); ctx3.moveTo(x, 0); ctx3.lineTo(x, 512); ctx3.stroke();
   }
-  TEXTURES.glassTower = new THREE.CanvasTexture(c3);
-  TEXTURES.glassTower.wrapS = THREE.RepeatWrapping;
-  TEXTURES.glassTower.wrapT = THREE.RepeatWrapping;
-  TEXTURES.glassTower.anisotropy = 8;
-  TEXTURES.glassTower.colorSpace = THREE.SRGBColorSpace;
-  TEXTURES.glassTower.repeat.set(6, 6);
+  TEXTURES.glassTower = applyTexColorSpace(new THREE.CanvasTexture(c3), 6, 6);
 
   // (4) 따뜻한 원목 마루 텍스처 (Architectural Oak Wood)
   const c4 = document.createElement('canvas');
@@ -1819,19 +1895,14 @@ function createProceduralTextures() {
   for (let y = 0; y <= 512; y += 32) {
     ctx4.beginPath(); ctx4.moveTo(0, y); ctx4.lineTo(512, y); ctx4.stroke();
   }
-  TEXTURES.wood = new THREE.CanvasTexture(c4);
-  TEXTURES.wood.wrapS = THREE.RepeatWrapping;
-  TEXTURES.wood.wrapT = THREE.RepeatWrapping;
-  TEXTURES.wood.anisotropy = 8;
-  TEXTURES.wood.colorSpace = THREE.SRGBColorSpace;
-  TEXTURES.wood.repeat.set(6, 6);
+  TEXTURES.wood = applyTexColorSpace(new THREE.CanvasTexture(c4), 6, 6);
 
   // (5) 깊이 있는 천연 공원 잔디 텍스처 (Deep Botanical Lawn)
   const c5 = document.createElement('canvas');
   c5.width = 512;
   c5.height = 512;
   const ctx5 = c5.getContext('2d');
-  ctx5.fillStyle = '#1e3f20'; // 플라스틱 형광그린 퇴출, 중후한 정원 잔디
+  ctx5.fillStyle = '#1e3f20';
   ctx5.fillRect(0, 0, 512, 512);
 
   const grassColors = ['#164e23', '#225d2b', '#2e7d32', '#1b4d24', '#388e3c', '#143818', '#43a047'];
@@ -1850,12 +1921,7 @@ function createProceduralTextures() {
     ctx5.fill();
   }
   ctx5.globalAlpha = 1.0;
-  TEXTURES.grass = new THREE.CanvasTexture(c5);
-  TEXTURES.grass.wrapS = THREE.RepeatWrapping;
-  TEXTURES.grass.wrapT = THREE.RepeatWrapping;
-  TEXTURES.grass.anisotropy = 8;
-  TEXTURES.grass.colorSpace = THREE.SRGBColorSpace;
-  TEXTURES.grass.repeat.set(16, 16);
+  TEXTURES.grass = applyTexColorSpace(new THREE.CanvasTexture(c5), 16, 16);
 }
 
 // ========================================================
@@ -1966,21 +2032,26 @@ function initThreeWorld() {
   // (1) Scene - 가즈아 대성전급 시네마틱 4단 캔버스 하늘 그라데이션
   scene = new THREE.Scene();
 
-  const skyCanvas = document.createElement('canvas');
-  skyCanvas.width = 4;
-  skyCanvas.height = 512;
-  const sCtx = skyCanvas.getContext('2d');
-  const sGrad = sCtx.createLinearGradient(0, 0, 0, 512);
-  sGrad.addColorStop(0, '#0f2744');    // 딥 해양 마린 블루
-  sGrad.addColorStop(0.32, '#1e5bb8'); // 코스탈 로열 블루
-  sGrad.addColorStop(0.65, '#5ea8f5'); // 맑은 부산 하늘빛
-  sGrad.addColorStop(0.86, '#c4e3f8'); // 포근한 해안 대기 연무
-  sGrad.addColorStop(1.0, '#fedcb5');  // 황금빛 아침 지평선 노을
-  sCtx.fillStyle = sGrad;
-  sCtx.fillRect(0, 0, 4, 512);
-  const skyTexture = new THREE.CanvasTexture(skyCanvas);
-  skyTexture.colorSpace = THREE.SRGBColorSpace;
-  scene.background = skyTexture;
+  try {
+    const skyCanvas = document.createElement('canvas');
+    skyCanvas.width = 4;
+    skyCanvas.height = 512;
+    const sCtx = skyCanvas.getContext('2d');
+    const sGrad = sCtx.createLinearGradient(0, 0, 0, 512);
+    sGrad.addColorStop(0, '#0f2744');    // 딥 해양 마린 블루
+    sGrad.addColorStop(0.32, '#1e5bb8'); // 코스탈 로열 블루
+    sGrad.addColorStop(0.65, '#5ea8f5'); // 맑은 부산 하늘빛
+    sGrad.addColorStop(0.86, '#c4e3f8'); // 포근한 해안 대기 연무
+    sGrad.addColorStop(1.0, '#fedcb5');  // 황금빛 아침 지평선 노을
+    sCtx.fillStyle = sGrad;
+    sCtx.fillRect(0, 0, 4, 512);
+    const skyTexture = new THREE.CanvasTexture(skyCanvas);
+    if (THREE.SRGBColorSpace) skyTexture.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding) skyTexture.encoding = THREE.sRGBEncoding;
+    scene.background = skyTexture;
+  } catch (e) {
+    scene.background = new THREE.Color(0x38bdf8);
+  }
 
   // 가즈아 대성전급 소프트 거리 안개
   scene.fog = new THREE.Fog(0xbcd9ea, 65, 360);
@@ -1993,8 +2064,8 @@ function initThreeWorld() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05; // 과노출 없는 황금 노출값
+  if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -2008,15 +2079,12 @@ function initThreeWorld() {
   controls.target.set(0, 1.4, 28);
 
   // (5) 조명 세팅 - 가즈아 대성전급 3원 시네마틱 라이팅
-  // 상공 푸른빛과 지면 온화한 황토/석재 바운스광
   const hemiLight = new THREE.HemisphereLight(0xdfeaf2, 0x5a4a36, 0.95);
   scene.add(hemiLight);
 
-  // 그늘 내부를 화사하게 밝혀주는 앰비언트 필 라이트
   const ambientLight = new THREE.AmbientLight(0xfff0dc, 0.55);
   scene.add(ambientLight);
 
-  // 황금빛 태양광 및 소프트 PCF 그림자
   const sunLight = new THREE.DirectionalLight(0xfff1d6, 2.2);
   sunLight.position.set(38, 65, 30);
   sunLight.castShadow = true;
@@ -2033,7 +2101,9 @@ function initThreeWorld() {
   scene.add(sunLight);
 
   // 원경: 부산의 명산(황령산·금정산) 및 광안대교 실루엣 파노라마 원경 생성
-  createDistantBusanSkylinePanorama();
+  if (typeof createDistantBusanSkylinePanorama === 'function') {
+    createDistantBusanSkylinePanorama();
+  }
 
   createProceduralTextures();
   initSharedGeometries();
@@ -2283,6 +2353,510 @@ function buildBusanCityHallWorld() {
 // --------------------------------------------------------
 // [건축 1] 부산시청 본관 28층 타워 외관 파사드
 // --------------------------------------------------------
+
+// ========================================================
+// 원경: 부산 명산(황령산·금정산) 능선 & 광안대교 파노라마
+// ========================================================
+function createDistantBusanSkylinePanorama() {
+  const panoGroup = new THREE.Group();
+
+  const mountainCount = 18;
+  for (let i = 0; i < mountainCount; i++) {
+    const angle = (i / mountainCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
+    const dist = 140 + Math.random() * 45;
+    const h = 38 + Math.random() * 42;
+    const r = 32 + Math.random() * 24;
+
+    const mGeo = new THREE.ConeGeometry(r, h, 8);
+    const mMat = new THREE.MeshStandardMaterial({
+      color: 0x3d5a49,
+      roughness: 0.85,
+      flatShading: true
+    });
+    const m = new THREE.Mesh(mGeo, mMat);
+    m.position.set(Math.cos(angle) * dist, h * 0.42, Math.sin(angle) * dist);
+    panoGroup.add(m);
+  }
+
+  const bridgeGroup = new THREE.Group();
+  bridgeGroup.position.set(110, 0, 110);
+  bridgeGroup.rotation.y = -Math.PI / 4;
+
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.2 });
+  const cableMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8 });
+
+  for (const tx of [-14, 14]) {
+    const p1 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 46, 2.4), towerMat);
+    p1.position.set(tx, 23, 0);
+    bridgeGroup.add(p1);
+
+    const cross = new THREE.Mesh(new THREE.BoxGeometry(10, 2.0, 1.8), towerMat);
+    cross.position.set(tx, 32, 0);
+    bridgeGroup.add(cross);
+  }
+
+  const roadDeck = new THREE.Mesh(new THREE.BoxGeometry(80, 2.4, 6.0), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+  roadDeck.position.set(0, 12, 0);
+  bridgeGroup.add(roadDeck);
+
+  const cableGeo = new THREE.CylinderGeometry(0.15, 0.15, 80, 8);
+  const cable1 = new THREE.Mesh(cableGeo, cableMat);
+  cable1.rotation.z = Math.PI / 2;
+  cable1.position.set(0, 32, 2.6);
+  bridgeGroup.add(cable1);
+
+  const cable2 = new THREE.Mesh(cableGeo, cableMat);
+  cable2.rotation.z = Math.PI / 2;
+  cable2.position.set(0, 32, -2.6);
+  bridgeGroup.add(cable2);
+
+  panoGroup.add(bridgeGroup);
+  scene.add(panoGroup);
+}
+
+// ========================================================
+// 8기 클래식 광장 가로등 (온화한 앰버 포인트 조명)
+// ========================================================
+function buildPlazaStreetlamps() {
+  const lampPositions = [
+    [-22, 0, 16], [22, 0, 16],
+    [-22, 0, 32], [22, 0, 32],
+    [-22, 0, 48], [22, 0, 48],
+    [-12, 0, 54], [12, 0, 54]
+  ];
+
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 });
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffedd5 });
+
+  lampPositions.forEach(([x, y, z]) => {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 4.6, 10), poleMat);
+    pole.position.set(x, 2.3, z);
+    pole.castShadow = true;
+    cityHallWorldGroup.add(pole);
+
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.35, 10), poleMat);
+    shade.position.set(x, 4.7, z);
+    cityHallWorldGroup.add(shade);
+
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), bulbMat);
+    bulb.position.set(x, 4.5, z);
+    cityHallWorldGroup.add(bulb);
+
+    const pLight = new THREE.PointLight(0xffd166, 1.8, 18, 1.5);
+    pLight.position.set(x, 4.4, z);
+    cityHallWorldGroup.add(pLight);
+  });
+}
+
+// ========================================================
+// [지피티 추천 1] 오늘의 시정 축복 & 동백꽃 행운 KIOSK
+// ========================================================
+let camelliaBlessingMesh = null;
+function buildCamelliaFortuneKiosk(x = 18, y = 0, z = 24) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+
+  const altar = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 1.0, 16), new THREE.MeshStandardMaterial({ map: TEXTURES.marble, roughness: 0.3 }));
+  altar.position.y = 0.5;
+  altar.castShadow = true;
+  g.add(altar);
+
+  const flowerGeo = new THREE.TorusGeometry(0.65, 0.18, 12, 24);
+  const flowerMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, metalness: 0.3, roughness: 0.2 });
+  camelliaBlessingMesh = new THREE.Mesh(flowerGeo, flowerMat);
+  camelliaBlessingMesh.position.y = 1.9;
+  g.add(camelliaBlessingMesh);
+
+  const goldCore = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.1 }));
+  goldCore.position.y = 1.9;
+  g.add(goldCore);
+
+  createSignBoard(0, 1.15, 1.5, "오늘의 시정 축복 KIOSK (동백꽃 행운)", 0xe11d48, g);
+
+  registerInteractionArea({
+    x, z, radius: 3.2,
+    name: "오늘의 시정 축복 KIOSK",
+    action: () => triggerDailyBlessing()
+  });
+
+  cityHallWorldGroup.add(g);
+}
+
+function triggerDailyBlessing() {
+  const blessings = [
+    "시민과 함께 바다로 미래로 도약하는 부산! 오늘 행운지수 99점!",
+    "따뜻한 동백꽃의 온기가 깃듭니다! 시민 소통력 대폭 상승 (+50 EXP)",
+    "다시 태어나도 살고 싶은 도시, 부산! 당신의 하루에 축복이 가득합니다!",
+    "맑은 해양 바람이 시민 여러분의 꿈을 응원합니다! (경험치 획득)"
+  ];
+  const b = blessings[Math.floor(Math.random() * blessings.length)];
+  addExp(50);
+  showToastNotification(`🌸 [시정 축복] ${b}`);
+  showSpeechBubble(STATE.name, `✨ 오늘의 축복: "${b}"`);
+  activateGoldenAura(18);
+  if (typeof playSfx === 'function') playSfx('levelUp');
+}
+
+// ========================================================
+// [지피티 추천 2] 시민 희망 축제 불꽃놀이 발사대
+// ========================================================
+let activeFireworks = [];
+function buildFireworksLauncher(x = -18, y = 0, z = 24) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.4, 0.8, 16), new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.7, roughness: 0.3 }));
+  base.position.y = 0.4;
+  g.add(base);
+
+  const rocket = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+  rocket.position.y = 1.2;
+  g.add(rocket);
+
+  createSignBoard(0, 0.95, 1.3, "시민 희망 축제 불꽃놀이 발사대", 0x0284c7, g);
+
+  registerInteractionArea({
+    x, z, radius: 3.0,
+    name: "불꽃놀이 발사대",
+    action: () => launchCivicFireworks(x, 2, z)
+  });
+
+  cityHallWorldGroup.add(g);
+}
+
+function launchCivicFireworks(startX, startY, startZ) {
+  showToastNotification("🎆 시민 희망 축제 불꽃놀이가 광장 밤하늘에 발사되었습니다!");
+  if (typeof playSfx === 'function') playSfx('portal');
+
+  const pCount = 120;
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(pCount * 3);
+  const velocities = [];
+  const colors = [0xf59e0b, 0xef4444, 0x38bdf8, 0xa855f7, 0x10b981];
+  const chosenColor = colors[Math.floor(Math.random() * colors.length)];
+
+  for (let i = 0; i < pCount; i++) {
+    positions[i * 3] = startX;
+    positions[i * 3 + 1] = startY + 12;
+    positions[i * 3 + 2] = startZ;
+
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const speed = 0.25 + Math.random() * 0.45;
+    velocities.push({
+      vx: Math.sin(phi) * Math.cos(theta) * speed,
+      vy: Math.cos(phi) * speed + 0.15,
+      vz: Math.sin(phi) * Math.sin(theta) * speed
+    });
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: chosenColor,
+    size: 0.45,
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending
+  });
+  const pSystem = new THREE.Points(geom, mat);
+  scene.add(pSystem);
+
+  activeFireworks.push({
+    mesh: pSystem,
+    velocities,
+    life: 2.5,
+    maxLife: 2.5
+  });
+}
+
+// ========================================================
+// [지피티 추천 3] 부산 시민 명예의 전당 훈장 전시관 (20단계)
+// ========================================================
+function buildCivicHonorHallExhibition(startX = -26, y = 0, startZ = 46) {
+  const g = new THREE.Group();
+  g.position.set(startX, y, startZ);
+
+  const podium = new THREE.Mesh(new THREE.BoxGeometry(10, 0.4, 4), new THREE.MeshStandardMaterial({ map: TEXTURES.marble, roughness: 0.3 }));
+  podium.position.set(0, 0.2, 0);
+  g.add(podium);
+
+  const medalColors = [0xcd7f32, 0xe2e8f0, 0xf59e0b];
+  const medalTitles = ["모범시민 훈장", "소통영웅 훈장", "부산 명예시장 훈장"];
+
+  for (let i = 0; i < 3; i++) {
+    const mx = -3.2 + i * 3.2;
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 1.2, 16), new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 }));
+    stand.position.set(mx, 0.8, 0);
+    g.add(stand);
+
+    const medal = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.08, 16), new THREE.MeshStandardMaterial({ color: medalColors[i], metalness: 0.9, roughness: 0.2 }));
+    medal.position.set(mx, 1.5, 0);
+    medal.rotation.x = Math.PI / 4;
+    g.add(medal);
+
+    createSignBoard(mx, 2.05, 0, medalTitles[i], medalColors[i], g);
+  }
+
+  createSignBoard(0, 2.5, 0, "부산 시민 명예의 전당 훈장 갤러리", 0xd97706, g);
+
+  registerInteractionArea({
+    x: startX, z: startZ, radius: 4.5,
+    name: "명예의 전당 훈장 전시관",
+    action: () => {
+      showToastNotification("🎖️ [명예의 전당] 1~20단계 시민 계급 및 공로 훈장이 전시되어 있습니다.");
+      if (typeof openCivicRankGuideModal === 'function') openCivicRankGuideModal();
+    }
+  });
+
+  cityHallWorldGroup.add(g);
+}
+
+// ========================================================
+// [가즈아 대성전급] 고해상도 시민 페이스 캔버스 텍스처 엔진
+// ========================================================
+function createCitizenFaceTexture(skinTone = 'warm', mood = 'happy') {
+  const W = 1024, H = 512;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+
+  const cx = 256, ey = 256;
+
+  const skinPals = {
+    warm: '#f3c4a2',
+    fair: '#fbe2d5',
+    tan: '#d99f7d',
+    golden: '#e6b98e',
+    cool: '#f6d5ca'
+  };
+  const baseColor = skinPals[skinTone] || skinPals.warm;
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, W, H);
+
+  const gFace = ctx.createRadialGradient(cx, ey, 20, cx, ey, 280);
+  gFace.addColorStop(0, 'rgba(255, 255, 255, 0.42)');
+  gFace.addColorStop(0.65, 'rgba(255, 230, 215, 0.18)');
+  gFace.addColorStop(1, 'rgba(0, 0, 0, 0.08)');
+  ctx.fillStyle = gFace;
+  ctx.fillRect(0, 0, W, H);
+
+  for (const s of [-1, 1]) {
+    const bx = cx + s * 115, by = ey + 52;
+    const gBlush = ctx.createRadialGradient(bx, by, 4, bx, by, 52);
+    gBlush.addColorStop(0, 'rgba(255, 95, 125, 0.75)');
+    gBlush.addColorStop(0.55, 'rgba(255, 130, 155, 0.35)');
+    gBlush.addColorStop(1, 'rgba(255, 130, 155, 0)');
+    ctx.fillStyle = gBlush;
+    ctx.beginPath();
+    ctx.arc(bx, by, 52, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = '#2d1810';
+  ctx.lineWidth = 6.5;
+  ctx.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + s * 78, ey - 48, 34, 11, s * 0.14, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+  }
+
+  for (const s of [-1, 1]) {
+    const ex = cx + s * 78, eyPos = ey + 6;
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.ellipse(ex, eyPos, 22, 28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const gIris = ctx.createRadialGradient(ex, eyPos + 10, 2, ex, eyPos + 10, 18);
+    gIris.addColorStop(0, '#38bdf8');
+    gIris.addColorStop(0.7, '#0284c7');
+    gIris.addColorStop(1, 'rgba(2, 132, 199, 0)');
+    ctx.fillStyle = gIris;
+    ctx.beginPath();
+    ctx.arc(ex, eyPos + 8, 16, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(ex - 6, eyPos - 8, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex + 8, eyPos + 8, 4.0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.arc(ex, eyPos - 6, 24, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#e11d48';
+  ctx.beginPath();
+  ctx.arc(cx, ey + 72, 14, 0.1, Math.PI - 0.1);
+  ctx.fill();
+  ctx.strokeStyle = '#be123c';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(c);
+  if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  else if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+// ========================================================
+// 헤어 스타일링: 단발머리 눈 위 앞머리 뱅 및 고품질 스타일
+// ========================================================
+function applyHairDecoration(slot, hairStyle, hairMat) {
+  while (slot.children.length > 0) slot.remove(slot.children[0]);
+  if (!hairMat) hairMat = SHARED_MAT.hair;
+
+  if (hairStyle === 'bob') {
+    // [1] 러블리 단발머리
+    const bobShell = new THREE.Mesh(
+      new THREE.SphereGeometry(0.428, 22, 16, Math.PI * 0.72, Math.PI * 1.56, 0, Math.PI * 0.76),
+      hairMat
+    );
+    bobShell.position.set(0, 0.02, -0.04);
+    slot.add(bobShell);
+
+    const bobCrown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.424, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.30),
+      hairMat
+    );
+    bobCrown.position.set(0, 0.08, -0.02);
+    slot.add(bobCrown);
+
+    // ★ 단발머리 눈 위 앞머리 (y: 0.24, z: 0.365)
+    const bangCenter = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.07, 0.07), hairMat);
+    bangCenter.position.set(0, 0.24, 0.365);
+    slot.add(bangCenter);
+
+    const bangLeft = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.07, 0.07), hairMat);
+    bangLeft.position.set(-0.15, 0.22, 0.355);
+    bangLeft.rotation.z = 0.14;
+    slot.add(bangLeft);
+
+    const bangRight = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.07, 0.07), hairMat);
+    bangRight.position.set(0.15, 0.22, 0.355);
+    bangRight.rotation.z = -0.14;
+    slot.add(bangRight);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.22), hairMat);
+    sideL.position.set(-0.38, -0.02, 0.08);
+    sideL.rotation.y = 0.12;
+    slot.add(sideL);
+
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.22), hairMat);
+    sideR.position.set(0.38, -0.02, 0.08);
+    sideR.rotation.y = -0.12;
+    slot.add(sideR);
+
+    const backNeck = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.36, 0.22), hairMat);
+    backNeck.position.set(0, -0.04, -0.26);
+    slot.add(backNeck);
+
+    const pinFlower = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 8), new THREE.MeshStandardMaterial({ color: 0xf43f5e }));
+    pinFlower.position.set(-0.28, 0.25, 0.28);
+    pinFlower.rotation.x = Math.PI / 2;
+    slot.add(pinFlower);
+    const pinCenter = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+    pinCenter.position.set(-0.28, 0.25, 0.30);
+    slot.add(pinCenter);
+
+  } else if (hairStyle === 'long') {
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.24, 0.365);
+    slot.add(bang);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.72, 0.22), hairMat);
+    sideL.position.set(-0.38, -0.18, 0.08);
+    slot.add(sideL);
+
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.72, 0.22), hairMat);
+    sideR.position.set(0.38, -0.18, 0.08);
+    slot.add(sideR);
+
+    const backLong = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.82, 0.20), hairMat);
+    backLong.position.set(0, -0.24, -0.28);
+    slot.add(backLong);
+
+  } else if (hairStyle === 'ponytail') {
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.24, 0.365);
+    slot.add(bang);
+
+    const tieRing = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 }));
+    tieRing.position.set(0, 0.30, -0.36);
+    tieRing.rotation.x = 0.5;
+    slot.add(tieRing);
+
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.16, 0.60, 12), hairMat);
+    tail.position.set(0, 0.04, -0.46);
+    tail.rotation.x = -0.55;
+    slot.add(tail);
+
+  } else if (hairStyle === 'twintail') {
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.24, 0.365);
+    slot.add(bang);
+
+    for (const [s, rot] of [[-1, 0.3], [1, -0.3]]) {
+      const ring = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), new THREE.MeshStandardMaterial({ color: 0x38bdf8 }));
+      ring.position.set(s * 0.42, 0.20, -0.15);
+      slot.add(ring);
+
+      const tt = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.14, 0.55, 10), hairMat);
+      tt.position.set(s * 0.46, -0.06, -0.15);
+      tt.rotation.z = rot;
+      slot.add(tt);
+    }
+
+  } else {
+    const bCenter = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.07, 0.07), hairMat);
+    bCenter.position.set(0, 0.24, 0.365);
+    slot.add(bCenter);
+
+    const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.07, 0.07), hairMat);
+    bLeft.position.set(-0.14, 0.22, 0.355);
+    bLeft.rotation.z = 0.16;
+    slot.add(bLeft);
+
+    const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.07, 0.07), hairMat);
+    bRight.position.set(0.14, 0.22, 0.355);
+    bRight.rotation.z = -0.16;
+    slot.add(bRight);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.14), hairMat);
+    sideL.position.set(-0.38, 0.02, 0.08);
+    slot.add(sideL);
+
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.14), hairMat);
+    sideR.position.set(0.38, 0.02, 0.08);
+    sideR.rotation.y = 0;
+    slot.add(sideR);
+
+    const backShort = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12, Math.PI * 0.8, Math.PI * 1.4, 0, Math.PI * 0.65), hairMat);
+    backShort.position.set(0, 0.04, -0.04);
+    slot.add(backShort);
+  }
+}
+
+let goldenAuraTimer = null;
+function activateGoldenAura(durationSec = 15) {
+  const target = (typeof localPlayer !== 'undefined' && localPlayer) ? localPlayer : null;
+  if (!target || !target.userData || !target.userData.auraRing) return;
+  target.userData.auraRing.material.opacity = 0.85;
+  if (goldenAuraTimer) clearTimeout(goldenAuraTimer);
+  goldenAuraTimer = setTimeout(() => {
+    if (target && target.userData && target.userData.auraRing && STATE.playerLevel < 5) {
+      target.userData.auraRing.material.opacity = 0.0;
+    }
+  }, durationSec * 1000);
+}
+
 function buildCityHallTowerFacade() {
   const buildingGroup = new THREE.Group();
 
@@ -3109,12 +3683,12 @@ function createSignBoard(x, y, z, textStr, bgHex, parent) {
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = '#' + bgHex.toString(16).padStart(6, '0');
-  ctx.roundRect(0, 0, 512, 128, 24);
+  safeRoundRect(ctx, 0, 0, 512, 128, 24);
   ctx.fill();
 
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 6;
-  ctx.roundRect(4, 4, 504, 120, 20);
+  safeRoundRect(ctx, 4, 4, 504, 120, 20);
   ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
@@ -3630,12 +4204,12 @@ function createNameTagSprite(name, title, level, isMe = false, isNpc = false) {
     grad.addColorStop(0, 'rgba(217, 119, 6, 0.96)');
     grad.addColorStop(1, 'rgba(180, 83, 9, 0.96)');
     ctx.fillStyle = grad;
-    ctx.roundRect(10, 10, 364, 76, 20);
+    safeRoundRect(ctx, 10, 10, 364, 76, 20);
     ctx.fill();
 
     ctx.strokeStyle = '#fef08a';
     ctx.lineWidth = 5;
-    ctx.roundRect(10, 10, 364, 76, 20);
+    safeRoundRect(ctx, 10, 10, 364, 76, 20);
     ctx.stroke();
 
     ctx.textAlign = 'center';
@@ -3648,12 +4222,12 @@ function createNameTagSprite(name, title, level, isMe = false, isNpc = false) {
     ctx.fillText(name, 192, 70);
   } else {
     ctx.fillStyle = isMe ? 'rgba(2, 132, 199, 0.95)' : 'rgba(15, 23, 42, 0.9)';
-    ctx.roundRect(10, 10, 364, 76, 20);
+    safeRoundRect(ctx, 10, 10, 364, 76, 20);
     ctx.fill();
 
     ctx.strokeStyle = isMe ? '#f59e0b' : '#38bdf8';
     ctx.lineWidth = 4;
-    ctx.roundRect(10, 10, 364, 76, 20);
+    safeRoundRect(ctx, 10, 10, 364, 76, 20);
     ctx.stroke();
 
     ctx.textAlign = 'center';
@@ -4238,6 +4812,37 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = clock.getElapsedTime();
 
+  // 지피티 추천 동백꽃 행운 키오스크 회전
+  if (typeof camelliaBlessingMesh !== 'undefined' && camelliaBlessingMesh) {
+    camelliaBlessingMesh.rotation.z += dt * 1.5;
+  }
+
+  // 불꽃놀이 3D 파티클 물리 업데이트
+  if (typeof activeFireworks !== 'undefined' && activeFireworks.length > 0) {
+    for (let i = activeFireworks.length - 1; i >= 0; i--) {
+      const fw = activeFireworks[i];
+      fw.life -= dt;
+      const pos = fw.mesh.geometry.attributes.position.array;
+      for (let k = 0; k < fw.velocities.length; k++) {
+        pos[k * 3] += fw.velocities[k].vx;
+        pos[k * 3 + 1] += fw.velocities[k].vy;
+        pos[k * 3 + 2] += fw.velocities[k].vz;
+        fw.velocities[k].vy -= dt * 0.45;
+      }
+      fw.mesh.geometry.attributes.position.needsUpdate = true;
+      fw.mesh.material.opacity = Math.max(0, fw.life / fw.maxLife);
+      if (fw.life <= 0) {
+        scene.remove(fw.mesh);
+        activeFireworks.splice(i, 1);
+      }
+    }
+  }
+
+  // 플레이어 골든 아우라 회전
+  if (typeof localPlayer !== 'undefined' && localPlayer && localPlayer.userData && localPlayer.userData.auraRing) {
+    localPlayer.userData.auraRing.rotation.z += dt * 2.0;
+  }
+
   updatePlayerMovement(dt);
   updateOutdoorNpcs(dt);
 
@@ -4347,12 +4952,12 @@ function showSpeechBubble(characterMesh, text) {
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
-  ctx.roundRect(10, 10, 492, 140, 24);
+  safeRoundRect(ctx, 10, 10, 492, 140, 24);
   ctx.fill();
 
   ctx.strokeStyle = '#0284c7';
   ctx.lineWidth = 6;
-  ctx.roundRect(10, 10, 492, 140, 24);
+  safeRoundRect(ctx, 10, 10, 492, 140, 24);
   ctx.stroke();
 
   ctx.fillStyle = '#0f172a';
@@ -7631,14 +8236,4 @@ function renderPopularMenus() {
   `).join('');
 }
 
-let goldenAuraTimer = null;
-function activateGoldenAura(durationSec = 15) {
-  if (!playerMesh || !playerMesh.userData.auraRing) return;
-  playerMesh.userData.auraRing.material.opacity = 0.85;
-  if (goldenAuraTimer) clearTimeout(goldenAuraTimer);
-  goldenAuraTimer = setTimeout(() => {
-    if (playerMesh && playerMesh.userData.auraRing && STATE.level < 5) {
-      playerMesh.userData.auraRing.material.opacity = 0.0;
-    }
-  }, durationSec * 1000);
-}
+
