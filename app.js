@@ -2058,7 +2058,7 @@ function initThreeWorld() {
 
   // (2) Camera & OrbitControls (시청 본관 정면을 완벽 구도로 응시)
   camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 800);
-  camera.position.set(0, 6.5, 48.5);
+  camera.position.set(0, 4.8, 17.0);
 
   // (3) Renderer - ACES 톤매핑으로 눈부심 방지 및 사진 수준의 선명한 대비
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -2076,7 +2076,7 @@ function initThreeWorld() {
   controls.maxPolarAngle = Math.PI / 2 - 0.03;
   controls.minDistance = 2.5;
   controls.maxDistance = 65;
-  controls.target.set(0, 1.4, 38);
+  controls.target.set(0, 1.4, 10.0);
 
   // (5) 조명 세팅 - 가즈아 대성전급 3원 시네마틱 라이팅
   const hemiLight = new THREE.HemisphereLight(0xdfeaf2, 0x5a4a36, 0.95);
@@ -2860,17 +2860,77 @@ function activateGoldenAura(durationSec = 15) {
 function buildCityHallTowerFacade() {
   const buildingGroup = new THREE.Group();
 
-  // 28층 모던 글래스 타워 볼륨 (커튼월 텍스처 적용)
-  const towerGeo = new THREE.BoxGeometry(84, 44, 70);
   const towerMat = new THREE.MeshStandardMaterial({
     map: TEXTURES.glassTower,
     metalness: 0.5,
     roughness: 0.2
   });
-  const tower = new THREE.Mesh(towerGeo, towerMat);
-  tower.position.set(0, 22, -50);
-  tower.castShadow = true;
-  buildingGroup.add(tower);
+  const wallMat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.glassTower,
+    metalness: 0.4,
+    roughness: 0.3
+  });
+  const ceilingMat = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9,
+    roughness: 0.6
+  });
+
+  // 1. 28층 상층 모던 글래스 타워 볼륨 (3층~28층: Y 10.0 ~ 44.0, 실내 1~2층 천장 위로 배치하여 실내 시야 100% 확보)
+  const upperTowerGeo = new THREE.BoxGeometry(84, 34, 70);
+  const upperTower = new THREE.Mesh(upperTowerGeo, towerMat);
+  upperTower.position.set(0, 27, -50);
+  upperTower.castShadow = true;
+  buildingGroup.add(upperTower);
+
+  // 2. 1~2층 실내 홀 천장 (Y: 10.0, Z: -45)
+  const ceilingGeo = new THREE.PlaneGeometry(84, 84);
+  const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+  ceiling.rotation.x = Math.PI / 2; // 아래를 향함
+  ceiling.position.set(0, 10.0, -45);
+  buildingGroup.add(ceiling);
+
+  // 3. 1~2층 외벽 (H: 10.0, Y: 5.0) - 실내 로비 및 2층 민원실을 둘러싸는 실제 건축 외벽 구조
+  // 좌측 외벽 (X: -42, Z: -45)
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 84), wallMat);
+  leftWall.position.set(-42, 5, -45);
+  buildingGroup.add(leftWall);
+
+  // 우측 외벽 (X: 42, Z: -45)
+  const rightWall = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 84), wallMat);
+  rightWall.position.set(42, 5, -45);
+  buildingGroup.add(rightWall);
+
+  // 후면 외벽 (Z: -87, X: 0)
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(86, 10, 2), wallMat);
+  backWall.position.set(0, 5, -87);
+  buildingGroup.add(backWall);
+
+  // 전면 파사드 외벽 (Z: 0, 중앙 통로 X: -6 ~ 6 개방)
+  const frontLeft = new THREE.Mesh(new THREE.BoxGeometry(36, 10, 2), wallMat);
+  frontLeft.position.set(-24, 5, 0);
+  buildingGroup.add(frontLeft);
+
+  const frontRight = new THREE.Mesh(new THREE.BoxGeometry(36, 10, 2), wallMat);
+  frontRight.position.set(24, 5, 0);
+  buildingGroup.add(frontRight);
+
+  // 전면 중앙 문 위 보 (Lintel Beam, Y: 7.5, H: 5.0)
+  const frontLintel = new THREE.Mesh(new THREE.BoxGeometry(14, 5.0, 2), wallMat);
+  frontLintel.position.set(0, 7.5, 0);
+  buildingGroup.add(frontLintel);
+
+  // 실내 쾌적 조명 (1층 로비 & 2층 행복민원실 앰비언트 포인트 라이트)
+  const lobbyLight1 = new THREE.PointLight(0xfff5ea, 1.4, 38);
+  lobbyLight1.position.set(-18, 4.5, -18);
+  buildingGroup.add(lobbyLight1);
+
+  const lobbyLight2 = new THREE.PointLight(0xfff5ea, 1.4, 38);
+  lobbyLight2.position.set(18, 4.5, -18);
+  buildingGroup.add(lobbyLight2);
+
+  const hall2Light = new THREE.PointLight(0xfff8ee, 1.6, 45);
+  hall2Light.position.set(0, 9.2, -60);
+  buildingGroup.add(hall2Light);
 
   // 옥상 통신 안테나 철탑 & 붉은 항공 장애 표시등
   const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.4, 10, 8), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9 }));
@@ -2891,9 +2951,9 @@ function buildCityHallTowerFacade() {
 
   createSignBoard(0, 5.9, 3.1, "부산광역시청 BUSAN METROPOLITAN CITY", 0x0369a1, buildingGroup);
 
-  // 유리 자동문 입구 (Z: 0, X: -6 ~ 6)
-  const doorGeo = new THREE.BoxGeometry(10, 4.2, 0.4);
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.55 });
+  // 유리 자동문 입구 (Z: 0, X: -5 ~ 5, 투명도 0.35로 시야 확보)
+  const doorGeo = new THREE.BoxGeometry(10, 4.2, 0.2);
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.35 });
   const doors = new THREE.Mesh(doorGeo, doorMat);
   doors.position.set(0, 2.1, 0);
   buildingGroup.add(doors);
@@ -2903,12 +2963,12 @@ function buildCityHallTowerFacade() {
   // 야외 광장 자율 산책 및 대화 NPC 초기화
   initOutdoorAutonomousNpcs();
 
-  // 건물 외벽 물리 충돌 등록
-  busanCityHallObstacles.push({ type: 'box', x: -28, z: 0, w: 32, d: 2, h: 10 });
-  busanCityHallObstacles.push({ type: 'box', x: 28, z: 0, w: 32, d: 2, h: 10 });
-  busanCityHallObstacles.push({ type: 'box', x: -42, z: -45, w: 2, d: 80, h: 15 });
-  busanCityHallObstacles.push({ type: 'box', x: 42, z: -45, w: 2, d: 80, h: 15 });
-  busanCityHallObstacles.push({ type: 'box', x: 0, z: -84, w: 86, d: 2, h: 15 });
+  // 건물 외벽 물리 충돌 등록 (중앙 문 X: -6 ~ 6 완벽 통과)
+  busanCityHallObstacles.push({ type: 'box', x: -24, z: 0, w: 36, d: 2, h: 10 });
+  busanCityHallObstacles.push({ type: 'box', x: 24, z: 0, w: 36, d: 2, h: 10 });
+  busanCityHallObstacles.push({ type: 'box', x: -42, z: -45, w: 2, d: 84, h: 15 });
+  busanCityHallObstacles.push({ type: 'box', x: 42, z: -45, w: 2, d: 84, h: 15 });
+  busanCityHallObstacles.push({ type: 'box', x: 0, z: -87, w: 86, d: 2, h: 15 });
 }
 
 // --------------------------------------------------------
@@ -3860,11 +3920,24 @@ function createCuteCitizenMesh({
   nameplate.position.y = 1.95;
   root.add(nameplate);
 
+  // (9) 머리 위 실시간 말풍선 슬롯
+  const bubbleSlot = new THREE.Group();
+  bubbleSlot.position.y = 2.55;
+  bubbleSlot.visible = false;
+  root.add(bubbleSlot);
+
   root.userData = {
     armL, armR, legGroupL, legGroupR,
     headGroup, hairSlot, hatSlot, wingSlot,
     body, headMat, auraRing,
     nameplate,
+    bubbleSlot,
+    walkSpeed: 7.8,
+    isWalking: false,
+    isJumping: false,
+    jumpVelocity: 0,
+    blinkTimer: 2.0 + Math.random() * 3,
+    blinkDuration: 0,
     robeColor, hatType, wingsType, hairStyle, hairColor, skinTone,
     isNpc
   };
@@ -4260,7 +4333,7 @@ function createLocalPlayer() {
     skinTone: STATE.skinTone,
     isPlayer: true
   });
-  localPlayer.position.set(0, 0, 38);
+  localPlayer.position.set(0, 0, 10.0);
   scene.add(localPlayer);
 }
 
@@ -4567,7 +4640,8 @@ function updatePlayerMovement(dt) {
     while (diff > Math.PI) diff -= Math.PI * 2;
     localPlayer.rotation.y += diff * Math.min(1, dt * 14);
 
-    const step = ud.walkSpeed * dt;
+    const speed = (ud && typeof ud.walkSpeed === 'number' && ud.walkSpeed > 0) ? ud.walkSpeed : 7.8;
+    const step = speed * dt;
     nextX += moveDir.x * step;
     nextZ += moveDir.z * step;
   } else if (STATE.clickTargetPos) {
@@ -4585,7 +4659,8 @@ function updatePlayerMovement(dt) {
       while (diff > Math.PI) diff -= Math.PI * 2;
       localPlayer.rotation.y += diff * Math.min(1, dt * 14);
 
-      const step = Math.min(dist, ud.walkSpeed * dt);
+      const speed = (ud && typeof ud.walkSpeed === 'number' && ud.walkSpeed > 0) ? ud.walkSpeed : 7.8;
+      const step = Math.min(dist, speed * dt);
       nextX += toTarget.x * step;
       nextZ += toTarget.z * step;
     } else {
@@ -4596,14 +4671,14 @@ function updatePlayerMovement(dt) {
 
   // 장애물 충돌 판정
   const resolved = resolveObstacleCollision(curPos.x, curPos.z, nextX, nextZ, curPos.y);
-  curPos.x = resolved.x;
-  curPos.z = resolved.z;
+  curPos.x = (typeof resolved.x === 'number' && !isNaN(resolved.x)) ? resolved.x : (isNaN(curPos.x) ? 0 : curPos.x);
+  curPos.z = (typeof resolved.z === 'number' && !isNaN(resolved.z)) ? resolved.z : (isNaN(curPos.z) ? 18 : curPos.z);
 
   const targetFloorY = getBusanCityHallFloorY(curPos.x, curPos.z);
 
   // 점프 & 중력 물리
-  if (ud.isJumping) {
-    ud.jumpVelocity -= 22 * dt;
+  if (ud && ud.isJumping) {
+    ud.jumpVelocity = (typeof ud.jumpVelocity === 'number') ? ud.jumpVelocity - 22 * dt : 0;
     curPos.y += ud.jumpVelocity * dt;
     if (curPos.y <= targetFloorY) {
       curPos.y = targetFloorY;
@@ -4611,6 +4686,7 @@ function updatePlayerMovement(dt) {
       ud.jumpVelocity = 0;
     }
   } else {
+    if (isNaN(curPos.y)) curPos.y = targetFloorY;
     if (Math.abs(curPos.y - targetFloorY) < 0.25) {
       curPos.y = targetFloorY;
     } else if (curPos.y > targetFloorY) {
@@ -4620,15 +4696,20 @@ function updatePlayerMovement(dt) {
     }
   }
 
-  ud.isWalking = isMoving;
+  if (ud) ud.isWalking = isMoving;
 
   // [가즈아 대법당 일체형 카메라 추적] 카메라와 타겟이 1:1로 일체화되어 지연/미끄러짐 제로
   if (controls && isMoving) {
+    if (isNaN(curPos.x) || isNaN(curPos.z)) {
+      curPos.x = 0; curPos.z = 18;
+    }
     const desiredTarget = new THREE.Vector3(curPos.x, curPos.y + 1.4, curPos.z);
     const delta = new THREE.Vector3().subVectors(desiredTarget, controls.target);
 
-    controls.target.add(delta);
-    camera.position.add(delta);
+    if (!isNaN(delta.x) && !isNaN(delta.y) && !isNaN(delta.z)) {
+      controls.target.add(delta);
+      camera.position.add(delta);
+    }
   }
 
   // 멀티플레이 위치 패킷 전송
@@ -5008,7 +5089,7 @@ async function connectMultiplayerWebSocket() {
 
       const px = (localPlayer && localPlayer.position && typeof localPlayer.position.x === 'number') ? localPlayer.position.x : 0.0;
       const py = (localPlayer && localPlayer.position && typeof localPlayer.position.y === 'number') ? localPlayer.position.y : 0.0;
-      const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 38.0;
+      const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 10.0;
       const pry = (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0;
 
       // 룸 참가 패킷 즉각 전송 (모든 꾸미기 및 정밀 위치 완벽 전송)
@@ -5924,7 +6005,7 @@ function saveCustomization() {
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     const px = (localPlayer && localPlayer.position && typeof localPlayer.position.x === 'number') ? localPlayer.position.x : 0.0;
     const py = (localPlayer && localPlayer.position && typeof localPlayer.position.y === 'number') ? localPlayer.position.y : 0.0;
-    const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 38.0;
+    const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 10.0;
     const pry = (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0;
 
     STATE.ws.send(JSON.stringify({
@@ -5963,11 +6044,11 @@ function switchRealm(realmCode) {
     if (districtWorldGroup) districtWorldGroup.visible = false;
     interactiveObjects = [...cityHallInteractablesBackup];
     if (localPlayer) {
-      localPlayer.position.set(0, 0, 38);
+      localPlayer.position.set(0, 0, 10.0);
       localPlayer.rotation.y = 0;
       if (controls && camera) {
-        controls.target.set(0, 1.4, 38);
-        camera.position.set(0, 6.5, 48.5);
+        controls.target.set(0, 1.4, 10.0);
+        camera.position.set(0, 4.8, 17.0);
         controls.update();
       }
     }
@@ -5998,7 +6079,7 @@ function switchRealm(realmCode) {
   }
 
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
-    const defaultZ = (realmCode === 'BUSAN-HQ') ? 38.0 : 24.0;
+    const defaultZ = (realmCode === 'BUSAN-HQ') ? 10.0 : 24.0;
     const px = (localPlayer && localPlayer.position && typeof localPlayer.position.x === 'number') ? localPlayer.position.x : 0.0;
     const py = (localPlayer && localPlayer.position && typeof localPlayer.position.y === 'number') ? localPlayer.position.y : 0.0;
     const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : defaultZ;
