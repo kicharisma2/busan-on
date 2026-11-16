@@ -2459,3 +2459,138 @@ html, body, #canvas-container, #gl-canvas {
   border-radius: 8px;
   font-weight: 800;
 }
+
+/* ========================================================
+   모바일 & 반응형 최적화 (글자 밀림/줄바꿈 원천 차단)
+   ======================================================== */
+@media (max-width: 820px) {
+  /* 1. 상단 컨트롤 가이드 숨김 (모바일 터치 환경에서 화면 가림 방지) */
+  .control-guide {
+    display: none !important;
+  }
+
+  /* 2. 상단 중앙 HUD 컴팩트화 */
+  .center-hud {
+    top: 52px !important;
+    gap: 4px !important;
+    transform: translateX(-50%) scale(0.88) !important;
+  }
+  .ritual-bar-wrap {
+    display: none !important;
+  }
+
+  /* 3. 상단 내비게이션 바: 절대 줄바꿈 없는 단일행 고정 및 가로 스크롤 */
+  .top-nav {
+    height: 46px !important;
+    padding: 0 8px !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .top-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .brand-logo {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 16px !important;
+  }
+  .brand-title {
+    font-size: 13px !important;
+  }
+  .brand-sub {
+    display: none !important;
+  }
+
+  .realm-select {
+    max-width: 130px !important;
+    font-size: 11px !important;
+    height: 32px !important;
+  }
+
+  .explorer-progress {
+    padding: 2px 8px !important;
+  }
+  .progress-bar-wrap {
+    display: none !important;
+  }
+  .explorer-level-text {
+    max-width: 80px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-size: 11px !important;
+  }
+
+  .server-status-pill span:last-child {
+    display: none !important;
+  }
+  .counter-label {
+    display: none !important;
+  }
+
+  .nav-icon-btn {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 14px !important;
+  }
+
+  /* 4. 우측 플로팅 원형 사이드바 축소 */
+  .event-sidebar {
+    top: 60px !important;
+    right: 8px !important;
+    gap: 8px !important;
+  }
+  .sidebar-circle-btn {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .sidebar-circle-btn .circle-icon {
+    font-size: 16px !important;
+  }
+  .sidebar-circle-btn .circle-label {
+    font-size: 8.5px !important;
+  }
+
+  /* 5. 하단 퀵 액션 바 모바일 최적화 */
+  .quick-action-bar {
+    bottom: 8px !important;
+    padding: 4px 10px !important;
+    gap: 5px !important;
+    max-width: 95vw !important;
+    overflow-x: auto !important;
+  }
+  .quick-emote-btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+  .quick-modal-btn {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-nav {
+    height: 42px !important;
+    padding: 0 4px !important;
+    gap: 4px !important;
+  }
+  .center-hud {
+    display: none !important;
+  }
+  .realm-select {
+    max-width: 100px !important;
+    font-size: 10px !important;
+  }
+  .explorer-progress {
+    display: none !important;
+  }
+  .cult-counter {
+    padding: 2px 6px !important;
+    font-size: 11px !important;
+  }
+}

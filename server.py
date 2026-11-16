@@ -217,7 +217,7 @@ def handle_websocket_loop(handler):
     send_lock = threading.Lock()
 
     try:
-        sock.settimeout(None)
+        sock.settimeout(45.0)
     except Exception:
         pass
 
@@ -434,6 +434,15 @@ def handle_websocket_loop(handler):
                     'stamp_name': stamp_name
                 }, exclude_sock=sock)
 
+        except socket.timeout:
+            # 45초 무응답 시 WebSocket 핑(Heartbeat) 송신하여 소켓 활성 점검
+            try:
+                ping_frame = encode_ws_frame(b'', opcode=0x9)
+                if not safe_send_frame(sock, ping_frame, send_lock):
+                    break
+            except Exception:
+                break
+            continue
         except Exception as e:
             print(f"[WS_EXCEPTION] {client_id}: {e}", flush=True)
             break

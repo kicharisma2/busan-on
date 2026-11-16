@@ -1962,6 +1962,159 @@ function initThreeWorld() {
 // ========================================================
 // 5. 부산광역시청 및 5대 시민광장 3D 건축 모델링
 // ========================================================
+// ========================================================
+// 5-B. 시청 광장 & 야외공원 자율 산책 및 대화 NPC 시스템
+// ========================================================
+const outdoorNpcs = [];
+
+function initOutdoorAutonomousNpcs() {
+  outdoorNpcs.forEach(n => {
+    if (n.mesh && n.mesh.parent) n.mesh.parent.remove(n.mesh);
+  });
+  outdoorNpcs.length = 0;
+
+  // 1. [안내 NPC] 동백이: 광장 분수대와 시청 앞마당을 순찰하는 귀여운 시청 길잡이
+  const dongbaekMesh = createCuteCitizenMesh({
+    name: "동백이",
+    title: "시청 길잡이",
+    level: 15,
+    robeColor: "camellia",
+    hatType: "camellia",
+    wingsType: "none",
+    hairStyle: "bob",
+    hairColor: "pink",
+    skinTone: "warm",
+    isNpc: true
+  });
+  dongbaekMesh.position.set(0, 0, 22);
+  cityHallWorldGroup.add(dongbaekMesh);
+
+  outdoorNpcs.push({
+    id: 'npc_dongbaek',
+    mesh: dongbaekMesh,
+    name: '동백이',
+    title: '시청 안내원',
+    speed: 3.2,
+    waypoints: [
+      { x: 0, z: 22 },
+      { x: 14, z: 22 },
+      { x: 16, z: 12 },
+      { x: 0, z: 8 },
+      { x: -16, z: 12 },
+      { x: -14, z: 22 }
+    ],
+    wpIndex: 0,
+    chatCooldown: 8.0,
+    chatLines: [
+      "안녕하세요 시민님! 부산시청 메타버스에 오신 것을 환영해요 🌊",
+      "시청 1층 들락날락 어린이도서관에 미디어아트가 정말 멋져요!",
+      "2026 연도별 시청 예산서는 열린 정보공개방에서 확인하실 수 있어요 📂",
+      "소관부서 검색기(Q키)로 담당부서와 직통전화를 바로 찾을 수 있답니다!"
+    ]
+  });
+
+  // 2. [시민 NPC] 부산바다: 분수대와 공원 벤치를 거닐며 휴식하는 단골 시민
+  const badaMesh = createCuteCitizenMesh({
+    name: "부산바다",
+    title: "산책 중인 시민",
+    level: 8,
+    robeColor: "denim",
+    hatType: "seagull",
+    wingsType: "none",
+    hairStyle: "short",
+    hairColor: "ocean",
+    skinTone: "warm",
+    isNpc: true
+  });
+  badaMesh.position.set(-8, 0, 18);
+  cityHallWorldGroup.add(badaMesh);
+
+  outdoorNpcs.push({
+    id: 'npc_bada',
+    mesh: badaMesh,
+    name: '부산바다',
+    title: '산책 시민',
+    speed: 2.8,
+    waypoints: [
+      { x: -8, z: 18 },
+      { x: -8, z: 34 },
+      { x: 8, z: 34 },
+      { x: 8, z: 18 }
+    ],
+    wpIndex: 0,
+    chatCooldown: 12.0,
+    chatLines: [
+      "오늘 부산 날씨 정말 청명하네요~ 광장 분수대 소리 들으니 힐링돼요 🌤️",
+      "16개 구청 포털 타고 해운대구청 가봤는데 맛집 정보가 가득하더라고요!",
+      "동백전 카드 쓰면 7% 캐시백 되는 거 다들 알고 계시죠? 💳",
+      "시민 발언대에서 부산 발전 아이디어 외치고 경험치도 받았어요!"
+    ]
+  });
+
+  // 상호작용 등록 (E키 누르면 친절한 대화)
+  registerInteractiveObject({
+    id: 'npc_dongbaek_interact',
+    pos: { x: 0, y: 0, z: 20 },
+    radius: 4.5,
+    prompt: "E키: [안내 NPC 동백이] 부산시청 길잡이와 대화하기",
+    action: () => {
+      showSpeechBubble(dongbaekMesh, "반가워요 시민님! 무엇이든 편하게 물어보세요! AI 상담실과 정보공개관도 들러보세요~");
+      if (window.busanAudio) window.busanAudio.playChime();
+      openAiGuideModal();
+    }
+  });
+
+  registerInteractiveObject({
+    id: 'npc_bada_interact',
+    pos: { x: -8, y: 0, z: 24 },
+    radius: 4.5,
+    prompt: "E키: [산책 시민 부산바다] 일상 대화 나누기",
+    action: () => {
+      showSpeechBubble(badaMesh, "안녕하세요! 시청 앞 공원이 참 예쁘죠? 시정 소식과 일일 임무도 챙기세요!");
+      if (window.busanAudio) window.busanAudio.playClick();
+      openCivicLifeModal();
+    }
+  });
+}
+
+function updateOutdoorNpcs(dt) {
+  if (STATE.currentRoom !== 'BUSAN-HQ') return;
+  outdoorNpcs.forEach(npc => {
+    if (!npc.mesh) return;
+    const wp = npc.waypoints[npc.wpIndex];
+    const cur = npc.mesh.position;
+    const dx = wp.x - cur.x;
+    const dz = wp.z - cur.z;
+    const dist = Math.hypot(dx, dz);
+
+    if (dist > 0.35) {
+      const dirX = dx / dist;
+      const dirZ = dz / dist;
+      cur.x += dirX * npc.speed * dt;
+      cur.z += dirZ * npc.speed * dt;
+
+      // 이동 방향 회전
+      const targetAngle = Math.atan2(dirX, dirZ);
+      let diff = targetAngle - npc.mesh.rotation.y;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      npc.mesh.rotation.y += diff * Math.min(1, dt * 8);
+
+      npc.mesh.userData.isWalking = true;
+    } else {
+      npc.wpIndex = (npc.wpIndex + 1) % npc.waypoints.length;
+    }
+
+    // 주기적 말풍선 대사 출력
+    npc.chatCooldown -= dt;
+    if (npc.chatCooldown <= 0) {
+      npc.chatCooldown = 12.0 + Math.random() * 8.0;
+      const line = npc.chatLines[Math.floor(Math.random() * npc.chatLines.length)];
+      showSpeechBubble(npc.mesh, line);
+    }
+  });
+}
+
 function buildBusanCityHallWorld() {
   busanCityHallObstacles = [];
 
@@ -2066,6 +2219,9 @@ function buildCityHallTowerFacade() {
   buildingGroup.add(doors);
 
   cityHallWorldGroup.add(buildingGroup);
+
+  // 야외 광장 자율 산책 및 대화 NPC 초기화
+  initOutdoorAutonomousNpcs();
 
   // 건물 외벽 물리 충돌 등록
   busanCityHallObstacles.push({ type: 'box', x: -28, z: 0, w: 32, d: 2, h: 10 });
@@ -2922,10 +3078,8 @@ function createCuteCitizenMesh({
   if (isPlayer) body.castShadow = true;
   root.add(body);
 
-  // 화이트 와이셔츠 깃 포인트
-  const collar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.06), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  collar.position.set(0, 0.88, 0.18);
-  root.add(collar);
+  // 8종 디테일 3D 코스튬 장식 (정장 넥타이/배지, 후드 주머니/스트링, 한복 고름/노리개 등)
+  applyRobeCostume(body, robeColor);
 
   // (2) 피부 및 헤어 머리 (Head & Hair)
   const headGroup = new THREE.Group();
@@ -3049,7 +3203,7 @@ function createCuteCitizenMesh({
   applyWingsDecoration(wingsSlot, wingsType);
 
   // (7) 머리 위 3D 캔버스 닉네임 명찰
-  const nameTagMesh = createNameTagSprite(name, title, level, isPlayer);
+  const nameTagMesh = createNameTagSprite(name, title, level, isPlayer, isNpc);
   nameTagMesh.position.y = 2.05;
   root.add(nameTagMesh);
 
@@ -3092,216 +3246,422 @@ function createCuteCitizenMesh({
   return root;
 }
 
+// ========================================================
+// 6-A. 8종 3D 시민 의상 코스튬 엔진 (정장, 후드, 한복, 세일러, 데님, 원피스 등)
+// ========================================================
+function applyRobeCostume(bodyMesh, robeStyle) {
+  // 기존 장식 파츠 제거
+  const toRemove = [];
+  bodyMesh.children.forEach(c => {
+    if (c.userData && c.userData.isCostumePart) toRemove.push(c);
+  });
+  toRemove.forEach(c => bodyMesh.remove(c));
+
+  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 });
+  const redMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.4 });
+  const brownMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 });
+
+  function addPart(mesh) {
+    mesh.userData = { isCostumePart: true };
+    bodyMesh.add(mesh);
+  }
+
+  if (robeStyle === 'hanbok') {
+    // [1] 전통 품격 동백 한복: 화이트 동정 깃 + 붉은 옷고름 + 허리띠 + 노리개
+    const dongjeongL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), whiteMat);
+    dongjeongL.position.set(-0.08, 0.22, 0.28);
+    dongjeongL.rotation.z = -0.35;
+    addPart(dongjeongL);
+
+    const dongjeongR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), whiteMat);
+    dongjeongR.position.set(0.08, 0.22, 0.28);
+    dongjeongR.rotation.z = 0.35;
+    addPart(dongjeongR);
+
+    // 고름 리본 매듭
+    const goreumKnot = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), redMat);
+    goreumKnot.position.set(0.06, 0.12, 0.31);
+    addPart(goreumKnot);
+
+    const goreumTail1 = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.22, 0.02), redMat);
+    goreumTail1.position.set(0.06, 0.01, 0.32);
+    goreumTail1.rotation.z = -0.1;
+    addPart(goreumTail1);
+
+    const goreumTail2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.02), redMat);
+    goreumTail2.position.set(0.09, 0.04, 0.32);
+    goreumTail2.rotation.z = 0.15;
+    addPart(goreumTail2);
+
+    // 노리개 장식
+    const norigae = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.12, 8), goldMat);
+    norigae.position.set(-0.16, -0.06, 0.31);
+    addPart(norigae);
+
+    // 한복 치마/두루마기 금빛 단선
+    const skirtBand = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.02, 8, 24), goldMat);
+    skirtBand.position.set(0, -0.22, 0);
+    skirtBand.rotation.x = Math.PI / 2;
+    addPart(skirtBand);
+
+  } else if (robeStyle === 'camellia') {
+    // [2] 동백 캐주얼 후드티: 후드 칼라 + 캥거루 앞주머니 + 화이트 스트링 끈
+    const hoodCollar = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.05, 8, 18, Math.PI * 1.3), new THREE.MeshStandardMaterial({ color: 0xbe123c }));
+    hoodCollar.position.set(0, 0.24, -0.06);
+    hoodCollar.rotation.x = Math.PI * 0.45;
+    addPart(hoodCollar);
+
+    // 캥거루 주머니
+    const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.06), new THREE.MeshStandardMaterial({ color: 0x9f1239 }));
+    pocket.position.set(0, -0.08, 0.32);
+    addPart(pocket);
+
+    // 후드 끈
+    const strL = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6), whiteMat);
+    strL.position.set(-0.06, 0.12, 0.30);
+    addPart(strL);
+
+    const strR = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6), whiteMat);
+    strR.position.set(0.06, 0.12, 0.30);
+    addPart(strR);
+
+  } else if (robeStyle === 'lavender') {
+    // [3] 로맨틱 라벤더 프릴 원피스: 레이스 칼라 + 허리 리본 리본 + 프릴 밑단
+    const lace = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 8, 20), whiteMat);
+    lace.position.set(0, 0.26, 0);
+    lace.rotation.x = Math.PI / 2;
+    addPart(lace);
+
+    // 허리 리본
+    const waistBelt = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.025, 8, 24), new THREE.MeshStandardMaterial({ color: 0xc084fc }));
+    waistBelt.position.set(0, -0.05, 0);
+    waistBelt.rotation.x = Math.PI / 2;
+    addPart(waistBelt);
+
+    const bow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshStandardMaterial({ color: 0xf472b6 }));
+    bow.position.set(0, -0.05, 0.33);
+    addPart(bow);
+
+    const ruffle = new THREE.Mesh(new THREE.TorusGeometry(0.39, 0.035, 8, 24), whiteMat);
+    ruffle.position.set(0, -0.26, 0);
+    ruffle.rotation.x = Math.PI / 2;
+    addPart(ruffle);
+
+  } else if (robeStyle === 'denim') {
+    // [4] 청량 스트리트 데님: 청재킷 칼라 + 이너 스트라이프 + 브라운 가죽 벨트
+    const innerShirt = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.24, 0.04), whiteMat);
+    innerShirt.position.set(0, 0.14, 0.29);
+    addPart(innerShirt);
+
+    const flapL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.03), new THREE.MeshStandardMaterial({ color: 0x1d4ed8 }));
+    flapL.position.set(-0.11, 0.13, 0.30);
+    addPart(flapL);
+
+    const flapR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.03), new THREE.MeshStandardMaterial({ color: 0x1d4ed8 }));
+    flapR.position.set(0.11, 0.13, 0.30);
+    addPart(flapR);
+
+    // 가죽 벨트 & 버클
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.03, 8, 24), brownMat);
+    belt.position.set(0, -0.12, 0);
+    belt.rotation.x = Math.PI / 2;
+    addPart(belt);
+
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.03), goldMat);
+    buckle.position.set(0, -0.12, 0.34);
+    addPart(buckle);
+
+  } else if (robeStyle === 'gold') {
+    // [5] 부산 불꽃·빛축제 골드 예복: 황금 견장 + 더블 버튼 6개 + 레드 타이
+    const epauletL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.12), goldMat);
+    epauletL.position.set(-0.28, 0.27, 0);
+    addPart(epauletL);
+
+    const epauletR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.12), goldMat);
+    epauletR.position.set(0.28, 0.27, 0);
+    addPart(epauletR);
+
+    // 레드 타이
+    const redTie = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.03), redMat);
+    redTie.position.set(0, 0.10, 0.30);
+    addPart(redTie);
+
+    // 더블 버튼 4개
+    for (let by = 0; by < 2; by++) {
+      const bL = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), goldMat);
+      bL.position.set(-0.08, 0.02 - by * 0.10, 0.32);
+      addPart(bL);
+
+      const bR = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), goldMat);
+      bR.position.set(0.08, 0.02 - by * 0.10, 0.32);
+      addPart(bR);
+    }
+
+  } else if (robeStyle === 'green') {
+    // [6] 녹음 그린 캐주얼: 화이트 폴로 칼라 + 가슴 포켓 + 카키 벨트
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.06), whiteMat);
+    collar.position.set(0, 0.26, 0.26);
+    addPart(collar);
+
+    const chestPocket = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 0.02), new THREE.MeshStandardMaterial({ color: 0x059669 }));
+    chestPocket.position.set(-0.12, 0.12, 0.30);
+    addPart(chestPocket);
+
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.03, 8, 24), darkMat);
+    belt.position.set(0, -0.12, 0);
+    belt.rotation.x = Math.PI / 2;
+    addPart(belt);
+
+  } else {
+    // [7 & 8] 기본 정장 (블루 / 화이트): 화이트 셔츠 깃 + 넥타이 + 시청 골드 배지 + 블랙 벨트
+    const shirtCollar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.06), whiteMat);
+    shirtCollar.position.set(0, 0.25, 0.26);
+    addPart(shirtCollar);
+
+    const tieColor = (robeStyle === 'white') ? 0x0284c7 : 0x0f172a;
+    const tie = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.03), new THREE.MeshStandardMaterial({ color: tieColor }));
+    tie.position.set(0, 0.10, 0.30);
+    addPart(tie);
+
+    // 부산시청 금빛 가슴 배지
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.015, 8), goldMat);
+    pin.position.set(-0.14, 0.15, 0.30);
+    pin.rotation.x = Math.PI / 2;
+    addPart(pin);
+
+    // 슬림 벨트
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.025, 8, 24), darkMat);
+    belt.position.set(0, -0.12, 0);
+    belt.rotation.x = Math.PI / 2;
+    addPart(belt);
+  }
+}
+
+// ========================================================
+// 6-B. 8종 3D 헤어 스타일링 & 맑은 얼굴 조형 엔진
+// ========================================================
 function applyHairDecoration(slot, hairStyle, hairMat) {
   while (slot.children.length > 0) slot.remove(slot.children[0]);
   if (!hairMat) hairMat = SHARED_MAT.hair;
 
-  // 1. 헤어 기본 돔 (두상 0.40보다 큰 0.435 구체로 머리 윗부분, 옆, 뒷머리를 완벽히 감쌈)
-  const baseDomeGeo = new THREE.SphereGeometry(0.435, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.60);
+  // [핵심] 헤어 베이스 돔: 얼굴 앞면(z > 0.10)은 100% 비워두어 이마, 눈, 볼, 입이 시원하고 맑게 노출됨
+  // phiStart = 0.85*PI (좌측 귀 뒤) ~ phiLength = 1.30*PI (뒤통수 거쳐 우측 귀 뒤로 감쌈)
+  const baseDomeGeo = new THREE.SphereGeometry(0.418, 22, 16, Math.PI * 0.85, Math.PI * 1.30, 0, Math.PI * 0.68);
   const baseDome = new THREE.Mesh(baseDomeGeo, hairMat);
-  baseDome.position.set(0, 0.04, -0.015);
+  baseDome.position.set(0, 0.03, -0.04);
   slot.add(baseDome);
 
-  // 뒷머리 목덜미 커버 (달걀머리 방지)
-  const napeGeo = new THREE.SphereGeometry(0.425, 20, 16, Math.PI * 0.45, Math.PI * 1.1, 0, Math.PI * 0.75);
+  // 정수리 윗부분 볼륨 (이마 위까지만 자연스럽게 내려옴)
+  const crownGeo = new THREE.SphereGeometry(0.39, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.35);
+  const crownMesh = new THREE.Mesh(crownGeo, hairMat);
+  crownMesh.position.set(0, 0.08, -0.03);
+  slot.add(crownMesh);
+
+  // 뒷목 커버 (달걀머리 방지)
+  const napeGeo = new THREE.SphereGeometry(0.41, 16, 12, Math.PI * 0.90, Math.PI * 1.20, Math.PI * 0.30, Math.PI * 0.45);
   const nape = new THREE.Mesh(napeGeo, hairMat);
-  nape.position.set(0, 0.02, -0.02);
+  nape.position.set(0, 0.0, -0.05);
   slot.add(nape);
 
-  // 2. 스타일별 정교한 3D 헤어 조형
-  if (hairStyle === 'dandy') {
-    // [1] 볼륨 댄디 펌: 풍성한 컬 볼륨 3개 층 + 볼륨 앞머리 뱅
-    const puff1 = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.36, 0.18, 14), hairMat);
-    puff1.position.set(0, 0.28, 0.14);
-    puff1.rotation.x = 0.35;
-    slot.add(puff1);
+  // ----------------------------------------------------
+  // 스타일별 3D 앞머리(눈 위) & 사이드·뒷머리 조형
+  // ----------------------------------------------------
+  if (hairStyle === 'bob') {
+    // [1] 러블리 태슬 단발 (여성 대표 단발머리):
+    // 눈(y=0.02)과 눈썹(y=0.12) 위에 가지런하고 예쁘게 떨어지는 시스루 뱅 + 턱선 감싸는 사이드 단발
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.22, 0.365);
+    slot.add(bang);
 
-    const waveL = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), hairMat);
-    waveL.position.set(-0.16, 0.28, 0.22);
-    slot.add(waveL);
-
-    const waveR = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), hairMat);
-    waveR.position.set(0.16, 0.28, 0.22);
-    slot.add(waveR);
-
-    // 컬 앞머리 (이마 덮개)
-    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.12), hairMat);
-    b1.position.set(-0.12, 0.20, 0.35);
-    b1.rotation.z = 0.18;
+    // 살짝 삐져나온 귀여운 앞머리 컬 포인트 2가닥
+    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.06), hairMat);
+    b1.position.set(-0.11, 0.17, 0.37);
+    b1.rotation.z = 0.1;
     slot.add(b1);
 
-    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.12), hairMat);
-    b2.position.set(0.12, 0.20, 0.35);
-    b2.rotation.z = -0.18;
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.06), hairMat);
+    b2.position.set(0.11, 0.17, 0.37);
+    b2.rotation.z = -0.1;
     slot.add(b2);
 
-    // 구레나룻 옆머리
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
-    sideL.position.set(-0.40, 0.02, 0.12);
-    slot.add(sideL);
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
-    sideR.position.set(0.40, 0.02, 0.12);
-    slot.add(sideR);
-
-  } else if (hairStyle === 'bob') {
-    // [2] 러블리 태슬 단발: 볼을 부드럽게 감싸는 똑단발 + 시스루 일자 뱅
-    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.12), hairMat);
-    bang.position.set(0, 0.21, 0.36);
-    slot.add(bang);
-
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.44, 0.32), hairMat);
-    sideL.position.set(-0.40, -0.08, 0.05);
+    // 양쪽 뺨을 예쁘게 감싸며 내려오는 태슬 옆단발 (귀와 뺨 라인)
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.22), hairMat);
+    sideL.position.set(-0.38, 0.01, 0.10);
+    sideL.rotation.y = 0.15;
     slot.add(sideL);
 
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.44, 0.32), hairMat);
-    sideR.position.set(0.40, -0.08, 0.05);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.22), hairMat);
+    sideR.position.set(0.38, 0.01, 0.10);
+    sideR.rotation.y = -0.15;
     slot.add(sideR);
 
-    const backBob = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.44, 0.16), hairMat);
-    backBob.position.set(0, -0.09, -0.34);
+    // 뒷목을 포근히 덮는 단발머리 뒤쪽 볼륨
+    const backBob = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.38, 0.20), hairMat);
+    backBob.position.set(0, -0.02, -0.26);
     slot.add(backBob);
 
+    // 왼쪽 머리에 꽂힌 깜찍한 동백꽃 헤어핀
+    const pinFlower = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 8), new THREE.MeshStandardMaterial({ color: 0xf43f5e }));
+    pinFlower.position.set(-0.28, 0.25, 0.28);
+    pinFlower.rotation.x = Math.PI / 2;
+    slot.add(pinFlower);
+
+    const pinCenter = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+    pinCenter.position.set(-0.28, 0.25, 0.30);
+    slot.add(pinCenter);
+
   } else if (hairStyle === 'long') {
-    // [3] 엘레강스 롱 웨이브: 어깨와 등 뒤로 흐르는 풍성한 웨이브 롱 헤어
-    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.14, 0.12), hairMat);
-    bang.position.set(0, 0.22, 0.36);
+    // [2] 엘레강스 롱 웨이브: 눈 위 아치형 뱅 + 어깨 아래로 풍성하게 흐르는 롱 헤어
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.22, 0.365);
     slot.add(bang);
 
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.75, 0.28), hairMat);
-    sideL.position.set(-0.41, -0.24, 0.08);
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.70, 0.22), hairMat);
+    sideL.position.set(-0.38, -0.18, 0.08);
     slot.add(sideL);
 
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.75, 0.28), hairMat);
-    sideR.position.set(0.41, -0.24, 0.08);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.70, 0.22), hairMat);
+    sideR.position.set(0.38, -0.18, 0.08);
     slot.add(sideR);
 
-    const backLong = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.88, 0.16), hairMat);
-    backLong.position.set(0, -0.30, -0.35);
+    const backLong = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.82, 0.20), hairMat);
+    backLong.position.set(0, -0.24, -0.28);
     slot.add(backLong);
 
   } else if (hairStyle === 'ponytail') {
-    // [4] 발랄 하이 포니테일: 높게 묶은 리본 링 + 찰랑이는 테일
-    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.14, 0.12), hairMat);
-    bang.position.set(0, 0.21, 0.36);
+    // [3] 발랄 하이 포니테일: 눈 위 뱅 + 뒷머리 레드 리본 링 + 찰랑이는 테일
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.22, 0.365);
     slot.add(bang);
 
-    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.035, 8, 16), new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 }));
-    tie.position.set(0, 0.30, -0.38);
-    tie.rotation.x = 0.5;
-    slot.add(tie);
+    const tieRing = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 8, 16), new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 }));
+    tieRing.position.set(0, 0.30, -0.36);
+    tieRing.rotation.x = 0.5;
+    slot.add(tieRing);
 
-    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.16, 0.65, 12), hairMat);
-    tail.position.set(0, 0.02, -0.48);
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.16, 0.60, 12), hairMat);
+    tail.position.set(0, 0.04, -0.46);
     tail.rotation.x = -0.42;
     slot.add(tail);
 
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.12), hairMat);
-    sideL.position.set(-0.39, 0.04, 0.12);
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideL.position.set(-0.38, 0.04, 0.10);
     slot.add(sideL);
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.12), hairMat);
-    sideR.position.set(0.39, 0.04, 0.12);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideR.position.set(0.38, 0.04, 0.10);
     slot.add(sideR);
 
   } else if (hairStyle === 'twintail') {
-    // [5] 귀여운 양갈래 트윈테일: 좌우 리본 장식 + 양쪽으로 내려오는 땋은 테일
-    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.14, 0.12), hairMat);
-    bang.position.set(0, 0.22, 0.36);
+    // [4] 귀여운 양갈래 트윈테일: 눈 위 뱅 + 좌우 핑크 리본 + 양쪽 테일
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.08), hairMat);
+    bang.position.set(0, 0.22, 0.365);
     slot.add(bang);
 
-    for (const [side, s] of [['L', -1], ['R', 1]]) {
-      const ribbon = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.028, 8, 12), new THREE.MeshStandardMaterial({ color: 0xf43f5e }));
-      ribbon.position.set(s * 0.38, 0.24, -0.16);
+    for (const [s, side] of [[-1, 'L'], [1, 'R']]) {
+      const ribbon = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.024, 8, 12), new THREE.MeshStandardMaterial({ color: 0xf43f5e }));
+      ribbon.position.set(s * 0.36, 0.22, -0.14);
       slot.add(ribbon);
 
-      const twintail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.12, 0.55, 10), hairMat);
-      twintail.position.set(s * 0.44, -0.04, -0.16);
-      twintail.rotation.z = s * -0.25;
+      const twintail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.12, 0.52, 10), hairMat);
+      twintail.position.set(s * 0.42, -0.06, -0.14);
+      twintail.rotation.z = s * -0.22;
       twintail.rotation.x = 0.15;
       slot.add(twintail);
     }
 
   } else if (hairStyle === 'comma') {
-    // [6] K-POP 아이돌 쉼표머리: 가르마 + 한쪽으로 둥글게 휘어진 쉼표 뱅 (C-Curl)
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 0.16, 12), hairMat);
-    crown.position.set(0, 0.28, 0.12);
-    crown.rotation.x = 0.25;
-    slot.add(crown);
+    // [5] K-POP 아이돌 쉼표머리: 깔끔하게 넘긴 이마 + 오른쪽 쉼표 뱅 (C-Curl)
+    const crownPuff = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 0.14, 12), hairMat);
+    crownPuff.position.set(0, 0.26, 0.10);
+    crownPuff.rotation.x = 0.22;
+    slot.add(crownPuff);
 
-    // 쉼표 모양 C-Curve 뱅 (오른쪽으로 감겨 내려옴)
-    const commaBang = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.045, 8, 16, Math.PI * 1.3), hairMat);
-    commaBang.position.set(0.10, 0.18, 0.36);
-    commaBang.rotation.z = Math.PI * 0.75;
-    commaBang.rotation.x = 0.25;
-    slot.add(commaBang);
+    const comma = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.038, 8, 14, Math.PI * 1.2), hairMat);
+    comma.position.set(0.11, 0.20, 0.365);
+    comma.rotation.z = Math.PI * 0.72;
+    comma.rotation.x = 0.22;
+    slot.add(comma);
 
-    // 반대쪽 단정하게 넘긴 뱅
-    const straightBang = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.10), hairMat);
-    straightBang.position.set(-0.16, 0.22, 0.35);
-    straightBang.rotation.z = 0.25;
-    slot.add(straightBang);
+    const partedBang = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.07), hairMat);
+    partedBang.position.set(-0.14, 0.23, 0.35);
+    partedBang.rotation.z = 0.22;
+    slot.add(partedBang);
 
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
-    sideL.position.set(-0.40, 0.02, 0.12);
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideL.position.set(-0.38, 0.04, 0.10);
     slot.add(sideL);
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
-    sideR.position.set(0.40, 0.02, 0.12);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideR.position.set(0.38, 0.04, 0.10);
     slot.add(sideR);
 
   } else if (hairStyle === 'beret') {
-    // [7] 프렌치 베레모 & 컬 헤어: 기울어진 베레모 + 아래로 삐져나온 귀여운 컬
-    const beretGeo = new THREE.CylinderGeometry(0.38, 0.30, 0.13, 16);
-    const beretMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.6 });
-    const beret = new THREE.Mesh(beretGeo, beretMat);
-    beret.position.set(-0.08, 0.44, 0.04);
-    beret.rotation.z = -0.28;
-    beret.rotation.x = 0.15;
+    // [6] 프렌치 베레모 & 컬 헤어: 각도 베레모 + 챙 아래 살짝 삐져나온 귀여운 앞머리
+    const beret = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.30, 0.12, 16), new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.6 }));
+    beret.position.set(-0.06, 0.44, 0.02);
+    beret.rotation.z = -0.26;
+    beret.rotation.x = 0.12;
     slot.add(beret);
 
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.08, 6), beretMat);
-    stem.position.set(-0.08, 0.52, 0.04);
-    slot.add(stem);
+    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.07, 6), new THREE.MeshStandardMaterial({ color: 0x1e1b4b }));
+    tip.position.set(-0.06, 0.51, 0.02);
+    slot.add(tip);
 
-    // 베레모 밑 귀여운 앞머리 컬
-    const curlL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.10), hairMat);
-    curlL.position.set(-0.14, 0.22, 0.35);
-    curlL.rotation.z = 0.2;
-    slot.add(curlL);
+    const fringe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.06), hairMat);
+    fringe.position.set(0.02, 0.22, 0.36);
+    slot.add(fringe);
 
-    const curlR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.10), hairMat);
-    curlR.position.set(0.14, 0.22, 0.35);
-    curlR.rotation.z = -0.2;
-    slot.add(curlR);
+  } else if (hairStyle === 'dandy') {
+    // [7] 볼륨 댄디 펌: 부드러운 웨이브 컬 볼륨 + 눈 위 볼륨 앞머리
+    const puff = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 0.16, 14), hairMat);
+    puff.position.set(0, 0.27, 0.12);
+    puff.rotation.x = 0.28;
+    slot.add(puff);
+
+    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.07), hairMat);
+    b1.position.set(-0.10, 0.21, 0.365);
+    b1.rotation.z = 0.14;
+    slot.add(b1);
+
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.07), hairMat);
+    b2.position.set(0.10, 0.21, 0.365);
+    b2.rotation.z = -0.14;
+    slot.add(b2);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideL.position.set(-0.38, 0.03, 0.10);
+    slot.add(sideL);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideR.position.set(0.38, 0.03, 0.10);
+    slot.add(sideR);
 
   } else {
-    // [8] 기본 (단정한 댄디 숏컷 - 'short'): 볼륨 크라운 + 3갈래 앞머리 뱅 + 깔끔한 구레나룻
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 0.16, 12), hairMat);
-    crown.position.set(0, 0.26, 0.12);
-    crown.rotation.x = 0.25;
-    slot.add(crown);
+    // [8] 기본 (단정한 댄디 숏컷 - 'short'): 단정한 3단 뱅 + 깔끔한 구레나룻
+    const crownTop = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.33, 0.14, 12), hairMat);
+    crownTop.position.set(0, 0.26, 0.10);
+    crownTop.rotation.x = 0.22;
+    slot.add(crownTop);
 
-    // 센터 뱅
-    const bCenter = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.10), hairMat);
-    bCenter.position.set(0, 0.21, 0.36);
+    const bCenter = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.07), hairMat);
+    bCenter.position.set(0, 0.22, 0.365);
     slot.add(bCenter);
 
-    // 좌측 뱅
-    const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.16, 0.10), hairMat);
-    bLeft.position.set(-0.15, 0.19, 0.34);
-    bLeft.rotation.z = 0.22;
+    const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.07), hairMat);
+    bLeft.position.set(-0.13, 0.21, 0.355);
+    bLeft.rotation.z = 0.18;
     slot.add(bLeft);
 
-    // 우측 뱅
-    const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.16, 0.10), hairMat);
-    bRight.position.set(0.15, 0.19, 0.34);
-    bRight.rotation.z = -0.22;
+    const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.07), hairMat);
+    bRight.position.set(0.13, 0.21, 0.355);
+    bRight.rotation.z = -0.18;
     slot.add(bRight);
 
-    // 좌우 구레나룻
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
-    sideL.position.set(-0.40, 0.02, 0.12);
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideL.position.set(-0.38, 0.03, 0.10);
     slot.add(sideL);
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
-    sideR.position.set(0.40, 0.02, 0.12);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.12), hairMat);
+    sideR.position.set(0.38, 0.03, 0.10);
     slot.add(sideR);
   }
 }
@@ -3428,29 +3788,53 @@ function applyWingsDecoration(slot, wingsType) {
   }
 }
 
-function createNameTagSprite(name, title, level, isMe = false) {
+function createNameTagSprite(name, title, level, isMe = false, isNpc = false) {
   const canvas = document.createElement('canvas');
   canvas.width = 384;
   canvas.height = 96;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = isMe ? 'rgba(2, 132, 199, 0.95)' : 'rgba(15, 23, 42, 0.9)';
-  ctx.roundRect(10, 10, 364, 76, 20);
-  ctx.fill();
+  if (isNpc) {
+    // [NPC 전용] 황금빛 엠버 그라디언트 + 골드 더블 테두리
+    const grad = ctx.createLinearGradient(0, 0, 384, 96);
+    grad.addColorStop(0, 'rgba(217, 119, 6, 0.96)');
+    grad.addColorStop(1, 'rgba(180, 83, 9, 0.96)');
+    ctx.fillStyle = grad;
+    ctx.roundRect(10, 10, 364, 76, 20);
+    ctx.fill();
 
-  ctx.strokeStyle = isMe ? '#f59e0b' : '#38bdf8';
-  ctx.lineWidth = 4;
-  ctx.roundRect(10, 10, 364, 76, 20);
-  ctx.stroke();
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 5;
+    ctx.roundRect(10, 10, 364, 76, 20);
+    ctx.stroke();
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#fef08a';
-  ctx.font = 'bold 22px "Noto Sans KR", sans-serif';
-  ctx.fillText(`Lv.${level} ${title}`, 192, 38);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fef08a';
+    ctx.font = 'bold 22px "Noto Sans KR", sans-serif';
+    ctx.fillText(`⭐ [NPC] ${title} ⭐`, 192, 38);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px "Noto Sans KR", sans-serif';
-  ctx.fillText(name, 192, 70);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px "Noto Sans KR", sans-serif';
+    ctx.fillText(name, 192, 70);
+  } else {
+    ctx.fillStyle = isMe ? 'rgba(2, 132, 199, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+    ctx.roundRect(10, 10, 364, 76, 20);
+    ctx.fill();
+
+    ctx.strokeStyle = isMe ? '#f59e0b' : '#38bdf8';
+    ctx.lineWidth = 4;
+    ctx.roundRect(10, 10, 364, 76, 20);
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fef08a';
+    ctx.font = 'bold 22px "Noto Sans KR", sans-serif';
+    ctx.fillText(`Lv.${level} ${title}`, 192, 38);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px "Noto Sans KR", sans-serif';
+    ctx.fillText(name, 192, 70);
+  }
 
   const tex = new THREE.CanvasTexture(canvas);
   const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
@@ -3720,23 +4104,29 @@ function updatePlayerMovement(dt) {
   const moveDir = new THREE.Vector3();
   let isMoving = false;
 
-  if (camera) {
-    const camFwd = new THREE.Vector3();
-    camera.getWorldDirection(camFwd);
-    camFwd.y = 0;
-    camFwd.normalize();
+  // [가즈아 대법당 시그니처 3인칭 조작계] 내가 바라보는 카메라 시선 수평 벡터 기준 이동
+  if (camera && controls) {
+    // 1. 카메라가 플레이어를 향해 바라보는 정확한 수평 전방 벡터 (Y=0)
+    const _fwd = new THREE.Vector3().subVectors(controls.target, camera.position);
+    _fwd.y = 0;
+    _fwd.normalize();
 
-    const camRight = new THREE.Vector3();
-    camRight.crossVectors(camFwd, new THREE.Vector3(0, 1, 0)).normalize();
+    // 2. 수평 우측 벡터 (90도 직교)
+    const _side = new THREE.Vector3(-_fwd.z, 0, _fwd.x);
 
-    if (STATE.keys.w) moveDir.add(camFwd);
-    if (STATE.keys.s) moveDir.sub(camFwd);
-    if (STATE.keys.a) moveDir.sub(camRight);
-    if (STATE.keys.d) moveDir.add(camRight);
+    // 3. 키보드 입력값 (W/S 전진·후진, A/D 좌우 스트레이프)
+    const f = (STATE.keys.w ? 1 : 0) - (STATE.keys.s ? 1 : 0);
+    const r = (STATE.keys.d ? 1 : 0) - (STATE.keys.a ? 1 : 0);
 
+    if (f !== 0 || r !== 0) {
+      moveDir.addScaledVector(_fwd, f);
+      moveDir.addScaledVector(_side, r);
+    }
+
+    // 4. 모바일 가상 조이스틱 연동
     if (Math.abs(STATE.joystickDir.x) > 0.05 || Math.abs(STATE.joystickDir.y) > 0.05) {
-      moveDir.addScaledVector(camFwd, STATE.joystickDir.y);
-      moveDir.addScaledVector(camRight, STATE.joystickDir.x);
+      moveDir.addScaledVector(_fwd, STATE.joystickDir.y);
+      moveDir.addScaledVector(_side, STATE.joystickDir.x);
     }
   }
 
@@ -3749,6 +4139,7 @@ function updatePlayerMovement(dt) {
     STATE.clickTargetPos = null;
     if (clickMarkerMesh) clickMarkerMesh.visible = false;
 
+    // 캐릭터가 이동하는 방향을 자연스럽게 정면으로 회전
     const targetAngle = Math.atan2(moveDir.x, moveDir.z);
     let diff = targetAngle - localPlayer.rotation.y;
     while (diff < -Math.PI) diff += Math.PI * 2;
@@ -3782,12 +4173,14 @@ function updatePlayerMovement(dt) {
     }
   }
 
+  // 장애물 충돌 판정
   const resolved = resolveObstacleCollision(curPos.x, curPos.z, nextX, nextZ, curPos.y);
   curPos.x = resolved.x;
   curPos.z = resolved.z;
 
   const targetFloorY = getBusanCityHallFloorY(curPos.x, curPos.z);
 
+  // 점프 & 중력 물리
   if (ud.isJumping) {
     ud.jumpVelocity -= 22 * dt;
     curPos.y += ud.jumpVelocity * dt;
@@ -3808,14 +4201,13 @@ function updatePlayerMovement(dt) {
 
   ud.isWalking = isMoving;
 
-  // 3인칭 스마트 카메라 추적 (타겟과 카메라 일체 이동으로 시점 미끄러짐 원천 차단)
+  // [가즈아 대법당 일체형 카메라 추적] 카메라와 타겟이 1:1로 일체화되어 지연/미끄러짐 제로
   if (controls && isMoving) {
-    const curTarget = controls.target.clone();
-    const newTarget = new THREE.Vector3(curPos.x, curPos.y + 1.4, curPos.z);
-    const targetDelta = new THREE.Vector3().subVectors(newTarget, curTarget);
+    const desiredTarget = new THREE.Vector3(curPos.x, curPos.y + 1.4, curPos.z);
+    const delta = new THREE.Vector3().subVectors(desiredTarget, controls.target);
 
-    controls.target.addScaledVector(targetDelta, Math.min(1, dt * 8));
-    camera.position.addScaledVector(targetDelta, Math.min(1, dt * 8));
+    controls.target.add(delta);
+    camera.position.add(delta);
   }
 
   // 멀티플레이 위치 패킷 전송
@@ -3825,16 +4217,15 @@ function updatePlayerMovement(dt) {
       STATE.lastMoveSend = now;
       STATE.ws.send(JSON.stringify({
         type: 'move',
-        x: Math.round(curPos.x * 100) / 100,
-        y: Math.round(curPos.y * 100) / 100,
-        z: Math.round(curPos.z * 100) / 100,
-        ry: Math.round(localPlayer.rotation.y * 100) / 100,
+        x: curPos.x,
+        y: curPos.y,
+        z: curPos.z,
+        ry: localPlayer.rotation.y,
+        act: isMoving ? 'walk' : 'idle',
         jump: ud.isJumping
       }));
     }
   }
-
-  checkProximityInteractions();
 }
 
 function updateCuteCitizenAnimation(c, dt, t) {
@@ -3894,6 +4285,7 @@ function animate() {
   const t = clock.getElapsedTime();
 
   updatePlayerMovement(dt);
+  updateOutdoorNpcs(dt);
 
   if (localPlayer) {
     updateCuteCitizenAnimation(localPlayer, dt, t);
@@ -4830,11 +5222,41 @@ async function loadPhotos() {
 
 function loadStoryActs() {
   const acts = [
-    { act: "ACT 1", name: "첫 만남의 광장", desc: "시민광장의 '부산의 닻' 조형물과 등대광장을 방문해 첫 스탬프를 획득하세요.", done: STATE.stamps.anchor && STATE.stamps.lighthouse },
-    { act: "ACT 2", name: "들락날락 지혜의 숲", desc: "1층 로비의 들락날락에 방문하고 AI 다온에게 첫 행정 질문을 남겨보세요.", done: STATE.stamps.lobby },
-    { act: "ACT 3", name: "행복민원실의 온기", desc: "2층 행복민원실에 올라가 여권창구와 120콜센터 부스를 둘러보세요.", done: STATE.stamps.civil },
-    { act: "ACT 4", name: "시민의 목소리", desc: "시민 자유담벼락에 첫 글을 작성하거나 발언대에서 힘차게 의견을 외쳐보세요.", done: STATE.playerExp >= 200 },
-    { act: "ACT 5", name: "16개 구·군으로 펼쳐지는 부산", desc: "부산미래도시관에서 16개 구·군 지도를 확인하고 다른 구청 월드로 여행해 보세요.", done: STATE.playerLevel >= 3 }
+    {
+      act: "ACT 1",
+      name: "해양수도 부산의 닻 & 소통 온도 높이기",
+      desc: "부산시청 중앙시민광장의 상징 '부산의 닻' 조형물과 음악 분수대를 탐방하고 시민 소통 온도를 높여보세요.",
+      reward: 50,
+      done: STATE.stamps.anchor && STATE.stamps.lighthouse
+    },
+    {
+      act: "ACT 2",
+      name: "15분 도시와 들락날락 & 열린 정보공개방",
+      desc: "시청 1층 들락날락 어린이 복합문화공간을 둘러보고, 열린 정보공개관에서 2026 연도별 부산시 본예산서를 열람하세요.",
+      reward: 80,
+      done: STATE.stamps.lobby
+    },
+    {
+      act: "ACT 3",
+      name: "시민의 온기와 행복민원실",
+      desc: "2층 행복민원실에 올라가 여권창구, 120콜센터 부스, 아주라 쉼터를 둘러보고 AI 다온에게 가벼운 상담을 받아보세요.",
+      reward: 100,
+      done: STATE.stamps.civil
+    },
+    {
+      act: "ACT 4",
+      name: "당당한 시민의 목소리 & 자유 담벼락",
+      desc: "시민광장 야외 발언대 단상에 올라 부산 발전을 위한 응원 한마디를 외치고, 시민 자유 담벼락에 건의글을 남기세요.",
+      reward: 150,
+      done: STATE.playerExp >= 200
+    },
+    {
+      act: "ACT 5",
+      name: "16개 자치구·군 대모험과 2030 미래비전",
+      desc: "16개 구·군 포털 게이트를 타고 해운대, 동래, 연제 등 자치 구청을 방문하여 가상 청사 홍보관을 탐방하고 '명예 부산 시민' 칭호를 획득하세요.",
+      reward: 300,
+      done: STATE.playerLevel >= 3
+    }
   ];
 
   const list = document.getElementById('story-acts-list');
@@ -4845,10 +5267,13 @@ function loadStoryActs() {
     card.className = 'division-card';
     card.innerHTML = `
       <div class="division-card-header">
-        <span class="division-task-name">${a.act}. ${a.name}</span>
-        <span class="division-authority-badge ${a.done ? 'city' : 'district'}">${a.done ? '완료 ✓' : '진행 중'}</span>
+        <div>
+          <span style="font-weight:900; color:#0284c7; margin-right:6px;">${a.act}</span>
+          <span class="division-task-name">${a.name}</span>
+        </div>
+        <span class="division-authority-badge ${a.done ? 'city' : 'district'}">${a.done ? '완료 ✓ (+ ' + a.reward + ' XP)' : '보상: ' + a.reward + ' XP'}</span>
       </div>
-      <div class="division-row">${a.desc}</div>
+      <div class="division-row" style="line-height:1.6; color:#475569;">${a.desc}</div>
     `;
     list.appendChild(card);
   });
@@ -5020,6 +5445,133 @@ function setupResizeHandler() {
 // ========================================================
 // 18. 16개 자치구·군 독립 청사 3D 모델링 및 인터랙션 엔진 (v2.0)
 // ========================================================
+// ========================================================
+// 18-B. 구정 홍보 & 비전 대형 3D 미디어 월 및 가상 청사 포털
+// ========================================================
+function buildDistrictPrMediaWall(realmCode, dist, group) {
+  const wallGroup = new THREE.Group();
+  wallGroup.position.set(-18, 0, 8);
+
+  // 미디어 월 지지대 프레임
+  const frameGeo = new THREE.BoxGeometry(10, 6.2, 0.6);
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 });
+  const frame = new THREE.Mesh(frameGeo, frameMat);
+  frame.position.set(0, 4.2, 0);
+  wallGroup.add(frame);
+
+  // 디스플레이 스크린 (발광 텍스처)
+  const screenGeo = new THREE.PlaneGeometry(9.4, 5.6);
+  const screenMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
+  const screen = new THREE.Mesh(screenGeo, screenMat);
+  screen.position.set(0, 4.2, 0.32);
+  wallGroup.add(screen);
+
+  // 상단 LED 네온 타이틀 바
+  const titleBarGeo = new THREE.BoxGeometry(9.6, 0.6, 0.7);
+  const titleBarMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 0.3 });
+  const titleBar = new THREE.Mesh(titleBarGeo, titleBarMat);
+  titleBar.position.set(0, 7.3, 0);
+  wallGroup.add(titleBar);
+
+  group.add(wallGroup);
+
+  // 상호작용 등록
+  registerDistrictInteractive({
+    pos: { x: -18, z: 8 },
+    radius: 6.0,
+    prompt: `E키: [${dist.name}] 구정 홍보관 & 공식 비전 전광판 보기`,
+    action: () => {
+      openDistrictPrModal(realmCode);
+    }
+  });
+}
+
+function openDistrictPrModal(realmCode) {
+  const dist = (typeof BUSAN_DISTRICT_DETAILS !== 'undefined' && BUSAN_DISTRICT_DETAILS[realmCode]) 
+    ? BUSAN_DISTRICT_DETAILS[realmCode] 
+    : (BUSAN_DISTRICT_DETAILS ? BUSAN_DISTRICT_DETAILS['DIST-DONGNAE'] : null);
+  if (!dist) return;
+
+  const titleEl = document.getElementById('distPrModalTitle');
+  const subEl = document.getElementById('distPrModalSub');
+  const bodyEl = document.getElementById('distPrModalBody');
+
+  if (titleEl) titleEl.innerText = `${dist.name} 공식 홍보관 & 비전`;
+  if (subEl) subEl.innerText = `${dist.tagline} | ${dist.address} (전화: ${dist.tel})`;
+
+  const civilCounters = (dist.civil_service && dist.civil_service.counters) ? dist.civil_service.counters : [];
+  const landmarks = dist.landmarks || [];
+  const restList = (dist.gourmet && dist.gourmet.restaurants) ? dist.gourmet.restaurants : [];
+  const cafeList = (dist.gourmet && dist.gourmet.cafes) ? dist.gourmet.cafes : [];
+
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color:#fff; border-radius:14px; padding:18px; margin-bottom:16px;">
+        <div style="font-size:12px; opacity:0.9;">${escapeHtml(dist.eng)}</div>
+        <div style="font-size:22px; font-weight:900; margin:4px 0;">${escapeHtml(dist.name)}</div>
+        <div style="font-size:14px; opacity:0.95;">"${escapeHtml(dist.tagline)}"</div>
+        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+          <a href="${dist.official_url}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; background:#ffffff; color:#0369a1; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:800; text-decoration:none;">
+            🏛️ ${escapeHtml(dist.name)} 공식 홈페이지 방문
+          </a>
+          <a href="${dist.online_civil_url}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; background:#f59e0b; color:#ffffff; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:800; text-decoration:none;">
+            📋 온라인 민원신청 바로가기
+          </a>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:800; color:#0369a1; font-size:15px; margin-bottom:8px;">🏙️ 지역 명품 랜드마크 & 힐링 관광지</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
+          ${landmarks.map(lm => `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px;">
+              <div style="font-weight:800; color:#1e293b; font-size:13px;">📍 ${escapeHtml(lm.name)}</div>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">${escapeHtml(lm.desc)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:800; color:#0369a1; font-size:15px; margin-bottom:8px;">📋 종합민원실 주요 창구 & 직통 전화</div>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+          ${civilCounters.map(c => `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; border-bottom:1px dashed #dcfce7; padding-bottom:6px;">
+              <div>
+                <b style="color:#166534;">${escapeHtml(c.name)}</b>
+                <span style="color:#475569; margin-left:6px;">${escapeHtml(c.desc)}</span>
+              </div>
+              <a href="tel:${c.tel}" style="color:#0284c7; font-weight:700; text-decoration:none; white-space:nowrap;">📞 ${escapeHtml(c.tel)}</a>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:800; color:#0369a1; font-size:15px; margin-bottom:8px;">🍽️ ${escapeHtml(dist.name)} 대표 맛집 & 핫플 카페</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
+          ${restList.map(r => `
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:10px; padding:12px;">
+              <div style="font-weight:800; color:#b45309; font-size:13px;">🍲 ${escapeHtml(r.name)} <span style="font-size:11px; font-weight:normal; color:#92400e;">(${escapeHtml(r.dish)})</span></div>
+              <div style="font-size:11px; color:#78350f; margin-top:3px;">${escapeHtml(r.desc)}</div>
+              <div style="font-size:10px; color:#a16207; margin-top:4px;">📍 ${escapeHtml(r.addr)} (📞 ${escapeHtml(r.tel)})</div>
+            </div>
+          `).join('')}
+          ${cafeList.map(c => `
+            <div style="background:#fdf4ff; border:1px solid #fae8ff; border-radius:10px; padding:12px;">
+              <div style="font-weight:800; color:#86198f; font-size:13px;">☕ ${escapeHtml(c.name)}</div>
+              <div style="font-size:11px; color:#701a75; margin-top:3px;">대표메뉴: ${escapeHtml(c.signature)}</div>
+              <div style="font-size:10px; color:#a21caf; margin-top:4px;">📍 ${escapeHtml(c.addr)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  openModal('modal-district-pr');
+}
+
 function buildDistrictOfficeWorld(realmCode) {
   while (districtWorldGroup.children.length > 0) {
     districtWorldGroup.remove(districtWorldGroup.children[0]);
@@ -5070,6 +5622,9 @@ function buildDistrictOfficeWorld(realmCode) {
 
   // (6) 지역 랜드마크 조경 및 수목
   buildDistrictLandmarkLandscape(realmCode, dist, districtWorldGroup);
+
+  // (6-B) 구정 공식 홍보관 & 비전 대형 전광판
+  buildDistrictPrMediaWall(realmCode, dist, districtWorldGroup);
 
   // (7) 부산시청 본관 복귀 텔레포트 게이트
   buildReturnToCityHallPortal(districtWorldGroup);
