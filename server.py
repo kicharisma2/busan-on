@@ -593,6 +593,18 @@ class BusanCivicHTTPHandler(SimpleHTTPRequestHandler):
 
         qs = urllib.parse.parse_qs(parsed.query)
 
+        # 0. 부산시 & 16개 구·군 공식 홈페이지 인기메뉴 API
+        if path == '/api/popular-menus':
+            cat = qs.get('cat', ['all'])[0]
+            q = qs.get('q', [''])[0].strip().lower()
+            items = getattr(busan_data, 'BUSAN_POPULAR_HOMEPAGE_SERVICES', [])
+            if cat and cat != 'all':
+                items = [it for it in items if it.get('category') == cat]
+            if q:
+                items = [it for it in items if q in it.get('title', '').lower() or q in it.get('summary', '').lower() or q in it.get('agency', '').lower()]
+            self.send_json_response(items)
+            return
+
         # 1. 16개 구·군청 메타데이터
         if path == '/api/districts':
             self.send_json_response(busan_data.BUSAN_DISTRICTS)

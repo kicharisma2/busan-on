@@ -3957,7 +3957,20 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
 // ========================================================
 function setupMovementControls() {
   window.addEventListener('keydown', (e) => {
-    if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    const act = document.activeElement;
+    if (act) {
+      const tag = act.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (tag === 'SELECT') {
+        const k = e.key.toLowerCase();
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'e', '1', '2', '3', '4', '5', '6'].includes(k) || e.code === 'Space') {
+          act.blur();
+          window.focus();
+        } else {
+          return;
+        }
+      }
+    }
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'arrowup') STATE.keys.w = true;
     if (k === 's' || k === 'arrowdown') STATE.keys.s = true;
@@ -3992,6 +4005,10 @@ function setupMovementControls() {
   const mouse = new THREE.Vector2();
 
   window.addEventListener('pointerdown', (e) => {
+    if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+      document.activeElement.blur();
+      window.focus();
+    }
     if (e.target.closest('.top-nav, .event-sidebar, .middle-area, .toolbar-container, .modal-overlay, .virtual-joystick')) {
       return;
     }
@@ -4249,8 +4266,115 @@ function updateCuteCitizenAnimation(c, dt, t) {
     }
   }
 
+
+  // 1.5. 3D 시민 감정표현 제스처 실시간 관절 모션 물리 (박수, 인사, 환호, 댄스, 기도, 경례)
+  if (ud.gestureTimer > 0) {
+    ud.gestureTimer -= dt;
+    const g = ud.currentGesture;
+
+    if (g === 'clap') {
+      // 👏 박수: 가슴 앞으로 두 팔을 모아 신나게 짝짝짝
+      const clapFreq = Math.sin(t * 22);
+      if (ud.armL) {
+        ud.armL.rotation.x = -1.15;
+        ud.armL.rotation.y = 0.55 + clapFreq * 0.22;
+        ud.armL.rotation.z = -0.25;
+      }
+      if (ud.armR) {
+        ud.armR.rotation.x = -1.15;
+        ud.armR.rotation.y = -0.55 - clapFreq * 0.22;
+        ud.armR.rotation.z = 0.25;
+      }
+      if (ud.headGroup) {
+        ud.headGroup.position.y = 1.22 + Math.abs(clapFreq) * 0.03;
+        ud.headGroup.rotation.x = 0.08 * Math.sin(t * 11);
+      }
+    } else if (g === 'wave') {
+      // 👋 인사: 오른손을 번쩍 들어 좌우로 다정하게 손흔들기
+      if (ud.armR) {
+        ud.armR.rotation.x = -0.3;
+        ud.armR.rotation.y = 0.2;
+        ud.armR.rotation.z = 2.3 + Math.sin(t * 14) * 0.38;
+      }
+      if (ud.armL) {
+        ud.armL.rotation.x = 0;
+        ud.armL.rotation.z = -0.15;
+      }
+      if (ud.headGroup) {
+        ud.headGroup.rotation.z = -0.12 + Math.sin(t * 7) * 0.06;
+      }
+    } else if (g === 'cheer') {
+      // 🙌 환호: 두 손을 하늘 높이 번쩍 들고 방방 뛰기
+      const cheerBounce = Math.abs(Math.sin(t * 12));
+      if (ud.armL) {
+        ud.armL.rotation.x = -0.3;
+        ud.armL.rotation.z = 2.6 + Math.sin(t * 12) * 0.25;
+      }
+      if (ud.armR) {
+        ud.armR.rotation.x = -0.3;
+        ud.armR.rotation.z = -2.6 - Math.sin(t * 12) * 0.25;
+      }
+      if (ud.headGroup) {
+        ud.headGroup.position.y = 1.22 + cheerBounce * 0.08;
+      }
+    } else if (g === 'dance') {
+      // 💃 댄스: 신나는 좌우 리듬 스텝 & 팔 스윙
+      const dBeat = Math.sin(t * 9);
+      if (ud.armL) {
+        ud.armL.rotation.x = dBeat * 0.8;
+        ud.armL.rotation.z = Math.cos(t * 9) * 0.5;
+      }
+      if (ud.armR) {
+        ud.armR.rotation.x = -dBeat * 0.8;
+        ud.armR.rotation.z = -Math.cos(t * 9) * 0.5;
+      }
+      if (ud.legGroupL) ud.legGroupL.rotation.z = dBeat * 0.12;
+      if (ud.legGroupR) ud.legGroupR.rotation.z = -dBeat * 0.12;
+      if (ud.headGroup) {
+        ud.headGroup.rotation.y = dBeat * 0.35;
+        ud.headGroup.position.y = 1.22 + Math.abs(dBeat) * 0.06;
+      }
+    } else if (g === 'pray') {
+      // 🌺 기도: 두 손을 가지런히 모으고 고개를 숙임
+      if (ud.armL) {
+        ud.armL.rotation.x = -1.25;
+        ud.armL.rotation.y = 0.65;
+        ud.armL.rotation.z = -0.15;
+      }
+      if (ud.armR) {
+        ud.armR.rotation.x = -1.25;
+        ud.armR.rotation.y = -0.65;
+        ud.armR.rotation.z = 0.15;
+      }
+      if (ud.headGroup) {
+        ud.headGroup.rotation.x = 0.22;
+      }
+    } else if (g === 'salute') {
+      // 🫡 경례: 오른손을 이마에 대는 당당한 경례
+      if (ud.armR) {
+        ud.armR.rotation.x = -1.55;
+        ud.armR.rotation.y = -0.55;
+        ud.armR.rotation.z = 1.05;
+      }
+      if (ud.armL) {
+        ud.armL.rotation.x = 0;
+        ud.armL.rotation.z = -0.15;
+      }
+      if (ud.headGroup) {
+        ud.headGroup.rotation.x = -0.06;
+      }
+    }
+  } else {
+    if (ud.currentGesture) {
+      ud.currentGesture = null;
+      if (ud.headGroup) ud.headGroup.rotation.set(0, 0, 0);
+    }
+  }
+
   // 2. 걷기 시 팔다리 스윙 및 통통 바운스
   if (ud.isWalking) {
+    ud.gestureTimer = 0;
+    ud.currentGesture = null;
     const swing = Math.sin(t * 11) * 0.55;
     if (ud.armL) ud.armL.rotation.x = swing;
     if (ud.armR) ud.armR.rotation.x = -swing;
@@ -4594,6 +4718,11 @@ function updateOnlineCount(count) {
 // ========================================================
 function performGesture(type) {
   if (!localPlayer) return;
+  const ud = localPlayer.userData;
+  if (ud) {
+    ud.currentGesture = type;
+    ud.gestureTimer = 3.5;
+  }
   if (type === 'wave') {
     showSpeechBubble(localPlayer, "👋 부산시민 여러분, 반갑습니다!");
     if (window.busanAudio) window.busanAudio.playClick();
@@ -5371,6 +5500,11 @@ function saveCustomization() {
 }
 
 function switchRealm(realmCode) {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  window.focus();
+
   STATE.currentRoom = realmCode;
   const sel = document.getElementById('realm-select');
   if (sel) sel.value = realmCode;
@@ -5381,7 +5515,12 @@ function switchRealm(realmCode) {
     interactiveObjects = [...cityHallInteractablesBackup];
     if (localPlayer) {
       localPlayer.position.set(0, 0, 38);
-      if (controls) controls.target.set(0, 1.4, 28);
+      localPlayer.rotation.y = 0;
+      if (controls && camera) {
+        controls.target.set(0, 1.4, 38);
+        camera.position.set(0, 6.5, 48.5);
+        controls.update();
+      }
     }
     showSpeechBubble(localPlayer, "🌊 [부산광역시청 본관] 중앙 시민광장에 도착했습니다!");
   } else {
@@ -5393,7 +5532,12 @@ function switchRealm(realmCode) {
     interactiveObjects = [...districtInteractables];
     if (localPlayer) {
       localPlayer.position.set(0, 0, 24);
-      if (controls) controls.target.set(0, 1.4, 12);
+      localPlayer.rotation.y = 0;
+      if (controls && camera) {
+        controls.target.set(0, 1.4, 24);
+        camera.position.set(0, 6.5, 34.5);
+        controls.update();
+      }
     }
     const dist = (typeof BUSAN_DISTRICT_DETAILS !== 'undefined') ? BUSAN_DISTRICT_DETAILS[realmCode] : null;
     const distName = dist ? dist.name : realmCode;
@@ -5627,6 +5771,15 @@ function buildDistrictOfficeWorld(realmCode) {
   buildDistrictPrMediaWall(realmCode, dist, districtWorldGroup);
 
   // (7) 부산시청 본관 복귀 텔레포트 게이트
+
+  // 구청 공식 홈페이지 인기메뉴 키오스크 등록
+  registerDistrictInteractive({
+    pos: { x: 0, z: 12 },
+    radius: 4.5,
+    prompt: `E키: [${distName}] 대표 e-민원 & 관광안내 열기`,
+    action: () => openPopularMenusModal('district_civil')
+  });
+
   buildReturnToCityHallPortal(districtWorldGroup);
 }
 
@@ -7229,4 +7382,421 @@ function triggerHopeBalloonFestival() {
       text: "🎈 희망 풍선 축제가 시작되었습니다! 함께 미래를 열어갑시다!"
     }));
   }
+}
+
+
+// ========================================================
+// 20. 부산광역시 및 16개 구·군 공식 홈페이지 인기메뉴 & e-행정 포털 엔진 (v2.3)
+// ========================================================
+const POPULAR_HOMEPAGE_SERVICES = [
+  {
+    id: "pop-passport",
+    category: "city_top10",
+    district: "BUSAN-HQ",
+    title: "여권 신청 및 야간 여권민원 사전예약",
+    agency: "부산시청 2층 행복민원실",
+    icon: "🛂",
+    summary: "대한민국 전자여권 신규발급 및 갱신, 직장인을 위한 매주 목요일 야간(18:00~20:00) 발급 사전예약제 운영.",
+    details: "준비물: 신분증, 6개월 이내 여권용 사진 1매, 수수료. 온라인 정부24 재발급 신청 시 방문 수령 1회로 단축 가능.",
+    url: "https://www.busan.go.kr/minwon0202",
+    hot: true
+  },
+  {
+    id: "pop-minwon120",
+    category: "city_top10",
+    district: "BUSAN-HQ",
+    title: "부산민원 120 바로콜센터 & 온라인 민원신청",
+    agency: "부산광역시 통합민원과",
+    icon: "📞",
+    summary: "국번 없이 120 전화 한 통으로 부산시정, 구·군정, 교통, 세무, 상수도 모든 궁금증을 실시간 원스톱 상담 및 부서 연결.",
+    details: "평일 08:30~18:30 전문상담원 운영, 야간 및 공휴일 당직실 긴급 연계. 온라인 부산민원120 포털 24시간 접수.",
+    url: "https://www.busan.go.kr/minwon120",
+    hot: true
+  },
+  {
+    id: "pop-safety",
+    category: "traffic_safety",
+    district: "BUSAN-HQ",
+    title: "안전신문고 (도로파손, 포트홀, 불법주정차 간편신고)",
+    agency: "행정안전부 & 부산시 안전신문고",
+    icon: "🚨",
+    summary: "도로 포트홀, 불법주정차, 보도블록 파손, 신호등 고장 등 생활 속 위험 요소를 스마트폰 사진 2장으로 즉시 신고.",
+    details: "신고 접수 즉시 관할 시·구청 담당 부서로 자동 이첩되어 처리 진행 상황 및 현장 정비 사진이 문자로 안내됩니다.",
+    url: "https://www.safetyreport.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dongbaek",
+    category: "welfare_youth",
+    district: "BUSAN-HQ",
+    title: "동백전 7% 캐시백 & 동백패스 4.5만원 대중교통 환급",
+    agency: "부산시 소상공인지원과 / 교통정책과",
+    icon: "💳",
+    summary: "부산 지역화폐 동백전 월 충전금 결제 시 7% 즉시 캐시백, 대중교통 월 4만 5천원 초과금 최대 4만 5천원 환급(동백패스).",
+    details: "하나/농협/부산은행 동백전 체크카드 및 앱 간편 발급. K-패스와 연계되어 전국 최고 수준의 교통비 절감 혜택 제공.",
+    url: "https://dongbaekjeon.busan.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-wetax",
+    category: "city_top10",
+    district: "BUSAN-HQ",
+    title: "위택스 (지방세·자동차세·재산세 조회 및 납부)",
+    agency: "부산광역시 세정과 / 위택스",
+    icon: "💰",
+    summary: "자동차세, 주민세, 재산세, 취득세 등 부산시 모든 지방세와 상하수도 요금을 간편인증으로 즉시 조회하고 전자 납부.",
+    details: "1월 자동차세 연납 시 최대 5% 공제 혜택. 카드 포인트 납부 및 모바일 전자송달 신청 시 세액 공제 추가 적용.",
+    url: "https://www.wetax.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-young",
+    category: "welfare_youth",
+    district: "BUSAN-HQ",
+    title: "부산청년플랫폼 (월세 20만원 지원 & 희망적금)",
+    agency: "부산광역시 청년정책담당관",
+    icon: "🏠",
+    summary: "부산 거주 무주택 청년 월 최대 20만 원 월세 지원, 청년희망날개통장(매칭지원금), 청년 자격증 응시료 지원.",
+    details: "만 19~39세 부산 거주 청년 대상, 소득 및 거주 기준 충족 시 온라인 간편 신청 및 바우처 즉시 지급.",
+    url: "https://young.busan.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-job",
+    category: "welfare_youth",
+    district: "BUSAN-HQ",
+    title: "부산일자리정보망 (청년·중장년·시니어 취업매칭)",
+    agency: "부산경제진흥원 / 일자리종합센터",
+    icon: "💼",
+    summary: "부산 지역 우수 중소·중견기업 구인정보, 공공기관 채용공고, 청년 맞춤형 AI 모의면접 및 취업 컨설팅 전액 무료.",
+    details: "시청 1층 일자리종합센터 방문 시 1:1 전담 직업상담사 배정 및 이력서 클리닉, 취업장려금 연계 지원.",
+    url: "https://www.busanjob.net",
+    hot: true
+  },
+  {
+    id: "pop-tour",
+    category: "culture_tour",
+    district: "BUSAN-HQ",
+    title: "부산 문화관광 & 4대 메가 축제 일정 안내",
+    agency: "부산광역시 관광마이스산업과",
+    icon: "🌊",
+    summary: "광안리 부산불꽃축제, 부산바다축제, 자갈치축제, 원아시아페스티벌(BOF) 등 사계절 글로벌 축제 일정 및 명소 안내.",
+    details: "부산 시티투어버스 노선도, 태종대·해운대·기장 오션뷰 핫플레이스 및 맛집 코스 공식 가이드북 다운로드 제공.",
+    url: "https://www.busan.go.kr/tour",
+    hot: true
+  },
+  {
+    id: "pop-bis",
+    category: "traffic_safety",
+    district: "BUSAN-HQ",
+    title: "부산 실시간 버스도착정보 (BIS) & 도시철도 노선",
+    agency: "부산광역시 버스운영과 / 교통정보센터",
+    icon: "🚍",
+    summary: "부산 시내버스, 마을버스, 광역환승 실시간 도착 예정 시간과 저상버스 운행 여부, 도시철도 1~4호선 환승 정보.",
+    details: "초정밀 버스 실시간 GPS 위치 추적, 첫차·막차 시간표 및 정류소별 노선 검색 지원.",
+    url: "https://bus.busan.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-moonlight",
+    category: "traffic_safety",
+    district: "BUSAN-HQ",
+    title: "달빛어린이병원 & 야간휴일 공공심야약국 안내",
+    agency: "부산광역시 건강정책과",
+    icon: "🏥",
+    summary: "소아 경증 환자가 야간 및 공휴일에도 응급실 대신 신속하게 외래 진료를 받을 수 있는 부산 전역 달빛어린이병원 안내.",
+    details: "연제구, 사하구, 기장군, 해운대구 등 권역별 야간 23시까지 운영 소아과 및 인근 처방조제 공공심야약국 목록.",
+    url: "https://www.busan.go.kr/depart/hlthhospital",
+    hot: true
+  },
+  {
+    id: "pop-dist-haeundae",
+    category: "district_civil",
+    district: "DIST-HAEUNDAE",
+    title: "해운대구: 해수욕장 스마트 비치 & 문화복합센터",
+    agency: "해운대구청 관광문화과",
+    icon: "🏖️",
+    summary: "해운대 해수욕장 파라솔·물품 온라인 스마트 예약, 해운대 문화복합센터 대관, 블루라인파크 해변열차 관광 연계.",
+    details: "해운대 구민 할인 혜택, 구포나루·동백섬 산책로 코스 및 센텀시티 영화의전당 행사 정보 제공.",
+    url: "https://www.haeundae.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-busanjin",
+    category: "district_civil",
+    district: "DIST-BUSANJIN",
+    title: "부산진구: 서면 젊음의거리 페스티벌 & 시민공원 예약",
+    agency: "부산진구청 일자리경제과",
+    icon: "🛍️",
+    summary: "부산의 심장 서면 메디컬스트리트, 전포카페거리 축제, 부산시민공원 잔디광장 및 뽀로로 도서관 시설 예약.",
+    details: "소상공인 골목상권 활성화 지원, 당감동 외식거리 및 부전마켓타운 전통시장 온누리상품권 사용처 안내.",
+    url: "https://www.busanjin.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-suyeong",
+    category: "culture_tour",
+    district: "DIST-SUYEONG",
+    title: "수영구: 광안리 M 드론라이트쇼 상설공연 관람안내",
+    agency: "수영구청 스마트도시과",
+    icon: "🌉",
+    summary: "매주 토요일 밤 광안리 해변에서 펼쳐지는 2,000대 규모 세계 최고 수준의 M 드론라이트쇼 회차별 테마 및 명당 안내.",
+    details: "광안리 해변 맨발 걷기 '슈퍼어싱' 힐링존, 민락수변공원 청정 힐링 문화광장 및 민락더마켓 복합문화공간 연계.",
+    url: "https://www.suyeong.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-namgu",
+    category: "culture_tour",
+    district: "DIST-NAMGU",
+    title: "남구: 세계 유일 UN평화문화특구 & 오륙도 스카이워크",
+    agency: "남구청 문화관광체육과",
+    icon: "🕊️",
+    summary: "세계 유일의 UN기념공원 평화투어, 국립일제강제동원역사관, 동해와 남해가 만나는 오륙도 스카이워크 물때·개방시간.",
+    details: "이기대 해안절벽 갈맷길 트레킹 코스, 대연동 원조 돼지국밥 골목 및 평화공원 국화축제 안내.",
+    url: "https://www.bsnamgu.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-geumjeong",
+    category: "culture_tour",
+    district: "DIST-GEUMJEONG",
+    title: "금정구: 천년고찰 범어사 문화탐방 & 금정산성 먹거리촌",
+    agency: "금정구청 문화관광과",
+    icon: "⛰️",
+    summary: "금정산 국립공원 등산로 코스, 범어사 템플스테이 예약, 대한민국 1호 민속주 금정산성 막걸리 및 염소불고기 명소.",
+    details: "온천천 물놀이장 구민 무료 이용, 금정문화회관 기획 공연 예매 및 부산대 젊음의 거리 버스킹 스케줄.",
+    url: "https://www.geumjeong.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-saha",
+    category: "culture_tour",
+    district: "DIST-SAHA",
+    title: "사하구: 다대포 꿈의 낙조분수 공연 & 감천문화마을",
+    agency: "사하구청 문화예술과",
+    icon: "🌅",
+    summary: "세계 최대 바닥음악분수 다대포 꿈의 낙조분수 음악공연 시간표, 한국의 마추픽추 감천문화마을 골목투어 지도.",
+    details: "장림포구 '부네치아' 포토존, 을숙도 국립청소년생태체험관 및 다대포 해변 일몰 서핑 강습 연계.",
+    url: "https://www.saha.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-bukgu",
+    category: "district_civil",
+    district: "DIST-BUKGU",
+    title: "북구: 낙동강 구포나루 축제 & 화명생태공원 튤립단지",
+    agency: "북구청 문화관광과",
+    icon: "🚂",
+    summary: "영남 3대 장터 구포국수 체험관, 낙동강 구포나루 축제, 화명생태공원 야외수영장 및 연꽃·튤립 대단지 축제.",
+    details: "구포시장 장날(3일·8일) 먹거리 안내, 북구 평생학습관 무료 강좌 신청 및 화명기차역 야외 쉼터 연계.",
+    url: "https://www.bsbukgu.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-yeongdo",
+    category: "culture_tour",
+    district: "DIST-YEONGDO",
+    title: "영도구: 흰여울문화마을 해안산책로 & 태종대 다누비",
+    agency: "영도구청 문화관광과",
+    icon: "🏝️",
+    summary: "바다 절벽 위 영화 변호인 촬영지 흰여울문화마을, 태종대 순환 다누비열차 예매, 대형 복합문화공간 피아크(P.ARK).",
+    details: "깡깡이예술마을 유람선 체험, 국립해양박물관 4D 영상관 무료 관람 및 영도 봉래산 조내기고구마 역사관.",
+    url: "https://www.yeongdo.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-dongnae",
+    category: "district_civil",
+    district: "DIST-DONGNAE",
+    title: "동래구: 동래온천 스파 & 동래읍성 역사축제",
+    agency: "동래구청 문화관광과",
+    icon: "🌸",
+    summary: "삼국시대부터 이어진 대한민국 대표 동래온천 노천 족욕체험장 무료 개방, 동래읍성 역사축제 줄다리기 재현.",
+    details: "동래파전 명가 전통거리 지도, 온천천 카페거리 및 복천동 고분군 야외 박물관 해설 예약.",
+    url: "https://www.dongnae.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-sasang",
+    category: "district_civil",
+    district: "DIST-SASANG",
+    title: "사상구: 삼락생태공원 벚꽃축제 & 사상인디스페이스",
+    agency: "사상구청 문화체육과",
+    icon: "🌾",
+    summary: "전국 최장 벚꽃터널 삼락생태공원 오토캠핑장 예약, 부산 삼락 락페스티벌, 사상인디스페이스 청년 예술 공연.",
+    details: "괘법동 르네시떼 패션타운, 부산서부시외버스터미널 환승 및 사상스마트시티 재생사업 홍보관 안내.",
+    url: "https://www.sasang.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-gangseo",
+    category: "district_civil",
+    district: "DIST-GANGSEO",
+    title: "강서구: 가덕신공항 배후도시 & 대저생태공원 유채꽃",
+    agency: "강서구청 미래전략과",
+    icon: "✈️",
+    summary: "가덕도신공항 건설 현황, 명지국제신도시 및 에코델타시티 스마트빌리지 분양, 대저생태공원 전국 최대 유채꽃 축제.",
+    details: "낙동강 하구 을숙도 에코센터 철새도래지 탐조 프로그램, 둔치도 청년 농업 스마트팜 체험 안내.",
+    url: "https://www.bsgangseo.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-gijang",
+    category: "culture_tour",
+    district: "DIST-GIJANG",
+    title: "기장군: 오시리아 롯데월드 & 기장 미역·멸치 축제",
+    agency: "기장군청 문화관광과",
+    icon: "🌊",
+    summary: "오시리아 관광단지 롯데월드 부산·스카이라인 루지·이케아, 해동용궁사 바다법당, 기장 대변항 멸치축제.",
+    details: "칠암 아나고(붕장어) 구이거리, 웨이브온 등 기장 해안가 명품 오션뷰 카페거리 공식 투어맵.",
+    url: "https://www.gijang.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-junggu",
+    category: "culture_tour",
+    district: "DIST-JUNGGU",
+    title: "중구: 자갈치시장 활어 수산물 & 남포동 BIFF광장",
+    agency: "중구청 경제진흥과",
+    icon: "🐟",
+    summary: "'오이소! 보이소! 사이소!' 자갈치시장 라이브, 남포동 BIFF광장 씨앗호떡, 용두산공원 부산타워 전망대 할인.",
+    details: "보수동 책방골목 북살롱 투어, 국제시장 609청년몰, 40계단 문화관광특구 역사기행 프로그램.",
+    url: "https://www.bsjunggu.go.kr",
+    hot: true
+  },
+  {
+    id: "pop-dist-seogu",
+    category: "culture_tour",
+    district: "DIST-SEOGU",
+    title: "서구: 송도해수욕장 해상케이블카 & 용궁구름다리",
+    agency: "서구청 문화관광과",
+    icon: "🚠",
+    summary: "대한민국 1호 공설해수욕장 송도해상케이블카 에어크루즈 온라인 예매, 바다 위를 걷는 송도 용궁구름다리.",
+    details: "암남공원 해안 볼레길 트레킹, 송도 스카이워크 포토존 및 부산공동어시장 고등어 축제 안내.",
+    url: "https://www.bsseogu.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-donggu",
+    category: "district_civil",
+    district: "DIST-DONGGU",
+    title: "동구: 초량 차이나타운특구 & 168계단 모노레일",
+    agency: "동구청 일자리경제과",
+    icon: "🏮",
+    summary: "부산역 맞은편 초량 차이나타운 축제 만두거리, 산복도로 명물 168계단 친환경 모노레일 무료 탑승.",
+    details: "초량 불백(불고기백반) 테마거리, 명란로드 이바구공작소, 북항 친환경 수변공원 연결 보행교 개통 안내.",
+    url: "https://www.bsdonggu.go.kr",
+    hot: false
+  },
+  {
+    id: "pop-dist-yeonje",
+    category: "district_civil",
+    district: "DIST-YEONJE",
+    title: "연제구: 부산시청 행정타운 & 온천천 시민공원",
+    agency: "연제구청 총무과 / 문화체육과",
+    icon: "🏛️",
+    summary: "부산광역시청, 시의회, 경찰청, 법원·검찰청 행정타운 원스톱 안내, 사계절 꽃이 피는 온천천 시민공원 벚꽃길.",
+    details: "연산동 고분군 가야역사 탐방로, 거제리 전통시장 온누리상품권 장보기 및 구민 무료 자전거 대여소 운영.",
+    url: "https://www.yeonje.go.kr",
+    hot: true
+  }
+];
+
+let currentPopularFilter = 'all';
+let currentPopularKeyword = '';
+
+function openPopularMenusModal(category = 'all') {
+  currentPopularFilter = category;
+  currentPopularKeyword = '';
+  const searchInput = document.getElementById('popular-search-input');
+  if (searchInput) searchInput.value = '';
+
+  // 탭 활성화 상태 동기화
+  const pills = document.querySelectorAll('.popular-pill-btn');
+  pills.forEach(p => {
+    p.classList.remove('active');
+    if (category === 'all' && p.textContent.includes('전체')) p.classList.add('active');
+    else if (category === 'city_top10' && p.textContent.includes('부산시')) p.classList.add('active');
+    else if (category === 'district_civil' && p.textContent.includes('16개')) p.classList.add('active');
+    else if (category === 'culture_tour' && p.textContent.includes('문화')) p.classList.add('active');
+    else if (category === 'welfare_youth' && p.textContent.includes('복지')) p.classList.add('active');
+    else if (category === 'traffic_safety' && p.textContent.includes('교통')) p.classList.add('active');
+  });
+
+  renderPopularMenus();
+  openModal('modal-popular-menus');
+}
+
+function filterPopularMenus(category, btnEl) {
+  currentPopularFilter = category;
+  if (btnEl) {
+    document.querySelectorAll('.popular-pill-btn').forEach(b => b.classList.remove('active'));
+    btnEl.classList.add('active');
+  }
+  renderPopularMenus();
+}
+
+function searchPopularMenus(keyword) {
+  currentPopularKeyword = (keyword || '').trim().toLowerCase();
+  renderPopularMenus();
+}
+
+function renderPopularMenus() {
+  const grid = document.getElementById('popular-menus-grid');
+  if (!grid) return;
+
+  let filtered = POPULAR_HOMEPAGE_SERVICES.filter(item => {
+    // 1. 카테고리 필터
+    if (currentPopularFilter !== 'all' && item.category !== currentPopularFilter) {
+      return false;
+    }
+    // 2. 검색어 필터
+    if (currentPopularKeyword) {
+      const matchTitle = item.title.toLowerCase().includes(currentPopularKeyword);
+      const matchAgency = item.agency.toLowerCase().includes(currentPopularKeyword);
+      const matchSummary = item.summary.toLowerCase().includes(currentPopularKeyword);
+      const matchDetails = item.details.toLowerCase().includes(currentPopularKeyword);
+      if (!matchTitle && !matchAgency && !matchSummary && !matchDetails) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #64748b;">
+        <div style="font-size: 32px; margin-bottom: 8px;">🔍</div>
+        <div style="font-weight: 700; font-size: 15px; color: #334155;">일치하는 인기 행정서비스가 없습니다.</div>
+        <div style="font-size: 12px; margin-top: 4px;">다른 검색어나 '전체보기'를 눌러 확인해 보세요.</div>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(item => `
+    <div class="popular-menu-card">
+      <div>
+        <div class="popular-card-header">
+          <div class="popular-card-icon">${item.icon}</div>
+          <div style="flex:1;">
+            <div class="popular-card-title">${escapeHtml(item.title)}</div>
+            <div class="popular-card-agency">${escapeHtml(item.agency)}</div>
+          </div>
+          ${item.hot ? '<span style="background:#fee2e2; color:#ef4444; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:12px; border:1px solid #fca5a5;">HOT</span>' : ''}
+        </div>
+        <div class="popular-card-summary">${escapeHtml(item.summary)}</div>
+        <div style="font-size:11px; color:#64748b; background:#f8fafc; padding:8px 10px; border-radius:8px; border:1px solid #e2e8f0; line-height:1.45;">
+          💡 <strong>핵심 안내:</strong> ${escapeHtml(item.details)}
+        </div>
+      </div>
+      <div class="popular-card-actions">
+        <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="popular-action-btn primary" title="공식 포털 바로가기">
+          공식 바로가기 ↗
+        </a>
+        <button class="popular-action-btn secondary" onclick="askAiQuestion('${escapeHtml(item.title)} 신청 방법과 담당부서 알려줘')" title="AI 다온에게 질문">
+          🤖 AI 질문
+        </button>
+      </div>
+    </div>
+  `).join('');
 }

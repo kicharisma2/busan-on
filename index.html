@@ -47,7 +47,7 @@
       <!-- 16개 구·군 + 시청 본청 룸 채널 선택기 -->
       <div class="realm-badge-container clickable">
         <span class="realm-icon">🏛️</span>
-        <select id="realm-select" class="realm-select" onchange="switchRealm(this.value)">
+        <select id="realm-select" class="realm-select" onchange="switchRealm(this.value); this.blur();">
           <option value="BUSAN-HQ">🏢 부산광역시청 본관 (시민광장·들락날락·민원실)</option>
           <option value="DIST-YEONJE">연제구청 (시청 소재지·행정중심)</option>
           <option value="DIST-HAEUNDAE">해운대구청 (해변·센텀시티)</option>
@@ -189,6 +189,16 @@
       <button class="sidebar-circle-btn clickable" onclick="openTicketKioskModal()" title="2층 행복민원실 실시간 순번 대기표 발급기">
         <span class="circle-icon">🎫</span>
         <span class="circle-label">번호표</span>
+      </button>
+
+      <button class="sidebar-circle-btn clickable" onclick="openPopularMenusModal()" title="부산시 & 16개 구·군 공식 홈페이지 인기메뉴 및 핵심 e-행정 포털">
+        <span class="circle-icon">🔥</span>
+        <span class="circle-label">인기메뉴</span>
+      </button>
+
+      <button class="sidebar-circle-btn clickable" onclick="openCustomizeModal()" title="시민 의상 및 아바타 꾸미기 룸">
+        <span class="circle-icon">🎨</span>
+        <span class="circle-label">꾸미기</span>
       </button>
 
       <button class="sidebar-circle-btn clickable" onclick="openQuizModal()" title="부산 시정 상식 퀴즈 룰렛 (EXP 획득 및 레벨업)">
@@ -1139,5 +1149,38 @@
       </div>
     </div>
   </div>
+
+  <!-- MODAL: 부산시청 & 16개 구·군 공식 홈페이지 인기메뉴 및 e-행정 원스톱 포털 -->
+  <div class="modal-overlay" id="modal-popular-menus">
+    <div class="modal-content" style="max-width: 960px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">🔥</div>
+          <div>
+            <div class="modal-title">부산광역시 & 16개 구·군 공식 홈페이지 인기메뉴 포털</div>
+            <div class="modal-sub">시민들이 가장 많이 찾는 대표 e-민원, 여권, 세금, 일자리, 관광, 복지 원스톱 바로가기</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-popular-menus')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px;">
+          <input type="text" id="popular-search-input" class="division-search-input" placeholder="🔍 인기 행정서비스 검색 (예: 여권, 위택스, 동백전, 일자리, 드론쇼, 케이블카...)" oninput="searchPopularMenus(this.value)">
+        </div>
+        <div class="popular-filter-pills" id="popular-filter-pills">
+          <button class="popular-pill-btn active" onclick="filterPopularMenus('all', this)">⭐ 전체보기</button>
+          <button class="popular-pill-btn" onclick="filterPopularMenus('city_top10', this)">🏛️ 부산시 대표 TOP 10</button>
+          <button class="popular-pill-btn" onclick="filterPopularMenus('district_civil', this)">📋 16개 구·군 e-민원</button>
+          <button class="popular-pill-btn" onclick="filterPopularMenus('culture_tour', this)">🏖️ 문화·관광·축제 HOT</button>
+          <button class="popular-pill-btn" onclick="filterPopularMenus('welfare_youth', this)">💳 복지·청년·일자리</button>
+          <button class="popular-pill-btn" onclick="filterPopularMenus('traffic_safety', this)">🚍 교통·안전·의료</button>
+        </div>
+        <div class="popular-menu-grid" id="popular-menus-grid">
+          <!-- JS 동적 렌더링 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
