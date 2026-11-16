@@ -106,6 +106,8 @@ def get_base_dir():
         candidates.append(os.path.dirname(exe_dir))
     candidates.append(os.path.dirname(os.path.abspath(__file__)))
     candidates.append(os.getcwd())
+    candidates.append(r"c:\Users\Mini PC\Desktop\프로그램\부산광역시청")
+    candidates.append(r"c:\Users\Mini PC\Desktop\프로그램\부산광역시청\dist")
 
     for c in candidates:
         if c and os.path.exists(os.path.join(c, 'index.html')):

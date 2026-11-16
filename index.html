@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>부산ON 월드 v2.0 | 부산광역시청 & 16개 구·군청 시민소통 메타버스</title>
+  <title>부산ON 월드 v2.1 | 부산광역시청 & 16개 구·군청 시민소통 메타버스</title>
   <meta name="description" content="부산광역시청과 16개 자치구·군을 실제와 동일하게 구현한 시민소통 3D 메타버스 v2.0. 5대 시민광장, 1층 들락날락, 2층 행복민원실, 구청 종합민원실, 구립도서관 연동, 지역 맛집·카페 가이드">
 
   <!-- Open Graph -->
@@ -17,7 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=2.0.0">
+  <link rel="stylesheet" href="style.css?v=2.1.0">
 
   <!-- Three.js & OrbitControls -->
   <script src="three.min.js"></script>
@@ -39,7 +39,7 @@
       <div class="brand-section clickable" onclick="openStoryModal()">
         <div class="brand-logo">🌊</div>
         <div class="brand-info">
-          <span class="brand-title">부산ON 월드 <span class="version-tag">v2.0</span></span>
+          <span class="brand-title">부산ON 월드 <span class="version-tag">v2.1</span></span>
           <span class="brand-sub">부산시청 & 16개 구·군 열린 메타버스</span>
         </div>
       </div>
@@ -94,6 +94,17 @@
         <!-- BGM 토글 버튼 -->
         <button class="nav-icon-btn clickable" id="bgm-toggle-btn" title="희망찬 부산 시정 BGM ON/OFF" onclick="toggleAudio()">
           🎵
+        </button>
+
+        <!-- 캐릭터 의상 커스터마이징 버튼 -->
+        <!-- 열린 정보공개방 바로가기 버튼 -->
+        <button class="nav-icon-btn clickable" title="열린 정보공개방 (연도별 예산서·프로젝트·통계)" onclick="openOpenDataModal()">
+          📂
+        </button>
+
+        <!-- 오늘의 시민 생활 (일일 임무) -->
+        <button class="nav-icon-btn clickable" title="오늘의 시민 생활 & 20단계 시민 계급" onclick="openCivicLifeModal()">
+          📜
         </button>
 
         <!-- 캐릭터 의상 커스터마이징 버튼 -->
@@ -591,25 +602,29 @@
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">헤어 스타일</label>
-              <select id="custom-hair-style" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
-                <option value="short">단정한 숏컷 (기본)</option>
-                <option value="dandy">댄디 볼륨 펌</option>
-                <option value="bob">세련된 단발 헤어</option>
-                <option value="long">우아한 롱헤어</option>
-                <option value="ponytail">발랄한 포니테일</option>
-                <option value="beret">예술가 베레모 헤어</option>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">✨ 헤어 스타일 (8종)</label>
+              <select id="custom-hair-style" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
+                <option value="short">단정한 댄디 숏컷</option>
+                <option value="dandy">볼륨 댄디 펌 (웨이브)</option>
+                <option value="bob">러블리 태슬 단발</option>
+                <option value="long">엘레강스 롱 웨이브</option>
+                <option value="ponytail">발랄 하이 포니테일</option>
+                <option value="twintail">귀여운 양갈래 트윈테일</option>
+                <option value="comma">K-POP 아이돌 쉼표머리</option>
+                <option value="beret">프렌치 베레모 & 컬 헤어</option>
               </select>
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">머리 색상</label>
-              <select id="custom-hair-color" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
-                <option value="black">자연 흑발 (블랙)</option>
-                <option value="brown">밀크 브라운 (갈색)</option>
-                <option value="gold">블론드 골드 (금발)</option>
-                <option value="silver">신비로운 실버 (은발)</option>
-                <option value="pink">벚꽃 핑크 (파스텔)</option>
-                <option value="ocean">부산 마린블루 (블루)</option>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">🎨 헤어 컬러 염색 (8색)</label>
+              <select id="custom-hair-color" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
+                <option value="black">자연 흑발 (제트 블랙)</option>
+                <option value="brown">밀크초코 브라운</option>
+                <option value="gold">화사한 허니 골드</option>
+                <option value="silver">신비로운 실버 애쉬</option>
+                <option value="pink">로맨틱 체리 로즈 핑크</option>
+                <option value="ocean">청량한 부산 마린 블루</option>
+                <option value="purple">트렌디 라벤더 퍼플</option>
+                <option value="green">산뜻한 민트 에메랄드</option>
               </select>
             </div>
           </div>
@@ -617,15 +632,15 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <label style="font-size: 12px; font-weight: 700; color:#334155;">피부 톤</label>
-              <select id="custom-skin" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
-                <option value="warm">자연스러운 웜톤</option>
-                <option value="fair">화사한 쿨톤</option>
-                <option value="tan">건강한 구릿빛</option>
+              <select id="custom-skin" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
+                <option value="warm">생기 있는 웜톤 베이지</option>
+                <option value="fair">뽀송뽀송 쿨톤 복숭아빛</option>
+                <option value="tan">건강하고 매력적인 탠 스킨</option>
               </select>
             </div>
             <div>
               <label style="font-size: 12px; font-weight: 700; color:#334155;">의상 스타일 & 색상</label>
-              <select id="custom-robe" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+              <select id="custom-robe" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
                 <option value="blue">부산 마린 블루 수트 (대표)</option>
                 <option value="white">순백 화이트 정장</option>
                 <option value="camellia">동백 레드 캐주얼</option>
@@ -641,7 +656,7 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <label style="font-size: 12px; font-weight: 700; color:#334155;">모자 & 머리 장식</label>
-              <select id="custom-hat" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+              <select id="custom-hat" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
                 <option value="camellia">동백꽃 헤어핀</option>
                 <option value="seagull">부산 갈매기 모자</option>
                 <option value="halo">황금 시민 후광</option>
@@ -655,7 +670,7 @@
             </div>
             <div>
               <label style="font-size: 12px; font-weight: 700; color:#334155;">날개 & 등 장식</label>
-              <select id="custom-wings" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;">
+              <select id="custom-wings" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
                 <option value="seagull">갈매기 날개</option>
                 <option value="angel">천사 날개</option>
                 <option value="butterfly">화려한 나비 날개</option>
@@ -665,7 +680,10 @@
             </div>
           </div>
 
-          <button class="nav-btn primary clickable" style="width: 100%; justify-content: center; height: 44px; font-size: 14px; font-weight: 700; margin-top: 4px;" onclick="saveCustomization()">✨ 의상 저장 및 메타버스에 즉시 적용</button>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button class="nav-btn primary clickable" style="flex: 1; justify-content: center; height: 44px; font-size: 14px; font-weight: 700;" onclick="saveCustomization()">✨ 의상 확정 및 저장</button>
+            <button class="nav-btn clickable" style="justify-content: center; height: 44px; padding: 0 16px;" onclick="closeModal('modal-customize')">닫기</button>
+          </div>
         </div>
       </div>
     </div>
@@ -956,8 +974,152 @@
     </div>
   </div>
 
+
+  <!-- MODAL 18: 부산광역시 열린 정보공개방 (연도별 예산서, 핵심 프로젝트, 시정뉴스, 통계) -->
+  <div class="modal-overlay" id="modal-open-info">
+    <div class="modal-content" style="max-width: 760px; max-height: 85vh;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">📂</div>
+          <div>
+            <div class="modal-title">부산광역시 열린 정보공개방</div>
+            <div class="modal-sub">연도별 본예산 총람, 핵심 시정 프로젝트, 실시간 시정 뉴스 및 주요 시정 통계</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-open-info')">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- 상단 탭 -->
+        <div class="open-data-tabs">
+          <button class="open-tab-btn active" onclick="switchOpenDataTab('budgets', this)">💰 연도별 예산서 총람</button>
+          <button class="open-tab-btn" onclick="switchOpenDataTab('projects', this)">🏗️ 핵심 시정 프로젝트</button>
+          <button class="open-tab-btn" onclick="switchOpenDataTab('news', this)">📰 시정 뉴스 & 공고</button>
+          <button class="open-tab-btn" onclick="switchOpenDataTab('stats', this)">📊 부산 시정 통계 백서</button>
+        </div>
+
+        <!-- 탭 1: 연도별 예산서 -->
+        <div id="openTab-budgets" class="open-tab-content">
+          <!-- 연도 선택 필터 -->
+          <div class="year-pills-row" id="budgetYearPills">
+            <button class="year-pill active" onclick="selectBudgetYear('2026', this)">2026년도 (최신)</button>
+            <button class="year-pill" onclick="selectBudgetYear('2025', this)">2025년도</button>
+            <button class="year-pill" onclick="selectBudgetYear('2024', this)">2024년도</button>
+            <button class="year-pill" onclick="selectBudgetYear('2023', this)">2023년도</button>
+            <button class="year-pill" onclick="selectBudgetYear('2022', this)">2022년도</button>
+            <button class="year-pill" onclick="selectBudgetYear('2021', this)">2021년도</button>
+          </div>
+
+          <!-- 예산 요약 배너 -->
+          <div id="budgetSummaryBanner" class="budget-summary-banner">
+            <!-- JS 렌더링 -->
+          </div>
+
+          <!-- 분야별 세출 예산 -->
+          <div style="font-weight: 800; color: #0284c7; font-size: 13.5px; margin-bottom: 8px;">
+            📊 주요 분야별 세출 예산 배분
+          </div>
+          <div id="budgetSectorsList" style="margin-bottom: 16px;">
+            <!-- JS 렌더링 -->
+          </div>
+
+          <!-- 핵심 역점 투자 사업 -->
+          <div style="font-weight: 800; color: #0f172a; font-size: 13.5px; margin-bottom: 8px;">
+            🎯 주요 역점 투자 사업
+          </div>
+          <div id="budgetInvestmentsList">
+            <!-- JS 렌더링 -->
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 14px;">
+            <a id="btnBudgetOfficialUrl" href="https://www.busan.go.kr/open/finance01" target="_blank" rel="noopener" class="nav-btn primary clickable" style="flex: 1; justify-content: center; text-decoration: none; height: 40px; font-size: 12.5px;">
+              🔗 부산시청 공식 재정공시 원문 바로보기
+            </a>
+            <a href="https://www.busan.go.kr/depart/inbudget" target="_blank" rel="noopener" class="nav-btn clickable" style="justify-content: center; text-decoration: none; height: 40px; font-size: 12.5px;">
+              📖 e-Book 예산서 열람
+            </a>
+          </div>
+        </div>
+
+        <!-- 탭 2: 핵심 시정 프로젝트 -->
+        <div id="openTab-projects" class="open-tab-content" style="display: none;">
+          <div id="majorProjectsList">
+            <!-- JS 렌더링 -->
+          </div>
+        </div>
+
+        <!-- 탭 3: 시정 뉴스 & 공고 -->
+        <div id="openTab-news" class="open-tab-content" style="display: none;">
+          <div id="cityNewsList">
+            <!-- JS 렌더링 -->
+          </div>
+        </div>
+
+        <!-- 탭 4: 시정 통계 백서 -->
+        <div id="openTab-stats" class="open-tab-content" style="display: none;">
+          <div id="cityStatsContainer">
+            <!-- JS 렌더링 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 19: 오늘의 시민 생활 (일일 임무 & 20단계 시민 계급) -->
+  <div class="modal-overlay" id="modal-civic-life">
+    <div class="modal-content" style="max-width: 600px; max-height: 85vh;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon-badge">📜</div>
+          <div>
+            <div class="modal-title">오늘의 시민 생활 & 20단계 계급</div>
+            <div class="modal-sub">매일 주어지는 시민 활동을 완료하고 경험치를 쌓아 명예로운 시민 계급으로 승급하세요!</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('modal-civic-life')">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- 현재 내 계급 & 경험치 카드 -->
+        <div style="background: linear-gradient(135deg, #0284c7, #2563eb); border-radius: 12px; padding: 16px; color: #ffffff; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="font-size: 11.5px; opacity: 0.85;">현재 나의 시민 계급</span>
+              <div style="font-size: 20px; font-weight: 900; margin-top: 2px;" id="civicLifeMyTitle">Lv.1 방황하는 시민</div>
+            </div>
+            <div style="font-size: 28px;" id="civicLifeMyBadge">🌱</div>
+          </div>
+          <div style="margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+              <span>시민 경험치 (XP)</span>
+              <span id="civicLifeXpText">20 / 50 XP</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.25); border-radius: 4px; overflow: hidden;">
+              <div id="civicLifeXpBar" style="height: 100%; width: 40%; background: #fde047; border-radius: 4px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 일일 임무 섹션 -->
+        <div style="font-weight: 800; color: #0284c7; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span>🎯 오늘의 시민 임무 5선</span>
+          <span style="font-size: 11.5px; color: #64748b;" id="dailyMissionProgress">0/5 완료</span>
+        </div>
+        <div id="dailyMissionsList" style="margin-bottom: 16px;">
+          <!-- JS 렌더링 -->
+        </div>
+
+        <!-- 20단계 계급 표 -->
+        <div style="font-weight: 800; color: #0f172a; font-size: 14px; margin-bottom: 8px;">
+          🏆 20단계 시민 계급 및 승급 보상
+        </div>
+        <div id="civicRanksList" style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <!-- JS 렌더링 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="audio.js?v=2.0.0"></script>
-  <script src="app.js?v=2.0.0"></script>
+  <script src="audio.js?v=2.1.0"></script>
+  <script src="app.js?v=2.1.0"></script>
 </body>
 </html>

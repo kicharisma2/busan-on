@@ -2171,3 +2171,291 @@ html, body, #canvas-container, #gl-canvas {
   margin-top: 2px;
 }
 
+
+
+/* ========================================================
+ * 부산ON 월드 - 열린 정보공개방, 일일 임무, 퀵 액션바 스타일
+ * ======================================================== */
+
+/* 하단 퀵 액션바 (감정표현 제스처 & 특화 모달 단축키) */
+.quick-action-bar {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
+  z-index: 85;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.quick-action-bar::-webkit-scrollbar {
+  display: none;
+}
+.quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+.quick-btn:hover {
+  background: rgba(2, 132, 199, 0.4);
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+.quick-btn:active {
+  transform: translateY(0);
+}
+.quick-btn.highlight {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  border-color: #7dd3fc;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+}
+.quick-btn.festival {
+  background: linear-gradient(135deg, #e11d48, #f59e0b);
+  border-color: #fde047;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+.quick-btn-badge {
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 5px;
+  border-radius: 10px;
+  color: #cbd5e1;
+}
+
+/* 열린 정보공개방 모달 탭 */
+.open-data-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.open-tab-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.open-tab-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.open-tab-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+}
+
+/* 연도별 예산 선택 필터 */
+.year-pills-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.year-pill {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.year-pill:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+}
+.year-pill.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+/* 예산 총괄 배너 */
+.budget-summary-banner {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px;
+  color: #ffffff;
+  margin-bottom: 14px;
+}
+.budget-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.budget-main-val {
+  font-size: 26px;
+  font-weight: 900;
+  color: #38bdf8;
+  letter-spacing: -0.5px;
+}
+.budget-diff-badge {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid #22c55e;
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+.budget-slogan {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+/* 분야별 예산 게이지 바 */
+.sector-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+.sector-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+.sector-bar-bg {
+  width: 100%;
+  height: 7px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sector-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+/* 핵심 투자 사업 카드 */
+.invest-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  transition: transform 0.15s;
+}
+.invest-card:hover {
+  transform: translateY(-2px);
+  border-color: #38bdf8;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.1);
+}
+.invest-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.invest-amount {
+  color: #0284c7;
+  font-size: 12px;
+  font-weight: 800;
+}
+.invest-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+/* 시정 프로젝트 카드 */
+.project-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.project-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+/* 일일 임무 & 계급 모달 스타일 */
+.mission-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.mission-card.completed {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.mission-check-btn {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mission-check-btn.done {
+  background: #16a34a;
+  cursor: default;
+}
+.rank-card-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.rank-card-row.current {
+  background: #e0f2fe;
+  border-radius: 8px;
+  font-weight: 800;
+}

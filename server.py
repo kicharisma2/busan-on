@@ -469,40 +469,98 @@ print(f"[부산ON] 정적 파일 서빙 디렉터리: {WEB_ROOT}", flush=True)
 
 
 class BusanCivicHTTPHandler(SimpleHTTPRequestHandler):
+    extensions_map = SimpleHTTPRequestHandler.extensions_map.copy()
+    extensions_map.update({
+        '.js': 'application/javascript; charset=utf-8',
+        '.mjs': 'application/javascript; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.html': 'text/html; charset=utf-8',
+        '.htm': 'text/html; charset=utf-8',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+    })
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_ROOT, **kwargs)
 
     def translate_path(self, path):
-        # 1. 기본 WEB_ROOT 디렉터리 기준 파일 탐색
-        res = super().translate_path(path)
-        if os.path.exists(res):
-            return res
-
-        # 2. 어떤 실행 환경(dist, exe, 소스폴더 등)에서도 404가 발생하지 않도록 대체 후보 탐색
-        norm_path = path.lstrip('/')
-        if not norm_path or norm_path == 'index.htm':
+        # 1. Query parameter 및 Fragment 제거, URL 디코딩
+        clean_path = urllib.parse.unquote(path.split('?', 1)[0].split('#', 1)[0])
+        norm_path = clean_path.lstrip('/')
+        if not norm_path or norm_path in ('index', 'index.htm', 'index.html'):
             norm_path = 'index.html'
 
-        candidates = [
-            WEB_ROOT,
-            os.getcwd(),
-            os.path.dirname(os.path.abspath(__file__)),
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        ]
+        # 2. 모든 가능한 디렉터리 후보 탐색
+        candidates = []
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            candidates.append(getattr(sys, '_MEIPASS'))
         if getattr(sys, 'frozen', False):
-            if hasattr(sys, '_MEIPASS'):
-                candidates.insert(0, getattr(sys, '_MEIPASS'))
             exe_d = os.path.dirname(os.path.abspath(sys.executable))
-            candidates.insert(0, exe_d)
-            candidates.insert(1, os.path.dirname(exe_d))
+            candidates.append(exe_d)
+            candidates.append(os.path.dirname(exe_d))
+        candidates.append(WEB_ROOT)
+        candidates.append(os.getcwd())
+        candidates.append(os.path.dirname(os.path.abspath(__file__)))
+        candidates.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        candidates.append(r"c:\Users\Mini PC\Desktop\프로그램\부산광역시청")
+        candidates.append(r"c:\Users\Mini PC\Desktop\프로그램\부산광역시청\dist")
 
+        # 3. 직접 일치 파일 탐색
         for c in candidates:
-            if c:
+            if c and os.path.isdir(c):
                 cand = os.path.join(c, norm_path)
-                if os.path.exists(cand):
+                if os.path.isfile(cand):
                     return cand
 
-        return res
+        # 4. SPA 라우팅 및 HTML 탐색 (확장자가 없거나 .html 요청 시 index.html 반환)
+        _, ext = os.path.splitext(norm_path)
+        if ext in ('', '.html', '.htm'):
+            for c in candidates:
+                if c and os.path.isdir(c):
+                    cand = os.path.join(c, 'index.html')
+                    if os.path.isfile(cand):
+                        return cand
+
+        # 5. 기본 super().translate_path() 호출
+        return super().translate_path(path)
+
+    def send_error(self, code, message=None, explain=None):
+        # 404 에러 발생 시 Error page 대신 index.html 로 안전하게 서빙하여 브라우저 404 에러 원천 차단
+        if code == 404:
+            for c in [
+                getattr(sys, '_MEIPASS', None),
+                os.path.dirname(os.path.abspath(sys.executable)) if getattr(sys, 'frozen', False) else None,
+                WEB_ROOT,
+                os.getcwd(),
+                os.path.dirname(os.path.abspath(__file__)),
+                r"c:\Users\Mini PC\Desktop\프로그램\부산광역시청",
+                r"c:\Users\Mini PC\Desktop\프로그램\부산광역시청\dist"
+            ]:
+                if c and os.path.isdir(c):
+                    idx = os.path.join(c, 'index.html')
+                    if os.path.isfile(idx):
+                        try:
+                            with open(idx, 'rb') as f:
+                                content = f.read()
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'text/html; charset=utf-8')
+                            self.send_header('Content-Length', str(len(content)))
+                            self.send_header('Access-Control-Allow-Origin', '*')
+                            self.end_headers()
+                            self.wfile.write(content)
+                            return
+                        except Exception:
+                            pass
+        super().send_error(code, message, explain)
 
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -617,7 +675,49 @@ class BusanCivicHTTPHandler(SimpleHTTPRequestHandler):
                 self.send_json_response(all_libs)
             return
 
-        # 9. WebSocket 업그레이드 감지
+        # 9. 부산광역시 열린 정보공개방 API (연도별 예산서, 시정 프로젝트, 뉴스, 통계, 시민계급)
+        if path == '/api/open-data/budgets':
+            year = qs.get('year', [''])[0].strip()
+            budgets = getattr(busan_data, 'BUSAN_ANNUAL_BUDGETS', [])
+            if year:
+                matched = [b for b in budgets if b.get('year') == year]
+                self.send_json_response(matched[0] if matched else {})
+            else:
+                self.send_json_response(budgets)
+            return
+
+        if path == '/api/open-data/projects':
+            self.send_json_response(getattr(busan_data, 'BUSAN_MAJOR_PROJECTS', []))
+            return
+
+        if path == '/api/open-data/news':
+            self.send_json_response(getattr(busan_data, 'BUSAN_CITY_NEWS', []))
+            return
+
+        if path == '/api/open-data/stats':
+            self.send_json_response(getattr(busan_data, 'BUSAN_CITY_STATISTICS', {}))
+            return
+
+        if path == '/api/open-data/ranks':
+            self.send_json_response(getattr(busan_data, 'BUSAN_CIVIC_RANKS', []))
+            return
+
+        if path == '/api/open-data/missions':
+            self.send_json_response(getattr(busan_data, 'BUSAN_DAILY_MISSIONS', []))
+            return
+
+        if path == '/api/open-data/all':
+            self.send_json_response({
+                'budgets': getattr(busan_data, 'BUSAN_ANNUAL_BUDGETS', []),
+                'projects': getattr(busan_data, 'BUSAN_MAJOR_PROJECTS', []),
+                'news': getattr(busan_data, 'BUSAN_CITY_NEWS', []),
+                'statistics': getattr(busan_data, 'BUSAN_CITY_STATISTICS', {}),
+                'civic_ranks': getattr(busan_data, 'BUSAN_CIVIC_RANKS', []),
+                'daily_missions': getattr(busan_data, 'BUSAN_DAILY_MISSIONS', [])
+            })
+            return
+
+        # 10. WebSocket 업그레이드 감지
         upgrade = self.headers.get('Upgrade', '').lower()
         connection = self.headers.get('Connection', '').lower()
         if 'websocket' in upgrade or 'upgrade' in connection:

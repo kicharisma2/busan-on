@@ -48,6 +48,8 @@ const COLOR_PALETTE = {
   silverHair: 0xcbd5e1,
   pinkHair: 0xf472b6,
   oceanHair: 0x0284c7,
+  purpleHair: 0x8b5cf6,
+  greenHair: 0x10b981,
   warmSkin: 0xffd7ba,
   fairSkin: 0xffdfd3,
   tanSkin: 0xe0a96d
@@ -1849,7 +1851,7 @@ const SHARED_GEO = {};
 const SHARED_MAT = {};
 
 function initSharedGeometries() {
-  SHARED_GEO.head = new THREE.SphereGeometry(0.44, 24, 22);
+  SHARED_GEO.head = new THREE.SphereGeometry(0.40, 24, 20);
   SHARED_GEO.hair = new THREE.SphereGeometry(0.48, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.6);
   SHARED_GEO.hairBangs = new THREE.BoxGeometry(0.38, 0.18, 0.14);
   SHARED_GEO.eye = new THREE.SphereGeometry(0.065, 14, 12);
@@ -2496,6 +2498,9 @@ function buildFirstFloorAtriumLobby() {
   // 종합안내데스크 & AI 다온 NPC
   buildAiGuideReceptionDesk(24, 0, -14, lobbyGroup);
 
+  // [신규] 열린 정보공개관 (연도별 예산서 및 시정정보 데스크)
+  buildOpenDataInformationCenter(-24, 0, -14, lobbyGroup);
+
   cityHallWorldGroup.add(lobbyGroup);
 }
 
@@ -2928,46 +2933,76 @@ function createCuteCitizenMesh({
   root.add(headGroup);
 
   const skinHex = COLOR_PALETTE[skinTone + 'Skin'] || COLOR_PALETTE.warmSkin;
-  const skinMat = new THREE.MeshStandardMaterial({ color: skinHex, roughness: 0.6 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: skinHex, roughness: 0.55 });
   const head = new THREE.Mesh(SHARED_GEO.head, skinMat);
   if (isPlayer) head.castShadow = true;
   headGroup.add(head);
 
+  // 양쪽 귀 (Ears)
+  const earGeo = new THREE.SphereGeometry(0.08, 12, 10);
+  const earL = new THREE.Mesh(earGeo, skinMat);
+  earL.position.set(-0.39, -0.02, 0);
+  earL.scale.set(0.5, 1, 0.8);
+  headGroup.add(earL);
+
+  const earR = new THREE.Mesh(earGeo, skinMat);
+  earR.position.set(0.39, -0.02, 0);
+  earR.scale.set(0.5, 1, 0.8);
+  headGroup.add(earR);
+
   // 동적 헤어 슬롯 (스타일 & 색상 적용)
   const hairHex = COLOR_PALETTE[hairColor + 'Hair'] || COLOR_PALETTE.blackHair;
-  const hairMat = new THREE.MeshStandardMaterial({ color: hairHex, roughness: 0.5 });
+  const hairMat = new THREE.MeshStandardMaterial({ color: hairHex, roughness: 0.45 });
   const hairSlot = new THREE.Group();
   headGroup.add(hairSlot);
   applyHairDecoration(hairSlot, hairStyle, hairMat);
 
-  // 초롱초롱한 애니메 눈망울
+  // 눈썹 (Eyebrows) - 헤어 컬러와 통일
+  const browGeo = new THREE.BoxGeometry(0.12, 0.035, 0.04);
+  const browL = new THREE.Mesh(browGeo, hairMat);
+  browL.position.set(-0.14, 0.12, 0.36);
+  browL.rotation.z = 0.12;
+  headGroup.add(browL);
+
+  const browR = new THREE.Mesh(browGeo, hairMat);
+  browR.position.set(0.14, 0.12, 0.36);
+  browR.rotation.z = -0.12;
+  headGroup.add(browR);
+
+  // 초롱초롱한 애니메 눈망울 (더블 캐치라이트)
   const eyeL = new THREE.Mesh(SHARED_GEO.eye, SHARED_MAT.eye);
-  eyeL.position.set(-0.14, 0.02, 0.38);
-  const shineL = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
-  shineL.position.set(-0.02, 0.025, 0.045);
-  eyeL.add(shineL);
+  eyeL.position.set(-0.14, 0.02, 0.36);
+  const shineL1 = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
+  shineL1.position.set(-0.02, 0.025, 0.045);
+  eyeL.add(shineL1);
+  const shineL2 = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), SHARED_MAT.shine);
+  shineL2.position.set(0.02, -0.02, 0.045);
+  eyeL.add(shineL2);
   headGroup.add(eyeL);
 
   const eyeR = new THREE.Mesh(SHARED_GEO.eye, SHARED_MAT.eye);
-  eyeR.position.set(0.14, 0.02, 0.38);
-  const shineR = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
-  shineR.position.set(-0.02, 0.025, 0.045);
-  eyeR.add(shineR);
+  eyeR.position.set(0.14, 0.02, 0.36);
+  const shineR1 = new THREE.Mesh(SHARED_GEO.shine, SHARED_MAT.shine);
+  shineR1.position.set(-0.02, 0.025, 0.045);
+  eyeR.add(shineR1);
+  const shineR2 = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), SHARED_MAT.shine);
+  shineR2.position.set(0.02, -0.02, 0.045);
+  eyeR.add(shineR2);
   headGroup.add(eyeR);
 
   // 핑크빛 볼터치 (Blush)
   const blushL = new THREE.Mesh(SHARED_GEO.blush, SHARED_MAT.blush);
-  blushL.position.set(-0.25, -0.08, 0.34);
+  blushL.position.set(-0.25, -0.08, 0.32);
   headGroup.add(blushL);
 
   const blushR = new THREE.Mesh(SHARED_GEO.blush, SHARED_MAT.blush);
-  blushR.position.set(0.25, -0.08, 0.34);
+  blushR.position.set(0.25, -0.08, 0.32);
   headGroup.add(blushR);
 
   // 방긋 웃는 입
   const mouth = new THREE.Mesh(SHARED_GEO.mouth, SHARED_MAT.mouth);
   mouth.rotation.x = Math.PI;
-  mouth.position.set(0, -0.15, 0.42);
+  mouth.position.set(0, -0.15, 0.38);
   headGroup.add(mouth);
 
   // (3) 팔 & 다리 및 구두
@@ -3061,88 +3096,213 @@ function applyHairDecoration(slot, hairStyle, hairMat) {
   while (slot.children.length > 0) slot.remove(slot.children[0]);
   if (!hairMat) hairMat = SHARED_MAT.hair;
 
-  // 기본 헤어 돔 (두상을 감싸는 기본 캡)
-  const capGeo = new THREE.SphereGeometry(0.39, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.55);
-  const cap = new THREE.Mesh(capGeo, hairMat);
-  cap.position.set(0, 0.05, 0);
-  slot.add(cap);
+  // 1. 헤어 기본 돔 (두상 0.40보다 큰 0.435 구체로 머리 윗부분, 옆, 뒷머리를 완벽히 감쌈)
+  const baseDomeGeo = new THREE.SphereGeometry(0.435, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.60);
+  const baseDome = new THREE.Mesh(baseDomeGeo, hairMat);
+  baseDome.position.set(0, 0.04, -0.015);
+  slot.add(baseDome);
 
+  // 뒷머리 목덜미 커버 (달걀머리 방지)
+  const napeGeo = new THREE.SphereGeometry(0.425, 20, 16, Math.PI * 0.45, Math.PI * 1.1, 0, Math.PI * 0.75);
+  const nape = new THREE.Mesh(napeGeo, hairMat);
+  nape.position.set(0, 0.02, -0.02);
+  slot.add(nape);
+
+  // 2. 스타일별 정교한 3D 헤어 조형
   if (hairStyle === 'dandy') {
-    // 댄디 볼륨 펌: 앞머리 볼륨 및 웨이브
-    const puffGeo = new THREE.CylinderGeometry(0.28, 0.36, 0.2, 12);
-    const puff = new THREE.Mesh(puffGeo, hairMat);
-    puff.position.set(0, 0.26, 0.16);
-    puff.rotation.x = 0.35;
-    slot.add(puff);
+    // [1] 볼륨 댄디 펌: 풍성한 컬 볼륨 3개 층 + 볼륨 앞머리 뱅
+    const puff1 = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.36, 0.18, 14), hairMat);
+    puff1.position.set(0, 0.28, 0.14);
+    puff1.rotation.x = 0.35;
+    slot.add(puff1);
 
-    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.12), hairMat);
-    b1.position.set(-0.12, 0.22, 0.32);
-    b1.rotation.z = 0.15;
-    slot.add(b1);
+    const waveL = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), hairMat);
+    waveL.position.set(-0.16, 0.28, 0.22);
+    slot.add(waveL);
 
-    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.12), hairMat);
-    b2.position.set(0.12, 0.24, 0.31);
-    b2.rotation.z = -0.15;
-    slot.add(b2);
-  } else if (hairStyle === 'bob') {
-    // 세련된 단발: 양쪽 뺨으로 내려오는 단발 사이드 헤어
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.38, 0.26), hairMat);
-    sideL.position.set(-0.35, -0.05, 0.06);
-    slot.add(sideL);
+    const waveR = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), hairMat);
+    waveR.position.set(0.16, 0.28, 0.22);
+    slot.add(waveR);
 
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.38, 0.26), hairMat);
-    sideR.position.set(0.35, -0.05, 0.06);
-    slot.add(sideR);
-
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.36, 0.12), hairMat);
-    back.position.set(0, -0.06, -0.32);
-    slot.add(back);
-  } else if (hairStyle === 'long') {
-    // 우아한 롱헤어: 어깨 아래로 길게 내려오는 머리
-    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.65, 0.22), hairMat);
-    sideL.position.set(-0.36, -0.22, 0.06);
-    slot.add(sideL);
-
-    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.65, 0.22), hairMat);
-    sideR.position.set(0.36, -0.22, 0.06);
-    slot.add(sideR);
-
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.75, 0.14), hairMat);
-    back.position.set(0, -0.26, -0.33);
-    slot.add(back);
-  } else if (hairStyle === 'ponytail') {
-    // 발랄한 포니테일: 묶음 머리와 꼬리
-    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 8, 16), new THREE.MeshBasicMaterial({ color: 0xe11d48 }));
-    tie.position.set(0, 0.26, -0.35);
-    slot.add(tie);
-
-    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.14, 0.52, 10), hairMat);
-    tail.position.set(0, 0.02, -0.42);
-    tail.rotation.x = -0.35;
-    slot.add(tail);
-  } else if (hairStyle === 'beret') {
-    // 예술가 베레모: 기울어진 패션 베레모
-    const beretGeo = new THREE.CylinderGeometry(0.36, 0.28, 0.12, 16);
-    const beretMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.7 });
-    const beret = new THREE.Mesh(beretGeo, beretMat);
-    beret.position.set(-0.1, 0.42, 0.04);
-    beret.rotation.z = -0.25;
-    slot.add(beret);
-
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.08, 6), beretMat);
-    stem.position.set(-0.1, 0.5, 0.04);
-    slot.add(stem);
-  } else {
-    // 기본 숏컷 앞머리
-    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.06), hairMat);
-    b1.position.set(-0.12, 0.26, 0.32);
+    // 컬 앞머리 (이마 덮개)
+    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.12), hairMat);
+    b1.position.set(-0.12, 0.20, 0.35);
     b1.rotation.z = 0.18;
     slot.add(b1);
 
-    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.06), hairMat);
-    b2.position.set(0.12, 0.26, 0.32);
+    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.12), hairMat);
+    b2.position.set(0.12, 0.20, 0.35);
     b2.rotation.z = -0.18;
     slot.add(b2);
+
+    // 구레나룻 옆머리
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
+    sideL.position.set(-0.40, 0.02, 0.12);
+    slot.add(sideL);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
+    sideR.position.set(0.40, 0.02, 0.12);
+    slot.add(sideR);
+
+  } else if (hairStyle === 'bob') {
+    // [2] 러블리 태슬 단발: 볼을 부드럽게 감싸는 똑단발 + 시스루 일자 뱅
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.12), hairMat);
+    bang.position.set(0, 0.21, 0.36);
+    slot.add(bang);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.44, 0.32), hairMat);
+    sideL.position.set(-0.40, -0.08, 0.05);
+    slot.add(sideL);
+
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.44, 0.32), hairMat);
+    sideR.position.set(0.40, -0.08, 0.05);
+    slot.add(sideR);
+
+    const backBob = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.44, 0.16), hairMat);
+    backBob.position.set(0, -0.09, -0.34);
+    slot.add(backBob);
+
+  } else if (hairStyle === 'long') {
+    // [3] 엘레강스 롱 웨이브: 어깨와 등 뒤로 흐르는 풍성한 웨이브 롱 헤어
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.14, 0.12), hairMat);
+    bang.position.set(0, 0.22, 0.36);
+    slot.add(bang);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.75, 0.28), hairMat);
+    sideL.position.set(-0.41, -0.24, 0.08);
+    slot.add(sideL);
+
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.75, 0.28), hairMat);
+    sideR.position.set(0.41, -0.24, 0.08);
+    slot.add(sideR);
+
+    const backLong = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.88, 0.16), hairMat);
+    backLong.position.set(0, -0.30, -0.35);
+    slot.add(backLong);
+
+  } else if (hairStyle === 'ponytail') {
+    // [4] 발랄 하이 포니테일: 높게 묶은 리본 링 + 찰랑이는 테일
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.14, 0.12), hairMat);
+    bang.position.set(0, 0.21, 0.36);
+    slot.add(bang);
+
+    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.035, 8, 16), new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 }));
+    tie.position.set(0, 0.30, -0.38);
+    tie.rotation.x = 0.5;
+    slot.add(tie);
+
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.16, 0.65, 12), hairMat);
+    tail.position.set(0, 0.02, -0.48);
+    tail.rotation.x = -0.42;
+    slot.add(tail);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.12), hairMat);
+    sideL.position.set(-0.39, 0.04, 0.12);
+    slot.add(sideL);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.12), hairMat);
+    sideR.position.set(0.39, 0.04, 0.12);
+    slot.add(sideR);
+
+  } else if (hairStyle === 'twintail') {
+    // [5] 귀여운 양갈래 트윈테일: 좌우 리본 장식 + 양쪽으로 내려오는 땋은 테일
+    const bang = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.14, 0.12), hairMat);
+    bang.position.set(0, 0.22, 0.36);
+    slot.add(bang);
+
+    for (const [side, s] of [['L', -1], ['R', 1]]) {
+      const ribbon = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.028, 8, 12), new THREE.MeshStandardMaterial({ color: 0xf43f5e }));
+      ribbon.position.set(s * 0.38, 0.24, -0.16);
+      slot.add(ribbon);
+
+      const twintail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.12, 0.55, 10), hairMat);
+      twintail.position.set(s * 0.44, -0.04, -0.16);
+      twintail.rotation.z = s * -0.25;
+      twintail.rotation.x = 0.15;
+      slot.add(twintail);
+    }
+
+  } else if (hairStyle === 'comma') {
+    // [6] K-POP 아이돌 쉼표머리: 가르마 + 한쪽으로 둥글게 휘어진 쉼표 뱅 (C-Curl)
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 0.16, 12), hairMat);
+    crown.position.set(0, 0.28, 0.12);
+    crown.rotation.x = 0.25;
+    slot.add(crown);
+
+    // 쉼표 모양 C-Curve 뱅 (오른쪽으로 감겨 내려옴)
+    const commaBang = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.045, 8, 16, Math.PI * 1.3), hairMat);
+    commaBang.position.set(0.10, 0.18, 0.36);
+    commaBang.rotation.z = Math.PI * 0.75;
+    commaBang.rotation.x = 0.25;
+    slot.add(commaBang);
+
+    // 반대쪽 단정하게 넘긴 뱅
+    const straightBang = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.10), hairMat);
+    straightBang.position.set(-0.16, 0.22, 0.35);
+    straightBang.rotation.z = 0.25;
+    slot.add(straightBang);
+
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
+    sideL.position.set(-0.40, 0.02, 0.12);
+    slot.add(sideL);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
+    sideR.position.set(0.40, 0.02, 0.12);
+    slot.add(sideR);
+
+  } else if (hairStyle === 'beret') {
+    // [7] 프렌치 베레모 & 컬 헤어: 기울어진 베레모 + 아래로 삐져나온 귀여운 컬
+    const beretGeo = new THREE.CylinderGeometry(0.38, 0.30, 0.13, 16);
+    const beretMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.6 });
+    const beret = new THREE.Mesh(beretGeo, beretMat);
+    beret.position.set(-0.08, 0.44, 0.04);
+    beret.rotation.z = -0.28;
+    beret.rotation.x = 0.15;
+    slot.add(beret);
+
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.08, 6), beretMat);
+    stem.position.set(-0.08, 0.52, 0.04);
+    slot.add(stem);
+
+    // 베레모 밑 귀여운 앞머리 컬
+    const curlL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.10), hairMat);
+    curlL.position.set(-0.14, 0.22, 0.35);
+    curlL.rotation.z = 0.2;
+    slot.add(curlL);
+
+    const curlR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.10), hairMat);
+    curlR.position.set(0.14, 0.22, 0.35);
+    curlR.rotation.z = -0.2;
+    slot.add(curlR);
+
+  } else {
+    // [8] 기본 (단정한 댄디 숏컷 - 'short'): 볼륨 크라운 + 3갈래 앞머리 뱅 + 깔끔한 구레나룻
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 0.16, 12), hairMat);
+    crown.position.set(0, 0.26, 0.12);
+    crown.rotation.x = 0.25;
+    slot.add(crown);
+
+    // 센터 뱅
+    const bCenter = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.10), hairMat);
+    bCenter.position.set(0, 0.21, 0.36);
+    slot.add(bCenter);
+
+    // 좌측 뱅
+    const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.16, 0.10), hairMat);
+    bLeft.position.set(-0.15, 0.19, 0.34);
+    bLeft.rotation.z = 0.22;
+    slot.add(bLeft);
+
+    // 우측 뱅
+    const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.16, 0.10), hairMat);
+    bRight.position.set(0.15, 0.19, 0.34);
+    bRight.rotation.z = -0.22;
+    slot.add(bRight);
+
+    // 좌우 구레나룻
+    const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
+    sideL.position.set(-0.40, 0.02, 0.12);
+    slot.add(sideL);
+    const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.14), hairMat);
+    sideR.position.set(0.40, 0.02, 0.12);
+    slot.add(sideR);
   }
 }
 
@@ -3413,6 +3573,7 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
 // ========================================================
 function setupMovementControls() {
   window.addEventListener('keydown', (e) => {
+    if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'arrowup') STATE.keys.w = true;
     if (k === 's' || k === 'arrowdown') STATE.keys.s = true;
@@ -3425,6 +3586,13 @@ function setupMovementControls() {
     if (k === 'e') {
       triggerProximityAction();
     }
+    // 감정표현 단축키 1~6
+    if (k === '1') performGesture('wave');
+    if (k === '2') performGesture('clap');
+    if (k === '3') performGesture('dance');
+    if (k === '4') performGesture('cheer');
+    if (k === '5') performGesture('pray');
+    if (k === '6') performGesture('salute');
   });
 
   window.addEventListener('keyup', (e) => {
@@ -3743,6 +3911,17 @@ function animate() {
     p.position.y = p.userData.baseY + Math.sin(t * p.userData.speed + p.userData.phase) * 1.6 + 1.2;
   });
 
+  // 희망 풍선 상승 물리 애니메이션
+  for (let i = activeHopeBalloons.length - 1; i >= 0; i--) {
+    const b = activeHopeBalloons[i];
+    b.position.y += b.userData.vy;
+    b.position.x += Math.sin(t * 1.5 + b.userData.phase) * 0.03 + b.userData.driftX;
+    if (b.position.y > 55.0) {
+      scene.remove(b);
+      activeHopeBalloons.splice(i, 1);
+    }
+  }
+
   if (lighthouseBeamMesh) {
     lighthouseBeamMesh.rotation.z = t * 1.5;
   }
@@ -4034,6 +4213,12 @@ function performGesture(type) {
     if (window.busanAudio) window.busanAudio.playApplause();
   } else if (type === 'dance') {
     showSpeechBubble(localPlayer, "💃 즐거운 댄스타임! 모두 함께해요!");
+    if (window.busanAudio) window.busanAudio.playClick();
+  } else if (type === 'pray') {
+    showSpeechBubble(localPlayer, "🌺 부산의 번영과 모든 시민의 안녕을 진심으로 기원합니다!");
+    if (window.busanAudio) window.busanAudio.playBell();
+  } else if (type === 'salute') {
+    showSpeechBubble(localPlayer, "🫡 시민을 위한 청렴하고 당당한 시정! 충성!");
     if (window.busanAudio) window.busanAudio.playClick();
   }
 
@@ -5386,3 +5571,1107 @@ window.addEventListener('DOMContentLoaded', () => {
   updatePlayerBadgeUI();
   connectMultiplayerWebSocket();
 });
+
+
+// ========================================================
+// 18. 부산광역시 열린 정보공개방 & 20단계 시민생활/계급 엔진 (신규)
+// ========================================================
+window.BUSAN_OPEN_DATA = {
+  "budgets": [
+    {
+      "year": "2026",
+      "title": "2026년도 부산광역시 본예산",
+      "total_amount": "16조 6,921억 원",
+      "general_fund": "13조 3,428억 원",
+      "special_fund": "3조 3,493억 원",
+      "diff_prev": "+9,926억 원 (+6.3%)",
+      "slogan": "시민 행복도시 & 글로벌 허브도시 실현을 위한 미래 성장 동력 확보",
+      "sectors": [
+        {
+          "name": "사회복지 및 보건의료",
+          "amount": "6조 1,240억 원",
+          "pct": "36.7%",
+          "color": "#0284c7"
+        },
+        {
+          "name": "교통 및 물류체계 혁신",
+          "amount": "1조 8,920억 원",
+          "pct": "11.3%",
+          "color": "#2563eb"
+        },
+        {
+          "name": "일반공공행정 및 자치행정",
+          "amount": "1조 7,450억 원",
+          "pct": "10.5%",
+          "color": "#0d9488"
+        },
+        {
+          "name": "환경보전 및 상하수도",
+          "amount": "1조 2,130억 원",
+          "pct": "7.3%",
+          "color": "#16a34a"
+        },
+        {
+          "name": "경제활성화 및 청년일자리",
+          "amount": "1조 1,580억 원",
+          "pct": "6.9%",
+          "color": "#ea580c"
+        },
+        {
+          "name": "문화예술 및 해양관광",
+          "amount": "7,840억 원",
+          "pct": "4.7%",
+          "color": "#e11d48"
+        },
+        {
+          "name": "시민안전 및 재난방재",
+          "amount": "6,890억 원",
+          "pct": "4.1%",
+          "color": "#d97706"
+        },
+        {
+          "name": "교육 및 지산학 인재양성",
+          "amount": "5,410억 원",
+          "pct": "3.2%",
+          "color": "#7c3aed"
+        },
+        {
+          "name": "기타 및 재정예비비",
+          "amount": "5,461억 원",
+          "pct": "3.3%",
+          "color": "#64748b"
+        }
+      ],
+      "core_investments": [
+        {
+          "title": "가덕도신공항 조기 착공 기반조성",
+          "amount": "2,480억 원",
+          "desc": "남부권 관문공항 보상 및 접근교통망 도로·철도 인프라 선제 착공"
+        },
+        {
+          "title": "부산형 대중교통 동백패스 2.0 & 어린이 무료화",
+          "amount": "1,120억 원",
+          "desc": "월 4만 5천원 초과금 전액 환급 및 K-패스 중복 결합 전국 최고 교통복지"
+        },
+        {
+          "title": "어린이 복합문화공간 들락날락 100개소",
+          "amount": "450억 원",
+          "desc": "집 근처 15분 생활권 내 디지털 미디어 아트, 독서, 원어민 AI 영어체험"
+        },
+        {
+          "title": "북항재개발 2단계 배후부지 조성 및 복합단지",
+          "amount": "920억 원",
+          "desc": "철도시설 재배치 및 오페라하우스 완공 연계 글로벌 워터프론트 구축"
+        },
+        {
+          "title": "지산학 협력 산학도제 및 청년 미래일자리",
+          "amount": "780억 원",
+          "desc": "지역 21개 대학과 미래 모빌리티·반도체·바이오 기업 현장 맞춤형 인재 양성"
+        },
+        {
+          "title": "소상공인 3대 안전망 및 민생회복 자금",
+          "amount": "890억 원",
+          "desc": "무이자 경영안정자금 및 골목상권 동백전 발행 캐시백 인센티브 지속 지원"
+        },
+        {
+          "title": "도시침수 예방 대심도 빗물배수터널 및 스마트 방재",
+          "amount": "630억 원",
+          "desc": "온천천 및 센텀시티 등 상습 침수지역 극한호우 대응 지하 빗물저류터널 고도화"
+        }
+      ],
+      "official_url": "https://www.busan.go.kr/open/finance01",
+      "pdf_name": "2026년도_부산광역시_예산서_총람.pdf"
+    },
+    {
+      "year": "2025",
+      "title": "2025년도 부산광역시 본예산",
+      "total_amount": "15조 6,995억 원",
+      "general_fund": "12조 5,711억 원",
+      "special_fund": "3조 1,284억 원",
+      "diff_prev": "-485억 원 (-0.3%)",
+      "slogan": "민생안정, 미래투자, 약자복지 중심 건전재정 운용",
+      "sectors": [
+        {
+          "name": "사회복지 및 보건의료",
+          "amount": "5조 7,650억 원",
+          "pct": "36.7%",
+          "color": "#0284c7"
+        },
+        {
+          "name": "교통 및 물류체계",
+          "amount": "1조 7,320억 원",
+          "pct": "11.0%",
+          "color": "#2563eb"
+        },
+        {
+          "name": "일반공공행정",
+          "amount": "1조 6,800억 원",
+          "pct": "10.7%",
+          "color": "#0d9488"
+        },
+        {
+          "name": "환경보전",
+          "amount": "1조 1,480억 원",
+          "pct": "7.3%",
+          "color": "#16a34a"
+        },
+        {
+          "name": "경제활성화",
+          "amount": "1조 890억 원",
+          "pct": "6.9%",
+          "color": "#ea580c"
+        },
+        {
+          "name": "문화예술관광",
+          "amount": "7,250억 원",
+          "pct": "4.6%",
+          "color": "#e11d48"
+        },
+        {
+          "name": "국토 및 지역개발",
+          "amount": "6,520억 원",
+          "pct": "4.2%",
+          "color": "#d97706"
+        },
+        {
+          "name": "기타",
+          "amount": "2조 4,085억 원",
+          "pct": "15.3%",
+          "color": "#64748b"
+        }
+      ],
+      "core_investments": [
+        {
+          "title": "도시철도 하단-녹산선 기본설계 및 착공",
+          "amount": "680억 원",
+          "desc": "서부산권 광역교통난 해소 및 녹산산단 연결"
+        },
+        {
+          "title": "퐁당퐁당 영유아 돌봄센터 및 어린이 안심통학",
+          "amount": "320억 원",
+          "desc": "24시간 돌봄 공공 서비스망 전면 가동"
+        },
+        {
+          "title": "부산 블록체인 규제자유특구 글로벌 벤처 육성",
+          "amount": "410억 원",
+          "desc": "디지털자산거래소 기반 생태계 조성"
+        }
+      ],
+      "official_url": "https://www.busan.go.kr/open/finance01",
+      "pdf_name": "2025년도_부산광역시_예산서_총람.pdf"
+    },
+    {
+      "year": "2024",
+      "title": "2024년도 부산광역시 본예산",
+      "total_amount": "15조 7,480억 원",
+      "general_fund": "12조 5,917억 원",
+      "special_fund": "3조 1,563억 원",
+      "diff_prev": "+4,203억 원 (+2.7%)",
+      "slogan": "시민 안심도시, 글로벌 영어하기 편한 도시 조성",
+      "sectors": [
+        {
+          "name": "사회복지",
+          "amount": "5조 6,210억 원",
+          "pct": "35.7%",
+          "color": "#0284c7"
+        },
+        {
+          "name": "교통물류",
+          "amount": "1조 6,850억 원",
+          "pct": "10.7%",
+          "color": "#2563eb"
+        },
+        {
+          "name": "공공행정",
+          "amount": "1조 6,100억 원",
+          "pct": "10.2%",
+          "color": "#0d9488"
+        },
+        {
+          "name": "환경",
+          "amount": "1조 950억 원",
+          "pct": "7.0%",
+          "color": "#16a34a"
+        },
+        {
+          "name": "산업경제",
+          "amount": "1조 200억 원",
+          "pct": "6.5%",
+          "color": "#ea580c"
+        },
+        {
+          "name": "기타",
+          "amount": "4조 7,170억 원",
+          "pct": "29.9%",
+          "color": "#64748b"
+        }
+      ],
+      "core_investments": [
+        {
+          "title": "대중교통 동백패스 전국 최초 정식 시행",
+          "amount": "850억 원",
+          "desc": "부산시 대중교통 이용률 10% 증가 견인"
+        },
+        {
+          "title": "영어하기 편한 도시 글로벌 빌리지 확충",
+          "amount": "220억 원",
+          "desc": "시민 생활영어 교육 및 외국인 정주 환경 혁신"
+        }
+      ],
+      "official_url": "https://www.busan.go.kr/open/finance01",
+      "pdf_name": "2024년도_부산광역시_예산서_총람.pdf"
+    },
+    {
+      "year": "2023",
+      "title": "2023년도 부산광역시 본예산",
+      "total_amount": "15조 3,277억 원",
+      "general_fund": "11조 9,349억 원",
+      "special_fund": "3조 3,928억 원",
+      "diff_prev": "+1조 587억 원 (+7.4%)",
+      "slogan": "2030 부산세계박람회 유치 도전 및 미래 스마트 그린도시 구현",
+      "sectors": [
+        {
+          "name": "사회복지",
+          "amount": "5조 3,120억 원",
+          "pct": "34.7%",
+          "color": "#0284c7"
+        },
+        {
+          "name": "교통물류",
+          "amount": "1조 6,200억 원",
+          "pct": "10.6%",
+          "color": "#2563eb"
+        },
+        {
+          "name": "환경",
+          "amount": "1조 500억 원",
+          "pct": "6.8%",
+          "color": "#16a34a"
+        },
+        {
+          "name": "기타",
+          "amount": "7조 3,457억 원",
+          "pct": "47.9%",
+          "color": "#64748b"
+        }
+      ],
+      "core_investments": [
+        {
+          "title": "2030 세계박람회 유치 활동 및 홍보",
+          "amount": "620억 원",
+          "desc": "BIE 현지실사 대응 및 범시민 유치 열기 조성"
+        },
+        {
+          "title": "수소 모빌리티 및 친환경 그린스마트 인프라",
+          "amount": "480억 원",
+          "desc": "친환경 수소버스 및 충전소 보급 확대"
+        }
+      ],
+      "official_url": "https://www.busan.go.kr/open/finance01",
+      "pdf_name": "2023년도_부산광역시_예산서_총람.pdf"
+    },
+    {
+      "year": "2022",
+      "title": "2022년도 부산광역시 본예산",
+      "total_amount": "14조 2,690억 원",
+      "general_fund": "10조 9,250억 원",
+      "special_fund": "3조 3,440억 원",
+      "diff_prev": "+9,680억 원 (+7.3%)",
+      "slogan": "코로나19 조기 극복 및 일상회복 도약",
+      "sectors": [
+        {
+          "name": "사회복지",
+          "amount": "4조 8,900억 원",
+          "pct": "34.3%",
+          "color": "#0284c7"
+        },
+        {
+          "name": "교통물류",
+          "amount": "1조 5,400억 원",
+          "pct": "10.8%",
+          "color": "#2563eb"
+        },
+        {
+          "name": "기타",
+          "amount": "7조 8,390억 원",
+          "pct": "54.9%",
+          "color": "#64748b"
+        }
+      ],
+      "core_investments": [
+        {
+          "title": "소상공인 3무(무한도·무이자·무보증료) 특별자금",
+          "amount": "540억 원",
+          "desc": "위기 소상공인 긴급 금융지원"
+        },
+        {
+          "title": "지역화폐 동백전 발행 인센티브",
+          "amount": "800억 원",
+          "desc": "골목상권 소비 진작 10% 캐시백 지원"
+        }
+      ],
+      "official_url": "https://www.busan.go.kr/open/finance01",
+      "pdf_name": "2022년도_부산광역시_예산서_총람.pdf"
+    },
+    {
+      "year": "2021",
+      "title": "2021년도 부산광역시 본예산",
+      "total_amount": "13조 3,010억 원",
+      "general_fund": "10조 3,240억 원",
+      "special_fund": "2조 9,770억 원",
+      "diff_prev": "+7,100억 원 (+5.6%)",
+      "slogan": "방역체계 확립 및 시민 안전망 강화",
+      "sectors": [
+        {
+          "name": "사회복지",
+          "amount": "4조 5,100억 원",
+          "pct": "33.9%",
+          "color": "#0284c7"
+        },
+        {
+          "name": "기타",
+          "amount": "8조 7,910억 원",
+          "pct": "66.1%",
+          "color": "#64748b"
+        }
+      ],
+      "core_investments": [
+        {
+          "title": "감염병 상시 전담 호흡기 클리닉 확충",
+          "amount": "320억 원",
+          "desc": "지역 방역 대응체계 고도화"
+        }
+      ],
+      "official_url": "https://www.busan.go.kr/open/finance01",
+      "pdf_name": "2021년도_부산광역시_예산서_총람.pdf"
+    }
+  ],
+  "projects": [
+    {
+      "id": "gadeok",
+      "title": "가덕도신공항 건설사업",
+      "badge": "핵심 관문공항",
+      "status": "2029년 개항 추진 중",
+      "dept": "신공항추진본부 (051-888-4501)",
+      "desc": "남부권 1,400만 국민의 글로벌 하늘길을 여는 24시간 운영 가능한 복합 해양물류 거점 관문공항. 공항복합도시 및 배후 철도·도로망 연계 구축.",
+      "budget": "총사업비 약 13조 4,900억 원",
+      "period": "2024년 ~ 2029년",
+      "url": "https://www.busan.go.kr/depart/air01"
+    },
+    {
+      "id": "north_port",
+      "title": "부산항 북항재개발 1·2단계",
+      "badge": "해양 랜드마크",
+      "status": "1단계 친환경 수변공원 개방, 2단계 본궤도",
+      "dept": "도시균형발전실 북항재개발과 (051-888-2511)",
+      "desc": "우리나라 최초의 항만재개발 사업. 친환경 수변공원, 해양레저공간, 오페라하우스, 랜드마크 복합상업지구를 조성하여 원도심과 바다를 잇는 글로벌 해양관광 비즈니스 지구 조성.",
+      "budget": "1·2단계 총 4조 8,000억 원",
+      "period": "2008년 ~ 2030년",
+      "url": "https://www.busan.go.kr/depart/inport"
+    },
+    {
+      "id": "15min_city",
+      "title": "부산형 15분 도시",
+      "badge": "생활권 혁신",
+      "status": "들락날락 100개소 및 생활권 보행로 확충",
+      "dept": "15분도시기획단 (051-888-3481)",
+      "desc": "집에서 걸어서 또는 자전거로 15분 이내에 직장, 주거, 교육, 보육, 문화, 의료 서비스를 누릴 수 있는 지속 가능한 사람 중심의 생활권 스마트 도시.",
+      "budget": "연간 약 2,500억 원 투입",
+      "period": "2022년 ~ 계속",
+      "url": "https://www.busan.go.kr/depart/15min"
+    },
+    {
+      "id": "bdx",
+      "title": "부산 디지털자산거래소 (BDX) & 금융특구",
+      "badge": "미래금융 허브",
+      "status": "문현금융단지 BIFC 연계 법인 설립 가동",
+      "dept": "금융블록체인담당관 (051-888-4681)",
+      "desc": "원자재, 귀금속, 지식재산권, 토큰증권(ST) 등 모든 가치 있는 실물 자산을 디지털화하여 24시간 안전하게 거래하는 4차 산업 블록체인 기반 공공 민간 협력 거래소.",
+      "budget": "민자 및 정책금융 협력",
+      "period": "2024년 ~ 계속",
+      "url": "https://www.busan.go.kr/depart/infin"
+    },
+    {
+      "id": "dongbaek_pass",
+      "title": "대중교통 통합할인제 동백패스 & 어린이 무료화",
+      "badge": "전국 최초 교통복지",
+      "status": "가입자 50만 돌파, K-패스 연계 완료",
+      "dept": "교통정책과 (051-888-3901)",
+      "desc": "시내버스, 마을버스, 도시철도, 동해선, 경전철 이용 시 월 45,000원 초과 사용액을 최대 45,000원까지 동백전 캐시백으로 환급. 만 6~12세 어린이 대중교통 100% 무료.",
+      "budget": "연간 약 1,100억 원",
+      "period": "2023년 8월 ~ 계속",
+      "url": "https://www.busan.go.kr/depart/intrans01"
+    },
+    {
+      "id": "metro_expansion",
+      "title": "도시철도망 확충 (하단-녹산선, 사상-하단선)",
+      "badge": "광역 교통망",
+      "status": "사상-하단선 마무리, 하단-녹산선 착공",
+      "dept": "도시철도과 (051-888-4061)",
+      "desc": "서부산권 교통난 해소를 위해 사상~하단(6.9km), 하단~녹산(14.4km) 도시철도를 연결하여 명지국제신도시와 녹산국가산단을 잇는 핵심 대중교통 축 형성.",
+      "budget": "약 1조 7,500억 원",
+      "period": "2016년 ~ 2029년",
+      "url": "https://www.busan.go.kr/depart/inmetro"
+    }
+  ],
+  "news": [
+    {
+      "title": "부산시, 2026년도 본예산 16조 6,921억원 최종 확정… 글로벌 허브도시 미래투자 본격화",
+      "date": "2026.01.05",
+      "dept": "예산담당관",
+      "category": "예산·재정",
+      "summary": "복지·보건 6.1조, 교통물류 1.8조 등 약자복지와 미래 신성장동력 확보에 역대 최대 규모 본예산 편성.",
+      "url": "https://www.busan.go.kr/nbnews"
+    },
+    {
+      "title": "‘부산 동백패스’, K-패스와 완벽 결합해 전국 최고의 대중교통 환급 혜택 제공",
+      "date": "2026.01.20",
+      "dept": "교통정책과",
+      "category": "교통복지",
+      "summary": "부산 시민이라면 누구나 K-패스와 동백패스 중 더 큰 환급액을 자동으로 적용받아 실질적인 교통비 절감 효과 체감.",
+      "url": "https://www.busan.go.kr/nbnews"
+    },
+    {
+      "title": "가덕도신공항 부지조성공사 본계약 체결… 2029년 개항 목표 탄력",
+      "date": "2026.02.03",
+      "dept": "신공항추진단",
+      "category": "도시인프라",
+      "summary": "남부권 하늘길을 열 가덕도신공항 부지조성공사가 공식 착공 절차에 돌입하여 글로벌 복합물류 허브도시 조성 가속.",
+      "url": "https://www.busan.go.kr/nbnews"
+    },
+    {
+      "title": "15분도시 들락날락, 부산 전역 100번째 복합문화공간 개관 달성!",
+      "date": "2026.02.14",
+      "dept": "15분도시기획단",
+      "category": "시민생활",
+      "summary": "아이와 부모가 집 앞에서 누리는 미래형 디지털 놀이터 및 독서 체험관 들락날락이 누적 100개소를 돌파.",
+      "url": "https://www.busan.go.kr/nbnews"
+    },
+    {
+      "title": "2026 부산 청년 희망날개통장 & 월세 특별지원 신규 참여자 모집",
+      "date": "2026.02.22",
+      "dept": "청년정책담당관",
+      "category": "청년·일자리",
+      "summary": "부산 거주 청년들의 안정적인 주거 자립과 자산 형성을 지원하는 매칭 지원금 통장 신청 안내.",
+      "url": "https://www.busan.go.kr/nbnews"
+    },
+    {
+      "title": "광안리 해변 ‘M 드론라이트쇼’ 상설공연, 2026 시즌 신규 테마 공개",
+      "date": "2026.03.02",
+      "dept": "관광마이스산업과",
+      "category": "문화·관광",
+      "summary": "매주 토요일 밤 광안대교를 배경으로 펼쳐지는 세계적 수준의 드론 멀티미디어 쇼 시즌 개막.",
+      "url": "https://www.busan.go.kr/nbnews"
+    }
+  ],
+  "statistics": {
+    "population": "3,284,520명",
+    "households": "1,572,140가구",
+    "grdp": "104조 3,000억 원",
+    "fiscal_independence": "48.7%",
+    "port_teu": "2,350만 TEU (세계 6위, 환적 2위)",
+    "tourists": "연간 외국인 320만 명 방문",
+    "districts_count": "16개 자치구·군 (15구 1군)",
+    "slogan": "다시 태어나도 살고 싶은 부산 (Busan is Good)",
+    "symbols": {
+      "flower": "동백꽃",
+      "tree": "동백나무",
+      "bird": "갈매기",
+      "fish": "고등어",
+      "character": "부기 (Boogi)"
+    }
+  },
+  "civic_ranks": [
+    {
+      "level": 1,
+      "title": "방황하는 시민",
+      "xp": 0,
+      "reward": "기본 시민 의상",
+      "badge": "🌱"
+    },
+    {
+      "level": 2,
+      "title": "신규 방문자",
+      "xp": 50,
+      "reward": "기본 인사 제스처",
+      "badge": "👋"
+    },
+    {
+      "level": 3,
+      "title": "관심 시민",
+      "xp": 120,
+      "reward": "박수 제스처 & 동백꽃핀",
+      "badge": "🌺"
+    },
+    {
+      "level": 4,
+      "title": "열린 소통자",
+      "xp": 220,
+      "reward": "120 스마트 헤드셋",
+      "badge": "🎧"
+    },
+    {
+      "level": 5,
+      "title": "시정 모니터",
+      "xp": 350,
+      "reward": "응원 제스처 & 캐주얼 볼캡",
+      "badge": "🧢"
+    },
+    {
+      "level": 6,
+      "title": "적극 행정인",
+      "xp": 520,
+      "reward": "청량 스트리트 데님 로브",
+      "badge": "👖"
+    },
+    {
+      "level": 7,
+      "title": "민원 지킴이",
+      "xp": 720,
+      "reward": "트렌디 선글라스",
+      "badge": "🕶️"
+    },
+    {
+      "level": 8,
+      "title": "주민 자치위원",
+      "xp": 960,
+      "reward": "로맨틱 라벤더 로브",
+      "badge": "💜"
+    },
+    {
+      "level": 9,
+      "title": "정책 제안가",
+      "xp": 1250,
+      "reward": "갈매기 날개",
+      "badge": "🕊️"
+    },
+    {
+      "level": 10,
+      "title": "동백꽃 명예대사",
+      "xp": 1600,
+      "reward": "전통 한복 로브 & 댄스 제스처",
+      "badge": "🎎"
+    },
+    {
+      "level": 11,
+      "title": "15분도시 플래너",
+      "xp": 2000,
+      "reward": "셰프 모자 & 미식가 부기 뱃지",
+      "badge": "👨‍🍳"
+    },
+    {
+      "level": 12,
+      "title": "지산학 혁신가",
+      "xp": 2450,
+      "reward": "반짝이는 나비 날개",
+      "badge": "🦋"
+    },
+    {
+      "level": 13,
+      "title": "해양수도 지킴이",
+      "xp": 2950,
+      "reward": "부산 마린블루 스페셜 로브",
+      "badge": "⚓"
+    },
+    {
+      "level": 14,
+      "title": "글로벌 서포터",
+      "xp": 3500,
+      "reward": "모험가 여행자 백팩",
+      "badge": "🎒"
+    },
+    {
+      "level": 15,
+      "title": "명예 부산시민",
+      "xp": 4150,
+      "reward": "성스러운 천사 날개 & 환호 제스처",
+      "badge": "🪽"
+    },
+    {
+      "level": 16,
+      "title": "미래비전 수석위원",
+      "xp": 4900,
+      "reward": "찬란한 로열 골드 로브",
+      "badge": "✨"
+    },
+    {
+      "level": 17,
+      "title": "동백 대상 수상자",
+      "xp": 5800,
+      "reward": "천사의 빛나는 후광",
+      "badge": "😇"
+    },
+    {
+      "level": 18,
+      "title": "부산 미래원로",
+      "xp": 6900,
+      "reward": "위풍당당 경례 제스처 & 로열 크라운",
+      "badge": "👑"
+    },
+    {
+      "level": 19,
+      "title": "영원한 수호자",
+      "xp": 8200,
+      "reward": "황금빛 수호 오라 이펙트",
+      "badge": "🛡️"
+    },
+    {
+      "level": 20,
+      "title": "열린 부산 최고 시민의장",
+      "xp": 10000,
+      "reward": "최고 시민의장 황금 보좌 & 전용 칭호",
+      "badge": "🏛️"
+    }
+  ],
+  "daily_missions": [
+    {
+      "id": "m1",
+      "title": "부산시청 시민광장 산책하기",
+      "desc": "5대 시민광장 또는 청사 로비 1회 거닐기",
+      "xp": 30,
+      "coin": 10
+    },
+    {
+      "id": "m2",
+      "title": "AI 안내원 다온과 행정 질의응답",
+      "desc": "소관부서 판별기 또는 AI 상담 1회 질문하기",
+      "xp": 40,
+      "coin": 15
+    },
+    {
+      "id": "m3",
+      "title": "열린 정보공개방 예산서 둘러보기",
+      "desc": "2026 부산시 본예산 및 핵심 프로젝트 열람",
+      "xp": 40,
+      "coin": 15
+    },
+    {
+      "id": "m4",
+      "title": "시민 자유담벼락에 응원글 작성",
+      "desc": "자유담벼락에 글 남기기 또는 공감 하트 누르기",
+      "xp": 40,
+      "coin": 15
+    },
+    {
+      "id": "m5",
+      "title": "16개 구·군청 중 1곳 방문하기",
+      "desc": "텔레포트로 구청 방문하여 종합민원실 둘러보기",
+      "xp": 50,
+      "coin": 20
+    }
+  ]
+};
+
+let selectedBudgetYearGlobal = '2026';
+let activeHopeBalloons = [];
+
+// [3D 공간 건축] 1층 서편 로비 열린 정보공개관 데스크
+function buildOpenDataInformationCenter(x, y, z, parent) {
+  const group = new THREE.Group();
+  group.position.set(x, y, z);
+
+  // 카운터 데스크
+  const counterGeo = new THREE.BoxGeometry(6.5, 1.1, 1.6);
+  const counterMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, metalness: 0.35, roughness: 0.4 });
+  const counter = new THREE.Mesh(counterGeo, counterMat);
+  counter.position.y = 0.55;
+  group.add(counter);
+
+  createSignBoard(0, 1.8, 0, "📂 열린 정보공개관 (연도별 예산서)", 0x38bdf8, group);
+
+  // 회전하는 3D 홀로그램 폴더 조형물
+  const holoGeo = new THREE.BoxGeometry(0.7, 0.9, 0.15);
+  const holoMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 });
+  const holoFolder = new THREE.Mesh(holoGeo, holoMat);
+  holoFolder.position.set(0, 1.45, 0);
+  group.add(holoFolder);
+
+  // 회전 애니메이션 등록
+  setInterval(() => {
+    if (holoFolder) holoFolder.rotation.y += 0.03;
+  }, 30);
+
+  // 전담 안내원 NPC (정보공개관 부기)
+  const staffNpc = createCuteCitizenMesh({
+    name: "정보관 부기",
+    title: "예산·행정정보 안내",
+    robeColor: "gold",
+    hatType: "chef",
+    wingsType: "none",
+    hairStyle: "dandy",
+    hairColor: "brown",
+    skinTone: "warm",
+    isNpc: true
+  });
+  staffNpc.position.set(0, 0, -1.0);
+  group.add(staffNpc);
+
+  parent.add(group);
+
+  registerInteractiveObject({
+    id: 'open_data_desk',
+    pos: { x, y, z: z + 1.2 },
+    radius: 3.5,
+    prompt: "E키: 열린 정보공개관 (연도별 예산서·프로젝트·통계 열람)",
+    action: () => {
+      openOpenDataModal();
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x, z, w: 6.5, d: 1.6, h: 1.1 });
+}
+
+// 실시간 아바타 스타일링 미리보기 (모달 내 선택 즉시 변경)
+function previewCustomization() {
+  const nameInput = document.getElementById('custom-name');
+  const hairStyleSel = document.getElementById('custom-hair-style');
+  const hairColorSel = document.getElementById('custom-hair-color');
+  const skinSel = document.getElementById('custom-skin');
+  const robeSelect = document.getElementById('custom-robe');
+  const hatSelect = document.getElementById('custom-hat');
+  const wingsSelect = document.getElementById('custom-wings');
+
+  if (nameInput && nameInput.value.trim()) STATE.playerName = nameInput.value.trim();
+  if (hairStyleSel) STATE.hairStyle = hairStyleSel.value;
+  if (hairColorSel) STATE.hairColor = hairColorSel.value;
+  if (skinSel) STATE.skinTone = skinSel.value;
+  if (robeSelect) STATE.robeColor = robeSelect.value;
+  if (hatSelect) STATE.hatType = hatSelect.value;
+  if (wingsSelect) STATE.wingsType = wingsSelect.value;
+
+  if (localPlayer) {
+    const pos = localPlayer.position.clone();
+    const rotY = localPlayer.rotation.y;
+    scene.remove(localPlayer);
+    createLocalPlayer();
+    localPlayer.position.copy(pos);
+    localPlayer.rotation.y = rotY;
+  }
+}
+
+// 열린 정보공개방 모달 열기 및 데이터 렌더링
+function openOpenDataModal(activeTab = 'budgets') {
+  openModal('modal-open-info');
+  switchOpenDataTab(activeTab);
+}
+
+function switchOpenDataTab(tabName, btnEl) {
+  document.querySelectorAll('.open-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.open-tab-content').forEach(c => c.style.display = 'none');
+
+  if (btnEl) {
+    btnEl.classList.add('active');
+  } else {
+    const defaultBtn = document.querySelector(`.open-tab-btn[onclick*="${tabName}"]`);
+    if (defaultBtn) defaultBtn.classList.add('active');
+  }
+
+  const target = document.getElementById(`openTab-${tabName}`);
+  if (target) target.style.display = 'block';
+
+  if (tabName === 'budgets') renderBudgetData(selectedBudgetYearGlobal);
+  if (tabName === 'projects') renderProjectsData();
+  if (tabName === 'news') renderNewsData();
+  if (tabName === 'stats') renderStatsData();
+}
+
+function selectBudgetYear(year, btnEl) {
+  selectedBudgetYearGlobal = year;
+  document.querySelectorAll('.year-pill').forEach(p => p.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  renderBudgetData(year);
+}
+
+function renderBudgetData(year) {
+  const data = window.BUSAN_OPEN_DATA || {};
+  const budgets = data.budgets || [];
+  const b = budgets.find(item => item.year === year) || budgets[0];
+  if (!b) return;
+
+  const banner = document.getElementById('budgetSummaryBanner');
+  if (banner) {
+    banner.innerHTML = `
+      <div class="budget-title-row">
+        <div>
+          <span style="font-size:12px; color:#94a3b8; font-weight:700;">부산광역시 공식 세입·세출 본예산 총액</span>
+          <div class="budget-main-val">${b.total_amount}</div>
+        </div>
+        <div class="budget-diff-badge">${b.diff_prev || '확정 예산'}</div>
+      </div>
+      <div style="display:flex; gap:16px; font-size:12px; color:#e2e8f0; margin: 8px 0;">
+        <span>일반회계: <strong>${b.general_fund}</strong></span>
+        <span>특별회계: <strong>${b.special_fund}</strong></span>
+      </div>
+      <div class="budget-slogan">💡 ${b.slogan}</div>
+    `;
+  }
+
+  const sectorsList = document.getElementById('budgetSectorsList');
+  if (sectorsList) {
+    sectorsList.innerHTML = (b.sectors || []).map(sec => `
+      <div class="sector-card">
+        <div class="sector-header">
+          <span>${sec.name}</span>
+          <span style="color:#0284c7;">${sec.amount} (${sec.pct})</span>
+        </div>
+        <div class="sector-bar-bg">
+          <div class="sector-bar-fill" style="width:${sec.pct}; background:${sec.color || '#0284c7'};"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const investList = document.getElementById('budgetInvestmentsList');
+  if (investList) {
+    investList.innerHTML = (b.core_investments || []).map(inv => `
+      <div class="invest-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="invest-title">📌 ${inv.title}</div>
+          <div class="invest-amount">${inv.amount}</div>
+        </div>
+        <div class="invest-desc">${inv.desc}</div>
+      </div>
+    `).join('');
+  }
+
+  const officialLink = document.getElementById('btnBudgetOfficialUrl');
+  if (officialLink && b.official_url) {
+    officialLink.href = b.official_url;
+  }
+}
+
+function renderProjectsData() {
+  const data = window.BUSAN_OPEN_DATA || {};
+  const projects = data.projects || [];
+  const listEl = document.getElementById('majorProjectsList');
+  if (!listEl) return;
+
+  listEl.innerHTML = projects.map(p => `
+    <div class="project-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+        <div style="font-size:15px; font-weight:800; color:#0f172a;">${p.title}</div>
+        <span class="project-badge">${p.badge}</span>
+      </div>
+      <div style="font-size:12px; color:#0284c7; font-weight:700; margin-bottom:4px;">
+        상태: ${p.status} | 예산: ${p.budget}
+      </div>
+      <div style="font-size:12.5px; color:#475569; line-height:1.5; margin-bottom:6px;">
+        ${p.desc}
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#64748b; padding-top:6px; border-top:1px dashed #e2e8f0;">
+        <span>담당부서: ${p.dept}</span>
+        <a href="${p.url}" target="_blank" rel="noopener" style="color:#0284c7; text-decoration:none; font-weight:700;">상세보기 ↗</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderNewsData() {
+  const data = window.BUSAN_OPEN_DATA || {};
+  const news = data.news || [];
+  const listEl = document.getElementById('cityNewsList');
+  if (!listEl) return;
+
+  listEl.innerHTML = news.map(n => `
+    <div class="invest-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <span class="project-badge">${n.category}</span>
+        <span style="font-size:11px; color:#94a3b8;">${n.date} | ${n.dept}</span>
+      </div>
+      <div style="font-size:13.5px; font-weight:800; color:#0f172a; margin-bottom:4px;">${n.title}</div>
+      <div style="font-size:12px; color:#475569; line-height:1.4;">${n.summary}</div>
+      <div style="margin-top:6px; text-align:right;">
+        <a href="${n.url}" target="_blank" rel="noopener" style="font-size:11.5px; color:#0284c7; font-weight:700; text-decoration:none;">공식 보도자료 읽기 ↗</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderStatsData() {
+  const data = window.BUSAN_OPEN_DATA || {};
+  const st = data.statistics || {};
+  const container = document.getElementById('cityStatsContainer');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:16px; margin-bottom:14px; text-align:center;">
+      <div style="font-size:12px; color:#0369a1; font-weight:700;">부산광역시 도시 브랜드 슬로건</div>
+      <div style="font-size:22px; font-weight:900; color:#0284c7; margin:4px 0;">${st.slogan || 'Busan is Good'}</div>
+      <div style="font-size:12px; color:#64748b;">다시 태어나도 살고 싶은 대한민국 해양 수도</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
+      <div class="sector-card">
+        <div style="font-size:11px; color:#64748b;">부산 총 인구</div>
+        <div style="font-size:16px; font-weight:800; color:#0f172a;">${st.population}</div>
+      </div>
+      <div class="sector-card">
+        <div style="font-size:11px; color:#64748b;">지역내총생산 (GRDP)</div>
+        <div style="font-size:16px; font-weight:800; color:#0f172a;">${st.grdp}</div>
+      </div>
+      <div class="sector-card">
+        <div style="font-size:11px; color:#64748b;">재정자립도</div>
+        <div style="font-size:16px; font-weight:800; color:#0284c7;">${st.fiscal_independence}</div>
+      </div>
+      <div class="sector-card">
+        <div style="font-size:11px; color:#64748b;">연간 항만 물동량</div>
+        <div style="font-size:16px; font-weight:800; color:#0284c7;">${st.port_teu}</div>
+      </div>
+    </div>
+
+    <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12.5px; color:#334155; line-height:1.6;">
+      <div>🌲 <strong>시목:</strong> ${st.symbols ? st.symbols.tree : '동백나무'} &nbsp;|&nbsp; 🌺 <strong>시화:</strong> ${st.symbols ? st.symbols.flower : '동백꽃'}</div>
+      <div>🕊️ <strong>시조:</strong> ${st.symbols ? st.symbols.bird : '갈매기'} &nbsp;|&nbsp; 🐟 <strong>시어:</strong> ${st.symbols ? st.symbols.fish : '고등어'}</div>
+      <div>🐥 <strong>소통 캐릭터:</strong> ${st.symbols ? st.symbols.character : '부기'} &nbsp;|&nbsp; 🏛️ <strong>행정구역:</strong> ${st.districts_count || '16개 구·군'}</div>
+    </div>
+  `;
+}
+
+// 오늘의 시민 생활 (일일 임무 & 계급 모달)
+function openCivicLifeModal() {
+  updateCivicLifeUI();
+  openModal('modal-civic-life');
+}
+
+function updateCivicLifeUI() {
+  const data = window.BUSAN_OPEN_DATA || {};
+  const ranks = data.civic_ranks || [];
+  const missions = data.daily_missions || [];
+
+  const curRank = ranks.find(r => r.level === STATE.playerLevel) || ranks[0] || { level: 1, title: '시민', badge: '🌱' };
+  const nextRank = ranks.find(r => r.level === STATE.playerLevel + 1) || curRank;
+
+  const titleEl = document.getElementById('civicLifeMyTitle');
+  if (titleEl) titleEl.innerText = `Lv.${curRank.level} ${curRank.title}`;
+  const badgeEl = document.getElementById('civicLifeMyBadge');
+  if (badgeEl) badgeEl.innerText = curRank.badge || '🌱';
+
+  const xpText = document.getElementById('civicLifeXpText');
+  const xpBar = document.getElementById('civicLifeXpBar');
+  const targetXp = nextRank.xp || 10000;
+  if (xpText) xpText.innerText = `${STATE.playerExp || 20} / ${targetXp} XP`;
+  if (xpBar) {
+    const pct = Math.min(100, Math.floor(((STATE.playerExp || 20) / targetXp) * 100));
+    xpBar.style.width = `${pct}%`;
+  }
+
+  // 일일 임무 렌더링
+  let completedMissions = JSON.parse(localStorage.getItem('busan_done_missions') || '[]');
+  const missionsEl = document.getElementById('dailyMissionsList');
+  if (missionsEl) {
+    missionsEl.innerHTML = missions.map(m => {
+      const isDone = completedMissions.includes(m.id);
+      return `
+        <div class="mission-card ${isDone ? 'completed' : ''}">
+          <div>
+            <div style="font-size:13px; font-weight:800; color:#0f172a;">${m.title}</div>
+            <div style="font-size:11.5px; color:#64748b;">${m.desc} (+${m.xp} XP / +${m.coin} 동백코인)</div>
+          </div>
+          <button class="mission-check-btn ${isDone ? 'done' : ''}" onclick="toggleDailyMission('${m.id}', ${m.xp})">
+            ${isDone ? '완료됨 ✓' : '임무 완료'}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    const progEl = document.getElementById('dailyMissionProgress');
+    if (progEl) progEl.innerText = `${completedMissions.length}/${missions.length} 완료`;
+  }
+
+  // 20단계 계급 렌더링
+  const ranksEl = document.getElementById('civicRanksList');
+  if (ranksEl) {
+    ranksEl.innerHTML = ranks.map(r => `
+      <div class="rank-card-row ${r.level === STATE.playerLevel ? 'current' : ''}">
+        <span style="font-size:20px;">${r.badge}</span>
+        <div style="flex:1;">
+          <div style="font-size:13px; font-weight:800;">Lv.${r.level} ${r.title}</div>
+          <div style="font-size:11.5px; color:#64748b;">필요경험치: ${r.xp} XP | 보상: ${r.reward}</div>
+        </div>
+        ${r.level <= STATE.playerLevel ? '<span style="color:#16a34a; font-weight:800; font-size:12px;">달성 ✓</span>' : '<span style="color:#94a3b8; font-size:11px;">미달성</span>'}
+      </div>
+    `).join('');
+  }
+}
+
+function toggleDailyMission(missionId, xp) {
+  let completedMissions = JSON.parse(localStorage.getItem('busan_done_missions') || '[]');
+  if (!completedMissions.includes(missionId)) {
+    completedMissions.push(missionId);
+    localStorage.setItem('busan_done_missions', JSON.stringify(completedMissions));
+    awardCivicExp(xp, "일일 시민 임무 완료");
+    if (window.busanAudio) window.busanAudio.playStampSound();
+  }
+  updateCivicLifeUI();
+}
+
+function awardCivicExp(amount, reason = "") {
+  STATE.playerExp = (STATE.playerExp || 20) + amount;
+  localStorage.setItem('busan_player_exp', STATE.playerExp);
+
+  // 계급 승급 검사
+  const data = window.BUSAN_OPEN_DATA || {};
+  const ranks = data.civic_ranks || [];
+  for (let i = ranks.length - 1; i >= 0; i--) {
+    if (STATE.playerExp >= ranks[i].xp && STATE.playerLevel < ranks[i].level) {
+      STATE.playerLevel = ranks[i].level;
+      STATE.playerTitle = ranks[i].title;
+      localStorage.setItem('busan_player_level', STATE.playerLevel);
+      localStorage.setItem('busan_player_title', STATE.playerTitle);
+      showSpeechBubble(localPlayer, `🎉 축하합니다! [Lv.${STATE.playerLevel} ${STATE.playerTitle}] 계급으로 승급하셨습니다!`);
+      if (window.busanAudio) window.busanAudio.playFanfare();
+      break;
+    }
+  }
+
+  updatePlayerBadgeUI();
+  updateCivicLifeUI();
+  if (localPlayer) {
+    showSpeechBubble(localPlayer, `✨ +${amount} EXP 획득! (${reason})`);
+  }
+}
+
+// 부산 시민 비전 선포 & 오색 희망 풍선 축제
+function triggerHopeBalloonFestival() {
+  if (window.busanAudio) window.busanAudio.playApplause();
+
+  // 중앙 광장에서 40개의 오색 풍선 생성하여 하늘로 날리기
+  const balloonColors = [0xef4444, 0x3b82f6, 0xf59e0b, 0x10b981, 0xec4899, 0x8b5cf6, 0x06b6d4];
+  const balloonGeo = new THREE.SphereGeometry(0.55, 14, 14);
+
+  for (let i = 0; i < 40; i++) {
+    const col = balloonColors[Math.floor(Math.random() * balloonColors.length)];
+    const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, metalness: 0.2 });
+    const bMesh = new THREE.Mesh(balloonGeo, mat);
+
+    const bx = (Math.random() - 0.5) * 28;
+    const bz = 10 + (Math.random() - 0.5) * 28;
+    bMesh.position.set(bx, 1.0 + Math.random() * 2, bz);
+
+    // 풍선 꼬리 끈
+    const strGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.6, 4);
+    const strMesh = new THREE.Mesh(strGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    strMesh.position.y = -0.55;
+    bMesh.add(strMesh);
+
+    bMesh.userData = {
+      vy: 0.04 + Math.random() * 0.05,
+      driftX: (Math.random() - 0.5) * 0.02,
+      phase: Math.random() * Math.PI * 2
+    };
+
+    scene.add(bMesh);
+    activeHopeBalloons.push(bMesh);
+  }
+
+  awardCivicExp(100, "희망 풍선 축제 참여");
+  showSpeechBubble(localPlayer, "🎈 부산 시민 희망의 풍선이 힘차게 날아오릅니다! 부산의 미래를 축복합니다!");
+
+  if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    STATE.ws.send(JSON.stringify({
+      type: 'shout_podium',
+      name: STATE.playerName,
+      text: "🎈 희망 풍선 축제가 시작되었습니다! 함께 미래를 열어갑시다!"
+    }));
+  }
+}
