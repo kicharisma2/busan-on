@@ -12,10 +12,32 @@ import hashlib
 import struct
 import threading
 import time
+import socket
+import math
 import urllib.parse
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 import busan_data
+
+def safe_float(val, default=0.0):
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(val, default=1):
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
 
 PORT = 8080
 
@@ -108,9 +130,11 @@ def safe_send_frame(sock, frame_bytes, send_lock=None):
 def recv_exact_stream(rfile, num_bytes):
     try:
         data = rfile.read(num_bytes)
-        if len(data) < num_bytes:
+        if not data or len(data) < num_bytes:
             return None
         return data
+    except (socket.timeout, TimeoutError):
+        raise
     except Exception:
         return None
 
@@ -160,6 +184,8 @@ def decode_ws_frame_from_stream(rfile, sock, send_lock):
             return 'pong', None
 
         return 'text', data.decode('utf-8', errors='ignore')
+    except (socket.timeout, TimeoutError):
+        return 'timeout', None
     except Exception:
         return None, None
 
@@ -225,7 +251,22 @@ def handle_websocket_loop(handler):
     current_room = 'BUSAN-HQ'
 
     while True:
-        status, msg_str = decode_ws_frame_from_stream(rfile, sock, send_lock)
+        try:
+            status, msg_str = decode_ws_frame_from_stream(rfile, sock, send_lock)
+        except (socket.timeout, TimeoutError):
+            status = 'timeout'
+            msg_str = None
+
+        if status == 'timeout':
+            # 45초 무응답 시 WebSocket 핑(Heartbeat) 송신하여 소켓 활성 점검
+            try:
+                ping_frame = encode_ws_frame(b'', opcode=0x9)
+                if not safe_send_frame(sock, ping_frame, send_lock):
+                    break
+            except Exception:
+                break
+            continue
+
         if status in (None, 'close'):
             break
         if status in ('ping', 'pong'):
@@ -266,7 +307,7 @@ def handle_websocket_loop(handler):
                     client_info = {
                         'id': client_id,
                         'name': msg.get('name', '부산시민_' + client_id[:4]),
-                        'level': int(msg.get('level', 1)),
+                        'level': safe_int(msg.get('level'), 1),
                         'title': msg.get('title', '첫 방문 시민'),
                         'robe': msg.get('robe', msg.get('robeColor', 'blue')),
                         'robeColor': msg.get('robeColor', msg.get('robe', 'blue')),
@@ -278,10 +319,10 @@ def handle_websocket_loop(handler):
                         'hairColor': msg.get('hairColor', 'black'),
                         'skinTone': msg.get('skinTone', 'warm'),
                         'belt': msg.get('belt', 'citizen'),
-                        'x': float(msg.get('x', 0)),
-                        'y': float(msg.get('y', 0)),
-                        'z': float(msg.get('z', 20)),
-                        'ry': float(msg.get('ry', 0)),
+                        'x': safe_float(msg.get('x'), 0.0),
+                        'y': safe_float(msg.get('y'), 0.0),
+                        'z': safe_float(msg.get('z'), 20.0),
+                        'ry': safe_float(msg.get('ry'), 0.0),
                         'jump': bool(msg.get('jump', False)),
                         'act': 'idle'
                     }
@@ -316,29 +357,29 @@ def handle_websocket_loop(handler):
                 }, exclude_sock=sock)
 
             elif mtype == 'move':
-                y_val = float(msg.get('y', 0))
+                y_val = safe_float(msg.get('y'), 0.0)
                 jump_val = bool(msg.get('jump', False))
                 with CLIENT_LOCK:
                     if client_id in CLIENT_META:
                         info = CLIENT_META[client_id]['info']
-                        info['x'] = float(msg.get('x', info['x']))
+                        info['x'] = safe_float(msg.get('x'), info.get('x', 0.0))
                         info['y'] = y_val
-                        info['z'] = float(msg.get('z', info['z']))
-                        info['ry'] = float(msg.get('ry', info['ry']))
+                        info['z'] = safe_float(msg.get('z'), info.get('z', 20.0))
+                        info['ry'] = safe_float(msg.get('ry'), info.get('ry', 0.0))
                         info['jump'] = jump_val
 
                 broadcast_room(current_room, {
                     'type': 'peer_move',
                     'id': client_id,
-                    'x': msg.get('x'),
+                    'x': safe_float(msg.get('x'), 0.0),
                     'y': y_val,
-                    'z': msg.get('z'),
-                    'ry': msg.get('ry'),
+                    'z': safe_float(msg.get('z'), 20.0),
+                    'ry': safe_float(msg.get('ry'), 0.0),
                     'jump': jump_val
                 }, exclude_sock=sock)
 
             elif mtype == 'level_up':
-                lvl = int(msg.get('level', 1))
+                lvl = safe_int(msg.get('level'), 1)
                 ttl = msg.get('title', '시민 탐험가')
                 nm = msg.get('name', '부산시민')
                 with CLIENT_LOCK:
@@ -434,18 +475,9 @@ def handle_websocket_loop(handler):
                     'stamp_name': stamp_name
                 }, exclude_sock=sock)
 
-        except socket.timeout:
-            # 45초 무응답 시 WebSocket 핑(Heartbeat) 송신하여 소켓 활성 점검
-            try:
-                ping_frame = encode_ws_frame(b'', opcode=0x9)
-                if not safe_send_frame(sock, ping_frame, send_lock):
-                    break
-            except Exception:
-                break
-            continue
         except Exception as e:
-            print(f"[WS_EXCEPTION] {client_id}: {e}", flush=True)
-            break
+            print(f"[WS_PACKET_ERROR] {client_id}: {e}", flush=True)
+            continue
 
     cleanup_client(sock, reason='loop_exit')
 

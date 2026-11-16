@@ -2056,9 +2056,9 @@ function initThreeWorld() {
   // 가즈아 대성전급 소프트 거리 안개
   scene.fog = new THREE.Fog(0xbcd9ea, 65, 360);
 
-  // (2) Camera
+  // (2) Camera & OrbitControls (시청 본관 정면을 완벽 구도로 응시)
   camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 800);
-  camera.position.set(0, 12, 54);
+  camera.position.set(0, 6.5, 48.5);
 
   // (3) Renderer - ACES 톤매핑으로 눈부심 방지 및 사진 수준의 선명한 대비
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -2076,7 +2076,7 @@ function initThreeWorld() {
   controls.maxPolarAngle = Math.PI / 2 - 0.03;
   controls.minDistance = 2.5;
   controls.maxDistance = 65;
-  controls.target.set(0, 1.4, 28);
+  controls.target.set(0, 1.4, 38);
 
   // (5) 조명 세팅 - 가즈아 대성전급 3원 시네마틱 라이팅
   const hemiLight = new THREE.HemisphereLight(0xdfeaf2, 0x5a4a36, 0.95);
@@ -4633,17 +4633,17 @@ function updatePlayerMovement(dt) {
 
   // 멀티플레이 위치 패킷 전송
   const now = performance.now();
-  if ((isMoving || ud.isJumping) && STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+  if ((isMoving || (ud && ud.isJumping)) && STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
     if (now - STATE.lastMoveSend > 65) {
       STATE.lastMoveSend = now;
       STATE.ws.send(JSON.stringify({
         type: 'move',
-        x: curPos.x,
-        y: curPos.y,
-        z: curPos.z,
-        ry: localPlayer.rotation.y,
+        x: (curPos && typeof curPos.x === 'number') ? curPos.x : 0.0,
+        y: (curPos && typeof curPos.y === 'number') ? curPos.y : 0.0,
+        z: (curPos && typeof curPos.z === 'number') ? curPos.z : 0.0,
+        ry: (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0,
         act: isMoving ? 'walk' : 'idle',
-        jump: ud.isJumping
+        jump: !!(ud && ud.isJumping)
       }));
     }
   }
@@ -5006,11 +5006,12 @@ async function connectMultiplayerWebSocket() {
       console.log("[부산ON] WebSocket 서버 연결 성공!");
       updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
 
-      const px = localPlayer ? localPlayer.position.x : 0;
-      const py = localPlayer ? localPlayer.position.y : 0;
-      const pz = localPlayer ? localPlayer.position.z : 38;
+      const px = (localPlayer && localPlayer.position && typeof localPlayer.position.x === 'number') ? localPlayer.position.x : 0.0;
+      const py = (localPlayer && localPlayer.position && typeof localPlayer.position.y === 'number') ? localPlayer.position.y : 0.0;
+      const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 38.0;
+      const pry = (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0;
 
-      // 룸 참가 패킷 즉각 전송
+      // 룸 참가 패킷 즉각 전송 (모든 꾸미기 및 정밀 위치 완벽 전송)
       STATE.ws.send(JSON.stringify({
         type: 'join',
         room: STATE.currentRoom,
@@ -5018,11 +5019,18 @@ async function connectMultiplayerWebSocket() {
         title: STATE.playerTitle,
         level: STATE.playerLevel,
         robe: STATE.robeColor,
+        robeColor: STATE.robeColor,
         hat: STATE.hatType,
+        hatType: STATE.hatType,
         wings: STATE.wingsType,
+        wingsType: STATE.wingsType,
+        hairStyle: STATE.hairStyle,
+        hairColor: STATE.hairColor,
+        skinTone: STATE.skinTone,
         x: px,
         y: py,
-        z: pz
+        z: pz,
+        ry: pry
       }));
     };
 
@@ -5914,6 +5922,11 @@ function saveCustomization() {
   updatePlayerBadgeUI();
 
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    const px = (localPlayer && localPlayer.position && typeof localPlayer.position.x === 'number') ? localPlayer.position.x : 0.0;
+    const py = (localPlayer && localPlayer.position && typeof localPlayer.position.y === 'number') ? localPlayer.position.y : 0.0;
+    const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 38.0;
+    const pry = (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0;
+
     STATE.ws.send(JSON.stringify({
       type: 'join',
       room: STATE.currentRoom,
@@ -5926,9 +5939,10 @@ function saveCustomization() {
       hairStyle: STATE.hairStyle,
       hairColor: STATE.hairColor,
       skinTone: STATE.skinTone,
-      x: localPlayer ? localPlayer.position.x : 0,
-      y: localPlayer ? localPlayer.position.y : 0,
-      z: localPlayer ? localPlayer.position.z : 38
+      x: px,
+      y: py,
+      z: pz,
+      ry: pry
     }));
   }
   showSpeechBubble(localPlayer, "✨ 새로운 시민 아바타 스타일이 적용되었습니다!");
@@ -5984,6 +5998,12 @@ function switchRealm(realmCode) {
   }
 
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
+    const defaultZ = (realmCode === 'BUSAN-HQ') ? 38.0 : 24.0;
+    const px = (localPlayer && localPlayer.position && typeof localPlayer.position.x === 'number') ? localPlayer.position.x : 0.0;
+    const py = (localPlayer && localPlayer.position && typeof localPlayer.position.y === 'number') ? localPlayer.position.y : 0.0;
+    const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : defaultZ;
+    const pry = (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0;
+
     STATE.ws.send(JSON.stringify({
       type: 'join',
       room: realmCode,
@@ -5996,9 +6016,10 @@ function switchRealm(realmCode) {
       hairStyle: STATE.hairStyle,
       hairColor: STATE.hairColor,
       skinTone: STATE.skinTone,
-      x: localPlayer ? localPlayer.position.x : 0,
-      y: localPlayer ? localPlayer.position.y : 0,
-      z: localPlayer ? localPlayer.position.z : 24
+      x: px,
+      y: py,
+      z: pz,
+      ry: pry
     }));
   }
 }
