@@ -1,4 +1,249 @@
 
+// ========================================================
+// ★ 부산광역시 공식 3D 소통 마스코트 부기 (Official Boogi)
+// (조롱박형 순백 체형 + 이마 위 빨간 스마트 안경 + 점눈 + 노란 부리 + 동백꽃 스니커즈)
+// ========================================================
+function createOfficialBoogiMesh() {
+  const root = new THREE.Group();
+
+  // 1. 순백의 매끄러운 조롱박형 몸체 (Pear-shaped body)
+  const points = [
+    new THREE.Vector2(0.00, 0.00),
+    new THREE.Vector2(0.24, 0.05),
+    new THREE.Vector2(0.38, 0.16),
+    new THREE.Vector2(0.44, 0.32),
+    new THREE.Vector2(0.42, 0.50),
+    new THREE.Vector2(0.34, 0.70),
+    new THREE.Vector2(0.27, 0.88),
+    new THREE.Vector2(0.24, 1.04),
+    new THREE.Vector2(0.18, 1.18),
+    new THREE.Vector2(0.00, 1.23)
+  ];
+  const bodyGeo = new THREE.LatheGeometry(points, 32);
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.28,
+    metalness: 0.02
+  });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  root.add(body);
+
+  // 2. 머리 위 3가닥 앙증맞은 깃털 (Head Feather Tufts)
+  const featherMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+  const fGeo = new THREE.ConeGeometry(0.045, 0.14, 12);
+  
+  const fC = new THREE.Mesh(fGeo, featherMat);
+  fC.position.set(0, 1.25, -0.04);
+  fC.rotation.x = -0.25;
+  root.add(fC);
+
+  const fL = new THREE.Mesh(fGeo, featherMat);
+  fL.position.set(-0.06, 1.23, -0.04);
+  fL.rotation.set(-0.2, 0, 0.25);
+  root.add(fL);
+
+  const fR = new THREE.Mesh(fGeo, featherMat);
+  fR.position.set(0.06, 1.23, -0.04);
+  fR.rotation.set(-0.2, 0, -0.25);
+  root.add(fR);
+
+  // 3. 이마 위 빨간 스마트 안경 (Red Smart Glasses on Forehead)
+  const glassesGroup = new THREE.Group();
+  glassesGroup.position.set(0, 1.08, 0.21);
+  glassesGroup.rotation.x = -0.18; // 이마 곡면에 걸침
+
+  const redMat = new THREE.MeshStandardMaterial({
+    color: 0xef233c, // 공식 부기 시그니처 레드
+    roughness: 0.22,
+    metalness: 0.1
+  });
+
+  const rimGeo = new THREE.TorusGeometry(0.10, 0.022, 16, 32);
+  const rimL = new THREE.Mesh(rimGeo, redMat);
+  rimL.position.x = -0.105;
+  glassesGroup.add(rimL);
+
+  const rimR = new THREE.Mesh(rimGeo, redMat);
+  rimR.position.x = 0.105;
+  glassesGroup.add(rimR);
+
+  const bridgeGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.06, 12);
+  const bridge = new THREE.Mesh(bridgeGeo, redMat);
+  bridge.rotation.z = Math.PI / 2;
+  glassesGroup.add(bridge);
+
+  const templeGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.24, 12);
+  const templeL = new THREE.Mesh(templeGeo, redMat);
+  templeL.position.set(-0.21, 0, -0.11);
+  templeL.rotation.x = Math.PI / 2;
+  templeL.rotation.y = 0.18;
+  glassesGroup.add(templeL);
+
+  const templeR = new THREE.Mesh(templeGeo, redMat);
+  templeR.position.set(0.21, 0, -0.11);
+  templeR.rotation.x = Math.PI / 2;
+  templeR.rotation.y = -0.18;
+  glassesGroup.add(templeR);
+
+  root.add(glassesGroup);
+
+  // 4. 깜찍한 점눈 (Two Jet-Black Dot Eyes)
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0a0a,
+    roughness: 0.15,
+    metalness: 0.3
+  });
+  const eyeGeo = new THREE.SphereGeometry(0.034, 16, 16);
+
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+  eyeL.position.set(-0.082, 0.90, 0.285);
+  eyeL.scale.set(1, 1, 0.6);
+  root.add(eyeL);
+
+  const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+  eyeR.position.set(0.082, 0.90, 0.285);
+  eyeR.scale.set(1, 1, 0.6);
+  root.add(eyeR);
+
+  // 눈동자 하이라이트 반사광
+  const eyeSpecGeo = new THREE.SphereGeometry(0.010, 8, 8);
+  const eyeSpecMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const specL = new THREE.Mesh(eyeSpecGeo, eyeSpecMat);
+  specL.position.set(-0.075, 0.91, 0.302);
+  root.add(specL);
+
+  const specR = new THREE.Mesh(eyeSpecGeo, eyeSpecMat);
+  specR.position.set(0.089, 0.91, 0.302);
+  root.add(specR);
+
+  // 5. 둥글납작 노란 부리 (Flat Oval Yellow Beak)
+  const beakMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    roughness: 0.32
+  });
+  const beakGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.048, 24);
+  const beak = new THREE.Mesh(beakGeo, beakMat);
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.77, 0.355);
+  beak.scale.set(1.4, 0.95, 1.0);
+  beak.castShadow = true;
+  root.add(beak);
+
+  const smileGeo = new THREE.TorusGeometry(0.07, 0.006, 8, 24, Math.PI);
+  const smileMat = new THREE.MeshBasicMaterial({ color: 0x92400e });
+  const smile = new THREE.Mesh(smileGeo, smileMat);
+  smile.rotation.x = Math.PI / 2;
+  smile.rotation.z = Math.PI;
+  smile.position.set(0, 0.77, 0.405);
+  root.add(smile);
+
+  // 6. 날개 팔 (Wings with Black Tips)
+  const wingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 });
+  const wingTipMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+
+  function makeWing(isLeft) {
+    const wGroup = new THREE.Group();
+    const wBodyGeo = new THREE.CylinderGeometry(0.08, 0.065, 0.34, 16);
+    const wBody = new THREE.Mesh(wBodyGeo, wingMat);
+    wBody.position.y = -0.17;
+    wBody.scale.set(0.65, 1, 1.2);
+    wGroup.add(wBody);
+
+    const wTipGeo = new THREE.ConeGeometry(0.065, 0.16, 16);
+    const wTip = new THREE.Mesh(wTipGeo, wingTipMat);
+    wTip.position.y = -0.40;
+    wTip.rotation.z = Math.PI;
+    wTip.scale.set(0.65, 1, 1.2);
+    wGroup.add(wTip);
+
+    return wGroup;
+  }
+
+  const wingL = makeWing(true);
+  wingL.position.set(-0.36, 0.65, 0.04);
+  wingL.rotation.set(0.15, 0, 0.62);
+  root.add(wingL);
+
+  const wingR = makeWing(false);
+  wingR.position.set(0.36, 0.65, 0.04);
+  wingR.rotation.set(0.15, 0, -0.62);
+  root.add(wingR);
+
+  // 7. 뒤쪽 깜찍한 꼬리 (Tail with black tip)
+  const tailGroup = new THREE.Group();
+  tailGroup.position.set(0, 0.32, -0.42);
+  tailGroup.rotation.x = -0.45;
+  const tailMesh = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.22, 16), wingTipMat);
+  tailMesh.rotation.x = -Math.PI / 2;
+  tailMesh.scale.set(1.4, 0.6, 1);
+  tailGroup.add(tailMesh);
+  root.add(tailGroup);
+
+  // 8. 노란 다리 & 동백꽃 블랙 운동화 (Yellow Legs & Camellia Sneakers)
+  const legMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+  const shoeMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35 });
+  const soleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+  const camelliaMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3 });
+
+  function makeLegAndShoe(isLeft) {
+    const legGroup = new THREE.Group();
+
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.16, 12), legMat);
+    leg.position.y = 0.16;
+    legGroup.add(leg);
+
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.10, 0.26), shoeMat);
+    shoe.position.set(0, 0.07, 0.04);
+    shoe.castShadow = true;
+    legGroup.add(shoe);
+
+    const toe = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.10, 16, 1, false, 0, Math.PI), shoeMat);
+    toe.rotation.y = Math.PI / 2;
+    toe.position.set(0, 0.07, 0.17);
+    legGroup.add(toe);
+
+    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.30), soleMat);
+    sole.position.set(0, 0.018, 0.05);
+    legGroup.add(sole);
+
+    for (let si = 0; si < 2; si++) {
+      const lace = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.012, 0.024), soleMat);
+      lace.position.set(0, 0.122, 0.04 + si * 0.05);
+      legGroup.add(lace);
+    }
+
+    const cam = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.016, 8), camelliaMat);
+    cam.rotation.z = Math.PI / 2;
+    cam.position.set(isLeft ? -0.09 : 0.09, 0.07, 0.04);
+    legGroup.add(cam);
+
+    const pistil = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.02, 6), legMat);
+    pistil.rotation.z = Math.PI / 2;
+    pistil.position.set(isLeft ? -0.095 : 0.095, 0.07, 0.04);
+    legGroup.add(pistil);
+
+    return legGroup;
+  }
+
+  const legL = makeLegAndShoe(true);
+  legL.position.set(-0.14, 0, 0);
+  root.add(legL);
+
+  const legR = makeLegAndShoe(false);
+  legR.position.set(0.14, 0, 0);
+  root.add(legR);
+
+  root.userData = {
+    isOfficialBoogi: true,
+    body, wingL, wingR, legL, legR, eyeL, eyeR, glassesGroup
+  };
+
+  return root;
+}
+
+
 function addExp(amount, reason = '시민 활동') {
   if (typeof awardCivicExp === 'function') {
     awardCivicExp(amount, reason);
@@ -95,6 +340,8 @@ function registerInteractionArea({ x, z, y = 0, radius = 3.5, name = '', action 
 // 1. 글로벌 상태 및 상수 정의
 // --------------------------------------------------------
 const STATE = {
+  avatarArchetype: localStorage.getItem('busan_avatar_archetype') || 'worker', // 'worker', 'officer', 'citizen', 'boogi'
+  lastEnteredCivilRoom: null,
   playerName: "열린시민",
   playerLevel: 1,
   playerExp: 20,
@@ -2321,8 +2568,33 @@ const TripoAssetManager = {
     console.log('⚓ [TripoAssetManager] 닻 상징 조형물 교체 완료!');
   },
 
-  // 4. 부산 소통 캐릭터 부기 (Monster Block 토이 스타일 + 화사한 순백 클레이 + 풀 애니메이션 보행)
-  replaceBoogiMascot(tripoModel) {
+  // 4. 부산 공식 소통 캐릭터 부기 (100% 공식 캐릭터 3D 완벽 구현)
+  replaceBoogiMascot(dummyModel) {
+    const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
+    if (!bada || !bada.mesh) return;
+
+    if (bada.mesh.userData.tripoMesh) {
+      bada.mesh.remove(bada.mesh.userData.tripoMesh);
+      bada.mesh.userData.tripoMesh = null;
+    }
+
+    const m = createOfficialBoogiMesh();
+    m.scale.set(1.25, 1.25, 1.25);
+    m.position.set(0, 0, 0);
+
+    bada.mesh.children.forEach(c => {
+      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot && c !== m) {
+        c.visible = false;
+      }
+    });
+    bada.mesh.add(m);
+    bada.mesh.userData.tripoMesh = m;
+    bada.mesh.userData.tripoBaseY = 0.0;
+    console.log('🌊 [TripoAssetManager] 부산 공식 3D 부기 마스코트 장착 완료!');
+    return;
+  },
+
+  _unused_old_boogi(tripoModel) {
     this.boogiModel = tripoModel;
     const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
     if (!bada || !bada.mesh) return;
@@ -2392,7 +2664,8 @@ const TripoAssetManager = {
         const size = bbox.getSize(new THREE.Vector3());
         const scale = 1.65 / (size.y || 1);
         m.scale.set(scale, scale, scale);
-        const baseY = -bbox.min.y * scale;
+        m.rotation.y = -Math.PI / 2; // ★ 정면(+Z) 보행 완벽 정렬 (옆으로 걷기 해결)
+        const baseY = -bbox.min.y * scale + 0.12 * scale; // ★ 보행 시 발바닥 바닥 잠김 방지
         m.position.set(0, baseY, 0);
 
         const anims = tripoModel.userData.animations || [];
@@ -2429,7 +2702,8 @@ const TripoAssetManager = {
         const size = bbox.getSize(new THREE.Vector3());
         const scale = 1.65 / (size.y || 1);
         m.scale.set(scale, scale, scale);
-        const baseY = -bbox.min.y * scale;
+        m.rotation.y = -Math.PI / 2; // ★ 정면(+Z) 보행 완벽 정렬 (옆으로 걷기 해결)
+        const baseY = -bbox.min.y * scale + 0.12 * scale; // ★ 보행 시 발바닥 바닥 잠김 방지
         m.position.set(0, baseY, 0);
 
         const anims = tripoModel.userData.animations || [];
@@ -2482,7 +2756,8 @@ const TripoAssetManager = {
     const targetHeight = 1.65;
     const scale = targetHeight / (size.y || 1);
     m.scale.set(scale, scale, scale);
-    const baseY = -bbox.min.y * scale;
+    m.rotation.y = -Math.PI / 2; // ★ 정면(+Z) 보행 완벽 정렬
+    const baseY = -bbox.min.y * scale + 0.12 * scale; // ★ 발바닥 잠김 방지
     m.position.set(0, baseY, 0);
 
     const anims = tripoModel.userData.animations || [];
@@ -2538,23 +2813,53 @@ const TripoAssetManager = {
 function createDistantBusanSkylinePanorama() {
   const panoGroup = new THREE.Group();
 
-  const mountainCount = 18;
-  for (let i = 0; i < mountainCount; i++) {
-    const angle = (i / mountainCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
-    const dist = 140 + Math.random() * 45;
-    const h = 38 + Math.random() * 42;
-    const r = 32 + Math.random() * 24;
+  // ★ 부산의 명산(황령산·금정산·배산) 실사풍 유려한 중첩 능선 파노라마
+  const mountainSegments = 36;
+  const ridgeColors = [0x1e3a2b, 0x2d4f3b, 0x3d644d, 0x517962]; // 심산유곡 그라데이션
 
-    const mGeo = new THREE.ConeGeometry(r, h, 8);
-    const mMat = new THREE.MeshStandardMaterial({
-      color: 0x3d5a49,
-      roughness: 0.85,
-      flatShading: true
-    });
-    const m = new THREE.Mesh(mGeo, mMat);
-    m.position.set(Math.cos(angle) * dist, h * 0.42, Math.sin(angle) * dist);
-    panoGroup.add(m);
+  for (let layer = 0; layer < 3; layer++) {
+    const radius = 180 + layer * 40;
+    const curvePoints = [];
+    for (let s = 0; s <= mountainSegments; s++) {
+      const theta = (s / mountainSegments) * Math.PI * 2;
+      // 황령산(북동), 금정산(북서), 배산(동남)의 실제 고도 실루엣
+      const bump1 = Math.sin(theta * 3.0 + layer) * 18.0;
+      const bump2 = Math.cos(theta * 5.0) * 12.0;
+      const h = 42.0 + (3 - layer) * 14.0 + bump1 + bump2;
+      const r = radius + Math.sin(theta * 4.0) * 12.0;
+      curvePoints.push(new THREE.Vector3(Math.cos(theta) * r, h, Math.sin(theta) * r));
+    }
+
+    // 굴곡진 산등성이 메시
+    for (let s = 0; s < mountainSegments; s++) {
+      const p1 = curvePoints[s];
+      const p2 = curvePoints[s + 1];
+      const midX = (p1.x + p2.x) / 2;
+      const midZ = (p1.z + p2.z) / 2;
+      const avgH = (p1.y + p2.y) / 2;
+
+      const hillGeo = new THREE.SphereGeometry(avgH * 0.72, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+      const hillMat = new THREE.MeshStandardMaterial({
+        color: ridgeColors[layer % ridgeColors.length],
+        roughness: 0.88,
+        flatShading: false
+      });
+      const hill = new THREE.Mesh(hillGeo, hillMat);
+      hill.position.set(midX, 0, midZ);
+      hill.scale.set(1.4, 1.0, 1.4);
+      panoGroup.add(hill);
+    }
   }
+
+  // 황령산 정상 부산방송 송신탑 (Hwangnyeongsan Broadcast Tower)
+  const towerGroup = new THREE.Group();
+  towerGroup.position.set(65, 78, -130);
+  const towerTruss = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 4.2, 38, 8), new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.8, roughness: 0.2 }));
+  towerGroup.add(towerTruss);
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+  beacon.position.y = 20;
+  towerGroup.add(beacon);
+  panoGroup.add(towerGroup);
 
   const bridgeGroup = new THREE.Group();
   bridgeGroup.position.set(110, 0, 110);
@@ -3061,18 +3366,19 @@ function initOutdoorAutonomousNpcs() {
   });
   outdoorNpcs.length = 0;
 
-  // 1. [부산시 소통 마스코트 부기] Boogi Seagull Mascot (화사한 순백 마스코트 베이스)
-  const badaMesh = createCuteCitizenMesh({
-    name: "부산 부기",
-    title: "부산시 소통 캐릭터 (Lv.20)",
-    level: 20,
-    robeColor: "white",
-    hatType: "seagull",
-    hairStyle: "short",
-    hairColor: "ocean",
-    skinTone: "light",
-    isNpc: true
-  });
+  // 1. [부산시 소통 마스코트 부기] 100% 공식 3D 부기 마스코트 (조롱박형 체형+이마 빨간 스마트 안경+동백꽃 스니커즈)
+  const badaMesh = new THREE.Group();
+  const boogiMascot = createOfficialBoogiMesh();
+  boogiMascot.scale.set(1.25, 1.25, 1.25);
+  badaMesh.add(boogiMascot);
+  badaMesh.userData.tripoMesh = boogiMascot;
+  badaMesh.userData.tripoBaseY = 0.0;
+
+  const badaNameplate = createCivicNameplate("부기", "부산시 공식 소통 마스코트", 100, true);
+  badaNameplate.position.y = 1.68;
+  badaMesh.add(badaNameplate);
+  badaMesh.userData.nameplate = badaNameplate;
+
   badaMesh.position.set(-6, 0, 20);
   badaMesh.userData.npcData = {
     id: 'npc_bada',
@@ -3282,6 +3588,9 @@ function updateOutdoorNpcs(dt) {
 
     const ud = npc.mesh.userData;
 
+    // ★ 실시간 지형 바닥 높이 동기화 (발바닥 잠김/공중부양 완전 해결)
+    cur.y = getBusanCityHallFloorY(cur.x, cur.z);
+
     if (dist > 0.4) {
       const dirX = dx / dist;
       const dirZ = dz / dist;
@@ -3312,6 +3621,9 @@ function updateOutdoorNpcs(dt) {
         ud.tripoMesh.userData.mixer.update(dt);
       }
     }
+
+    // ★ 모든 NPC 관절 보행 물리 호출 (동상처럼 굳어서 미끄러지는 버그 원천 해결)
+    updateCuteCitizenAnimation(npc.mesh, dt, clock.getElapsedTime());
 
     npc.chatCooldown -= dt;
     if (npc.chatCooldown <= 0) {
@@ -5745,6 +6057,9 @@ function setupMovementControls() {
       }
     }
     const k = e.key.toLowerCase();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+      e.preventDefault();
+    }
     if (k === 'w' || k === 'arrowup') STATE.keys.w = true;
     if (k === 's' || k === 'arrowdown') STATE.keys.s = true;
     if (k === 'a' || k === 'arrowleft') STATE.keys.a = true;
@@ -5771,6 +6086,24 @@ function setupMovementControls() {
     if (k === 's' || k === 'arrowdown') STATE.keys.s = false;
     if (k === 'a' || k === 'arrowleft') STATE.keys.a = false;
     if (k === 'd' || k === 'arrowright') STATE.keys.d = false;
+  });
+
+  // ★ 창 전환 / 알트탭 / 모달 오픈 시 방향키 쏠림 및 자동달리기 방지
+  window.addEventListener('blur', () => {
+    STATE.keys.w = false;
+    STATE.keys.s = false;
+    STATE.keys.a = false;
+    STATE.keys.d = false;
+    STATE.keys.space = false;
+    STATE.clickTargetPos = null;
+    if (clickMarkerMesh) clickMarkerMesh.visible = false;
+  });
+  window.addEventListener('focus', () => {
+    STATE.keys.w = false;
+    STATE.keys.s = false;
+    STATE.keys.a = false;
+    STATE.keys.d = false;
+    STATE.keys.space = false;
   });
 
   // 마우스 클릭 인터랙션 & 바닥 클릭 이동
@@ -6005,6 +6338,12 @@ function updatePlayerMovement(dt) {
 
   const targetFloorY = getBusanCityHallFloorY(curPos.x, curPos.z);
 
+  // ★ 시청 본관 정문 워프 감지 (야외에서 정문 안으로 진입 시 즉시 쾌적한 전용 민원실로 자동 전환)
+  if (STATE.currentRoom === 'BUSAN-HQ' && curPos.z < -15.5 && Math.abs(curPos.x) < 8.0) {
+    switchRealm('BUSAN-CIVIL');
+    return;
+  }
+
   // 점프 & 중력 물리
   if (ud && ud.isJumping) {
     ud.jumpVelocity = (typeof ud.jumpVelocity === 'number') ? ud.jumpVelocity - 22 * dt : 0;
@@ -6062,6 +6401,32 @@ function updatePlayerMovement(dt) {
 function updateCuteCitizenAnimation(c, dt, t) {
   const ud = c.userData;
   if (!ud) return;
+
+  // ★ 부산 공식 부기(Official Boogi) 전용 뒤뚱뒤뚱 보행 & 앙증맞은 날개짓 물리
+  if (ud.tripoMesh && ud.tripoMesh.userData && ud.tripoMesh.userData.isOfficialBoogi) {
+    const bm = ud.tripoMesh;
+    const bud = bm.userData;
+    if (ud.isWalking) {
+      // 뒤뚱뒤뚱 좌우 바운스 & 전진 피치
+      bm.position.y = Math.abs(Math.sin(t * 10)) * 0.08;
+      bm.rotation.z = Math.sin(t * 10) * 0.12; // 골반 좌우 씰룩
+      bm.rotation.x = 0.06; // 전진 기울임
+      if (bud.wingL) bud.wingL.rotation.z = 0.62 + Math.sin(t * 10) * 0.28;
+      if (bud.wingR) bud.wingR.rotation.z = -0.62 - Math.sin(t * 10) * 0.28;
+      if (bud.legL) bud.legL.rotation.x = Math.sin(t * 10) * 0.45;
+      if (bud.legR) bud.legR.rotation.x = -Math.sin(t * 10) * 0.45;
+    } else {
+      // 대기 시 호흡 바운스 & 부드러운 날개 펄럭임
+      bm.position.y = Math.sin(t * 2.5) * 0.02;
+      bm.rotation.z *= 0.85;
+      bm.rotation.x *= 0.85;
+      if (bud.wingL) bud.wingL.rotation.z = 0.62 + Math.sin(t * 3) * 0.08;
+      if (bud.wingR) bud.wingR.rotation.z = -0.62 - Math.sin(t * 3) * 0.08;
+      if (bud.legL) bud.legL.rotation.x *= 0.85;
+      if (bud.legR) bud.legR.rotation.x *= 0.85;
+    }
+    return;
+  }
 
   // 1. 깜찍한 눈 깜빡임
   if (ud.eyeL && ud.eyeR) {
@@ -7326,6 +7691,32 @@ function openCustomizeModal() {
   if (skinSel) skinSel.value = STATE.skinTone;
   if (robeSelect) robeSelect.value = STATE.robeColor;
   if (hatSelect) hatSelect.value = STATE.hatType;
+  let archSel = document.getElementById('custom-archetype');
+  if (!archSel) {
+    // Add archetype selector UI dynamically if not present
+    const modalBody = document.querySelector('#modal-customize .modal-body') || document.querySelector('#modal-customize');
+    if (modalBody) {
+      const archContainer = document.createElement('div');
+      archContainer.className = 'custom-row';
+      archContainer.style.marginBottom = '14px';
+      archContainer.innerHTML = `
+        <label style="font-weight: bold; color: #0284c7; display: block; margin-bottom: 6px;">🎭 아바타 캐릭터 선택 (3D 모델 & 스타일):</label>
+        <select id="custom-archetype" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #38bdf8; font-size: 14px; font-weight: bold;">
+          <option value="worker">💼 스마트 회사원 (Tripo 3D Chibi - 웨이브 헤어 & 수트 & 사원증 & 커피)</option>
+          <option value="officer">🏛️ 부산시청 공무원 (Tripo 3D Chibi - 단정한 정복 & 공무원증 & 태블릿)</option>
+          <option value="boogi">🌊 부산 공식 소통 마스코트 부기 (100% 공식 3D 모델)</option>
+          <option value="citizen">🎨 클래식 열린 시민 (헤어/의상/피부 풀 커스터마이징)</option>
+        </select>
+      `;
+      modalBody.insertBefore(archContainer, modalBody.firstChild);
+      archSel = document.getElementById('custom-archetype');
+    }
+  }
+  if (archSel) {
+    archSel.value = STATE.avatarArchetype || 'worker';
+    archSel.onchange = previewCustomization;
+  }
+
   if (wingsSelect) wingsSelect.value = STATE.wingsType;
 
   openModal('modal-customize');
@@ -7369,16 +7760,15 @@ function saveCustomization() {
     localStorage.setItem('busan_wings', STATE.wingsType);
   }
 
+  const archSel = document.getElementById('custom-archetype');
+  if (archSel) {
+    STATE.avatarArchetype = archSel.value;
+    localStorage.setItem('busan_avatar_archetype', STATE.avatarArchetype);
+  }
+
   closeModal('modal-customize');
 
-  if (localPlayer) {
-    const pos = localPlayer.position.clone();
-    const rotY = localPlayer.rotation.y;
-    scene.remove(localPlayer);
-    createLocalPlayer();
-    localPlayer.position.copy(pos);
-    localPlayer.rotation.y = rotY;
-  }
+  applyPlayerAvatarArchetype(STATE.avatarArchetype);
   updatePlayerBadgeUI();
 
   if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
@@ -9031,9 +9421,59 @@ function buildOpenDataInformationCenter(x, y, z, parent) {
   busanCityHallObstacles.push({ type: 'box', x, z, w: 6.5, d: 1.6, h: 1.1 });
 }
 
-// 실시간 아바타 스타일링 미리보기 (모달 내 선택 즉시 변경)
+// 실시간 아바타 스타일링 미리보기 (모달 내 선택 즉시 변경 - 달걀머리 번갈아 깜빡이는 버그 완벽 제거)
+function applyPlayerAvatarArchetype(archetype) {
+  if (!localPlayer) return;
+  STATE.avatarArchetype = archetype;
+  localStorage.setItem('busan_avatar_archetype', archetype);
+
+  const curPos = localPlayer.position.clone();
+  const curRotY = localPlayer.rotation.y;
+
+  // 1. 기존 Tripo / 부기 메시 정리
+  if (localPlayer.userData.tripoMesh) {
+    localPlayer.remove(localPlayer.userData.tripoMesh);
+    localPlayer.userData.tripoMesh = null;
+  }
+
+  if (archetype === 'boogi') {
+    // 🌊 공식 부기 아바타
+    const boogiMesh = createOfficialBoogiMesh();
+    boogiMesh.scale.set(1.25, 1.25, 1.25);
+    boogiMesh.position.set(0, 0, 0);
+
+    localPlayer.children.forEach(c => {
+      if (c !== localPlayer.userData.nameplate && c !== localPlayer.userData.bubbleSlot && c !== localPlayer.userData.auraRing) {
+        c.visible = false;
+      }
+    });
+    localPlayer.add(boogiMesh);
+    localPlayer.userData.tripoMesh = boogiMesh;
+    localPlayer.userData.tripoBaseY = 0.0;
+  } else if (archetype === 'officer' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.civilOfficerModel) {
+    // 🏛️ 부산시청 공무원 아바타
+    TripoAssetManager.replacePlayerModel(TripoAssetManager.civilOfficerModel);
+  } else if (archetype === 'worker' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.officeWorkerModel) {
+    // 💼 스마트 회사원 아바타
+    TripoAssetManager.replacePlayerModel(TripoAssetManager.officeWorkerModel);
+  } else {
+    // 🎨 클래식 열린 시민 (절대 달걀머리가 아닌 풀 커스텀 모드)
+    localPlayer.children.forEach(c => {
+      c.visible = true;
+    });
+    if (localPlayer.userData.robeMat) {
+      const robeHex = COLOR_PALETTE[STATE.robeColor] || COLOR_PALETTE.blue;
+      localPlayer.userData.robeMat.color.setHex(robeHex);
+    }
+  }
+
+  localPlayer.position.copy(curPos);
+  localPlayer.rotation.y = curRotY;
+}
+
 function previewCustomization() {
   const nameInput = document.getElementById('custom-name');
+  const archSel = document.getElementById('custom-archetype');
   const hairStyleSel = document.getElementById('custom-hair-style');
   const hairColorSel = document.getElementById('custom-hair-color');
   const skinSel = document.getElementById('custom-skin');
@@ -9042,6 +9482,7 @@ function previewCustomization() {
   const wingsSelect = document.getElementById('custom-wings');
 
   if (nameInput && nameInput.value.trim()) STATE.playerName = nameInput.value.trim();
+  if (archSel) STATE.avatarArchetype = archSel.value;
   if (hairStyleSel) STATE.hairStyle = hairStyleSel.value;
   if (hairColorSel) STATE.hairColor = hairColorSel.value;
   if (skinSel) STATE.skinTone = skinSel.value;
@@ -9049,14 +9490,7 @@ function previewCustomization() {
   if (hatSelect) STATE.hatType = hatSelect.value;
   if (wingsSelect) STATE.wingsType = wingsSelect.value;
 
-  if (localPlayer) {
-    const pos = localPlayer.position.clone();
-    const rotY = localPlayer.rotation.y;
-    scene.remove(localPlayer);
-    createLocalPlayer();
-    localPlayer.position.copy(pos);
-    localPlayer.rotation.y = rotY;
-  }
+  applyPlayerAvatarArchetype(STATE.avatarArchetype);
 }
 
 // 열린 정보공개방 모달 열기 및 데이터 렌더링
