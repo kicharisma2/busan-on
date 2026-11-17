@@ -2201,6 +2201,37 @@ const TripoAssetManager = {
     this.loadModel('models/anchor_statue.glb', (model) => {
       this.replaceAnchorStatue(model);
     });
+    this.loadModel('models/boogi.glb', (model) => {
+      this.replaceBoogiMascot(model);
+    });
+    this.loadModel('models/fountain.glb', (model) => {
+      this.replaceFountain(model);
+    });
+  },
+
+  replaceBoogiMascot(tripoModel) {
+    const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
+    if (!bada || !bada.mesh) return;
+    const bbox = new THREE.Box3().setFromObject(tripoModel);
+    const size = bbox.getSize(new THREE.Vector3());
+    const scale = 1.6 / (size.y || 1);
+    tripoModel.scale.set(scale, scale, scale);
+    bada.mesh.children.forEach(c => {
+      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
+    });
+    bada.mesh.add(tripoModel);
+    console.log('🌊 [TripoAssetManager] 부기 마스코트 3D 모델 교체 완료!');
+  },
+
+  replaceFountain(tripoModel) {
+    if (!cityHallWorldGroup) return;
+    const bbox = new THREE.Box3().setFromObject(tripoModel);
+    const size = bbox.getSize(new THREE.Vector3());
+    const scale = 6.0 / (size.y || 1);
+    tripoModel.scale.set(scale, scale, scale);
+    tripoModel.position.set(0, 0, 42);
+    cityHallWorldGroup.add(tripoModel);
+    console.log('⛲ [TripoAssetManager] 음악분수대 Tripo 3D 모델 교체 완료!');
   },
 
   replaceCivilOfficerModel(tripoModel) {
