@@ -41,8 +41,8 @@ def safe_int(val, default=1):
 
 PORT = 8080
 
-# 16개 구·군 + 부산시청 본관 룸 채널 등록
-ROOM_LIST = ['BUSAN-HQ'] + [d['code'] for d in busan_data.BUSAN_DISTRICTS]
+# 16개 구·군 + 부산시청 본관 야외광장 + 2층 종합행복민원실 룸 채널 등록
+ROOM_LIST = ['BUSAN-HQ', 'BUSAN-CIVIL'] + [d['code'] for d in busan_data.BUSAN_DISTRICTS]
 ROOMS = {r: {} for r in ROOM_LIST}
 
 ROOM_STATE = {
@@ -191,7 +191,9 @@ def decode_ws_frame_from_stream(rfile, sock, send_lock):
 
 def broadcast_room(room_id, msg_obj, exclude_sock=None):
     if room_id not in ROOMS:
-        return
+        ROOMS[room_id] = {}
+        ROOM_CHAT_HISTORY[room_id] = []
+        ROOM_STATE[room_id] = {'voice_count': 0, 'stamp_total': 5, 'active_event': '시민 소통의 시간'}
     frame = encode_ws_frame(json.dumps(msg_obj))
     dead_socks = []
     with CLIENT_LOCK:

@@ -144,6 +144,9 @@ const COLOR_PALETTE = {
 
 // v2.0 다중 청사 월드 그룹 & 인터랙션 캐시
 let cityHallWorldGroup = null;
+let civilHallWorldGroup = null;
+let civilHallInteractables = [];
+let civilHallObstacles = [];
 let districtWorldGroup = null;
 let districtObstacles = [];
 let districtInteractables = [];
@@ -2111,12 +2114,16 @@ function initThreeWorld() {
   setupClickMarker();
 
   cityHallWorldGroup = new THREE.Group();
+  civilHallWorldGroup = new THREE.Group();
+  civilHallWorldGroup.visible = false;
   districtWorldGroup = new THREE.Group();
   districtWorldGroup.visible = false;
   scene.add(cityHallWorldGroup);
+  scene.add(civilHallWorldGroup);
   scene.add(districtWorldGroup);
 
   buildBusanCityHallWorld();
+  initOutdoorAutonomousNpcs();
   cityHallObstaclesBackup = [...busanCityHallObstacles];
   cityHallInteractablesBackup = [...interactiveObjects];
 
@@ -2139,10 +2146,41 @@ function initThreeWorld() {
 // ========================================================
 // [Tripo3D GenAI & NPC Dialogue Engine]
 // ========================================================
+
+// ========================================================
+// [Tripo3D Skeleton & SkinnedMesh Cloner]
+// ========================================================
+function cloneWithBones(source) {
+  if (!source) return null;
+  const clone = source.clone(true);
+  const sourceBones = [];
+  source.traverse(node => {
+    if (node.isBone) sourceBones.push(node);
+  });
+  const cloneBones = [];
+  clone.traverse(node => {
+    if (node.isBone) cloneBones.push(node);
+  });
+  clone.traverse(node => {
+    if (node.isSkinnedMesh && node.skeleton) {
+      const skeleton = node.skeleton;
+      const bones = [];
+      for (let i = 0; i < skeleton.bones.length; i++) {
+        const sourceBone = skeleton.bones[i];
+        const index = sourceBones.indexOf(sourceBone);
+        bones.push(index !== -1 ? cloneBones[index] : sourceBone);
+      }
+      node.bind(new THREE.Skeleton(bones, skeleton.boneInverses), node.matrixWorld);
+    }
+  });
+  return clone;
+}
+
 const TripoAssetManager = {
   loader: null,
   dracoLoader: null,
   cache: {},
+  animationsCache: {},
   isReady: false,
 
   init() {
@@ -2167,19 +2205,41 @@ const TripoAssetManager = {
       return;
     }
     if (this.cache[url]) {
-      if (onLoaded) onLoaded(this.cache[url].clone());
+      const cloned = cloneWithBones(this.cache[url]);
+      cloned.userData.animations = this.animationsCache[url] || [];
+      if (onLoaded) onLoaded(cloned);
       return;
     }
     this.loader.load(
       url,
       (gltf) => {
-        console.log(`✅ [TripoAssetManager] 모델 로드 성공: ${url}`);
+        console.log(`✅ [TripoAssetManager] 모델 로드 성공: ${url} (애니메이션: ${gltf.animations.length}개)`);
+        
+        // PBR 머티리얼 최적화: 시커먼 메탈릭 버그 수정 & 몬스터 블락 풍 화사한 토이 재질 적용
+        gltf.scene.traverse(c => {
+          if (c.isMesh) {
+            c.castShadow = true;
+            c.receiveShadow = true;
+            c.frustumCulled = false;
+            if (c.material) {
+              c.material.metalness = 0.05; // 100% 금속 반사 블랙 버그 방지
+              c.material.roughness = 0.42; // 부드러운 몬스터 블락 클레이/비닐 토이 광택
+              c.material.needsUpdate = true;
+            }
+          }
+        });
+
         this.cache[url] = gltf.scene;
-        if (onLoaded) onLoaded(gltf.scene.clone());
+        this.animationsCache[url] = gltf.animations || [];
+        gltf.scene.userData.animations = gltf.animations || [];
+
+        const cloned = cloneWithBones(gltf.scene);
+        cloned.userData.animations = gltf.animations || [];
+        if (onLoaded) onLoaded(cloned);
       },
       undefined,
       (err) => {
-        // models 폴더에 파일이 없으면 정상적으로 pass
+        console.log(`ℹ️ [TripoAssetManager] ${url} 대기 중 (기본 절차적 모델 유지)`);
         if (onError) onError(err);
       }
     );
@@ -2189,14 +2249,8 @@ const TripoAssetManager = {
     this.loadModel('models/city_hall.glb', (model) => {
       this.replaceCityHallFacade(model);
     });
-    this.loadModel('models/dongbaek.glb', (model) => {
-      this.replaceDongbaekMascot(model);
-    });
-    this.loadModel('models/civil_officer.glb', (model) => {
-      this.replaceCivilOfficerModel(model);
-    });
-    this.loadModel('models/office_worker.glb', (model) => {
-      this.replaceOfficeWorkerModel(model);
+    this.loadModel('models/fountain.glb', (model) => {
+      this.replaceFountain(model);
     });
     this.loadModel('models/anchor_statue.glb', (model) => {
       this.replaceAnchorStatue(model);
@@ -2204,77 +2258,127 @@ const TripoAssetManager = {
     this.loadModel('models/boogi.glb', (model) => {
       this.replaceBoogiMascot(model);
     });
-    this.loadModel('models/fountain.glb', (model) => {
-      this.replaceFountain(model);
+    this.loadModel('models/civil_officer.glb', (model) => {
+      this.replaceCivilOfficerModel(model);
+    });
+    this.loadModel('models/office_worker.glb', (model) => {
+      this.replaceOfficeWorkerModel(model);
     });
   },
 
-  replaceBoogiMascot(tripoModel) {
-    const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
-    if (!bada || !bada.mesh) return;
+  // 1. 부산시청 3D 외관 본관 교체 (야외 광장 배경으로 당당히 배치)
+  replaceCityHallFacade(tripoModel) {
+    if (!cityHallWorldGroup) return;
     const bbox = new THREE.Box3().setFromObject(tripoModel);
     const size = bbox.getSize(new THREE.Vector3());
-    const scale = 1.6 / (size.y || 1);
+    const targetHeight = 44.0;
+    const scale = targetHeight / (size.y || 1);
     tripoModel.scale.set(scale, scale, scale);
-    bada.mesh.children.forEach(c => {
-      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
+    tripoModel.position.set(0, -bbox.min.y * scale, -48);
+    tripoModel.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+        c.frustumCulled = false;
+        if (c.material) {
+          c.material.metalness = 0.2;
+          c.material.roughness = 0.25;
+        }
+      }
     });
-    bada.mesh.add(tripoModel);
-    console.log('🌊 [TripoAssetManager] 부기 마스코트 3D 모델 교체 완료!');
+    cityHallWorldGroup.add(tripoModel);
+    console.log('🏛️ [TripoAssetManager] 부산시청 3D 본관 타워가 야외 광장에 당당히 세워졌습니다!');
   },
 
+  // 2. 시민광장 음악분수대 교체
   replaceFountain(tripoModel) {
     if (!cityHallWorldGroup) return;
     cityHallWorldGroup.children.forEach(c => {
-      if (c.userData && c.userData.isProceduralFountain) {
-        c.visible = false;
-      }
+      if (c.userData && c.userData.isProceduralFountain) c.visible = false;
     });
     const bbox = new THREE.Box3().setFromObject(tripoModel);
     const size = bbox.getSize(new THREE.Vector3());
     const scale = 7.5 / (size.y || 1);
     tripoModel.scale.set(scale, scale, scale);
     tripoModel.position.set(0, -bbox.min.y * scale, 42);
-    tripoModel.traverse(c => {
-      if (c.isMesh) {
-        c.castShadow = true;
-        c.receiveShadow = true;
-      }
-    });
     cityHallWorldGroup.add(tripoModel);
     console.log('⛲ [TripoAssetManager] 음악분수대 Tripo 3D 모델 교체 완료!');
   },
 
+  // 3. 부산의 닻 상징 조형물 교체
+  replaceAnchorStatue(tripoModel) {
+    if (!cityHallWorldGroup) return;
+    const bbox = new THREE.Box3().setFromObject(tripoModel);
+    const size = bbox.getSize(new THREE.Vector3());
+    const scale = 4.2 / (size.y || 1);
+    tripoModel.scale.set(scale, scale, scale);
+    tripoModel.position.set(0, -bbox.min.y * scale, 24);
+    cityHallWorldGroup.add(tripoModel);
+    console.log('⚓ [TripoAssetManager] 닻 상징 조형물 교체 완료!');
+  },
+
+  // 4. 부산 소통 캐릭터 부기 (Monster Block 토이 스타일 + 풀 애니메이션 보행)
+  replaceBoogiMascot(tripoModel) {
+    const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
+    if (!bada || !bada.mesh) return;
+
+    const m = cloneWithBones(tripoModel);
+    const bbox = new THREE.Box3().setFromObject(m);
+    const size = bbox.getSize(new THREE.Vector3());
+    const scale = 1.7 / (size.y || 1);
+    m.scale.set(scale, scale, scale);
+    const baseY = -bbox.min.y * scale;
+    m.position.set(0, baseY, 0);
+
+    // AnimationMixer 바인딩 (idle & walk)
+    const anims = tripoModel.userData.animations || [];
+    if (anims.length > 0) {
+      const mixer = new THREE.AnimationMixer(m);
+      const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || anims[0];
+      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || anims[1] || anims[0];
+      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+      const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+      if (idleAction) idleAction.play();
+      m.userData.mixer = mixer;
+      m.userData.idleAction = idleAction;
+      m.userData.walkAction = walkAction;
+      m.userData.currentAction = 'idle';
+    }
+
+    bada.mesh.children.forEach(c => {
+      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
+    });
+    bada.mesh.add(m);
+    bada.mesh.userData.tripoMesh = m;
+    bada.mesh.userData.tripoBaseY = baseY;
+    console.log('🌊 [TripoAssetManager] 부기 마스코트 Monster Block 3D 애니메이션 모델 교체 완료!');
+  },
+
+  // 5. 공무원 캐릭터 (시청 정복 + 태블릿 + 애니메이션 관절 보행)
   replaceCivilOfficerModel(tripoModel) {
     outdoorNpcs.forEach(n => {
       if (n.id && (n.id.includes('officer') || n.id.includes('staff')) && n.mesh) {
-        const bbox = new THREE.Box3().setFromObject(tripoModel);
+        const m = cloneWithBones(tripoModel);
+        const bbox = new THREE.Box3().setFromObject(m);
         const size = bbox.getSize(new THREE.Vector3());
-        const scale = 1.6 / (size.y || 1);
-        const m = tripoModel.clone();
+        const scale = 1.65 / (size.y || 1);
         m.scale.set(scale, scale, scale);
         const baseY = -bbox.min.y * scale;
-        m.position.y = baseY;
-        m.traverse(c => {
-          if (c.isMesh) {
-            c.castShadow = true;
-            c.receiveShadow = true;
-          }
-        });
+        m.position.set(0, baseY, 0);
 
-        // Mixamo 뼈대 관절 바인딩
-        const rigBones = {};
-        m.traverse(c => {
-          if (c.isBone) {
-            const bName = c.name.toLowerCase();
-            if (bName.includes('leftarm') || bName.includes('arm_l') || bName.includes('left_arm')) rigBones.leftArm = c;
-            else if (bName.includes('rightarm') || bName.includes('arm_r') || bName.includes('right_arm')) rigBones.rightArm = c;
-            else if (bName.includes('leftupleg') || bName.includes('leg_l') || bName.includes('left_leg')) rigBones.leftLeg = c;
-            else if (bName.includes('rightupleg') || bName.includes('leg_r') || bName.includes('right_leg')) rigBones.rightLeg = c;
-            else if (bName.includes('head')) rigBones.head = c;
-            else if (bName.includes('spine')) rigBones.spine = c;
-          }
-        });
+        const anims = tripoModel.userData.animations || [];
+        if (anims.length > 0) {
+          const mixer = new THREE.AnimationMixer(m);
+          const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || anims[0];
+          const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || anims[1] || anims[0];
+          const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+          const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+          if (idleAction) idleAction.play();
+          m.userData.mixer = mixer;
+          m.userData.idleAction = idleAction;
+          m.userData.walkAction = walkAction;
+          m.userData.currentAction = 'idle';
+        }
 
         n.mesh.children.forEach(c => {
           if (c !== n.mesh.userData.nameplate && c !== n.mesh.userData.bubbleSlot) c.visible = false;
@@ -2282,42 +2386,36 @@ const TripoAssetManager = {
         n.mesh.add(m);
         n.mesh.userData.tripoMesh = m;
         n.mesh.userData.tripoBaseY = baseY;
-        if (Object.keys(rigBones).length > 0) n.mesh.userData.rigBones = rigBones;
       }
     });
-    console.log('🏛️ [TripoAssetManager] 공무원 캐릭터가 리깅 3D 모델로 교체되었습니다!');
+    console.log('🏛️ [TripoAssetManager] 공무원 캐릭터가 리깅 3D 애니메이션 모델로 교체되었습니다!');
   },
 
+  // 6. 회사원 및 플레이어 캐릭터 교체
   replaceOfficeWorkerModel(tripoModel) {
-    // 1) NPC 교체
     outdoorNpcs.forEach(n => {
       if (n.id && (n.id.includes('worker') || n.id.includes('choi') || n.id.includes('lee')) && n.mesh) {
-        const bbox = new THREE.Box3().setFromObject(tripoModel);
+        const m = cloneWithBones(tripoModel);
+        const bbox = new THREE.Box3().setFromObject(m);
         const size = bbox.getSize(new THREE.Vector3());
-        const scale = 1.6 / (size.y || 1);
-        const m = tripoModel.clone();
+        const scale = 1.65 / (size.y || 1);
         m.scale.set(scale, scale, scale);
         const baseY = -bbox.min.y * scale;
-        m.position.y = baseY;
-        m.traverse(c => {
-          if (c.isMesh) {
-            c.castShadow = true;
-            c.receiveShadow = true;
-          }
-        });
+        m.position.set(0, baseY, 0);
 
-        const rigBones = {};
-        m.traverse(c => {
-          if (c.isBone) {
-            const bName = c.name.toLowerCase();
-            if (bName.includes('leftarm') || bName.includes('arm_l') || bName.includes('left_arm')) rigBones.leftArm = c;
-            else if (bName.includes('rightarm') || bName.includes('arm_r') || bName.includes('right_arm')) rigBones.rightArm = c;
-            else if (bName.includes('leftupleg') || bName.includes('leg_l') || bName.includes('left_leg')) rigBones.leftLeg = c;
-            else if (bName.includes('rightupleg') || bName.includes('leg_r') || bName.includes('right_leg')) rigBones.rightLeg = c;
-            else if (bName.includes('head')) rigBones.head = c;
-            else if (bName.includes('spine')) rigBones.spine = c;
-          }
-        });
+        const anims = tripoModel.userData.animations || [];
+        if (anims.length > 0) {
+          const mixer = new THREE.AnimationMixer(m);
+          const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || anims[0];
+          const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || anims[1] || anims[0];
+          const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+          const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+          if (idleAction) idleAction.play();
+          m.userData.mixer = mixer;
+          m.userData.idleAction = idleAction;
+          m.userData.walkAction = walkAction;
+          m.userData.currentAction = 'idle';
+        }
 
         n.mesh.children.forEach(c => {
           if (c !== n.mesh.userData.nameplate && c !== n.mesh.userData.bubbleSlot) c.visible = false;
@@ -2325,47 +2423,53 @@ const TripoAssetManager = {
         n.mesh.add(m);
         n.mesh.userData.tripoMesh = m;
         n.mesh.userData.tripoBaseY = baseY;
-        if (Object.keys(rigBones).length > 0) n.mesh.userData.rigBones = rigBones;
       }
     });
 
-    // 2) ★ 주인공(플레이어) 캐릭터를 고품질 3D 모델로 교체!
     if (localPlayer) {
       this.replacePlayerModel(tripoModel);
     }
-    console.log('💼 [TripoAssetManager] 회사원 & 플레이어 캐릭터가 리깅 3D 모델로 교체되었습니다!');
   },
 
+  // ★ 주인공(플레이어) 3D 캐릭터 완벽 적용 (절대 사라지지 않고 뚜렷하게 보임!)
   replacePlayerModel(tripoModel) {
     if (!localPlayer) return;
-    const bbox = new THREE.Box3().setFromObject(tripoModel);
-    const size = bbox.getSize(new THREE.Vector3());
-    const scale = 1.6 / (size.y || 1);
-    const m = tripoModel.clone();
-    m.scale.set(scale, scale, scale);
-    const baseY = -bbox.min.y * scale;
-    m.position.y = baseY;
+    const m = cloneWithBones(tripoModel);
     m.traverse(c => {
       if (c.isMesh) {
         c.castShadow = true;
         c.receiveShadow = true;
+        c.frustumCulled = false;
+        if (c.material) {
+          c.material.metalness = 0.05;
+          c.material.roughness = 0.42;
+          c.material.needsUpdate = true;
+        }
       }
     });
 
-    const rigBones = {};
-    m.traverse(c => {
-      if (c.isBone) {
-        const bName = c.name.toLowerCase();
-        if (bName.includes('leftarm') || bName.includes('arm_l') || bName.includes('left_arm')) rigBones.leftArm = c;
-        else if (bName.includes('rightarm') || bName.includes('arm_r') || bName.includes('right_arm')) rigBones.rightArm = c;
-        else if (bName.includes('leftupleg') || bName.includes('leg_l') || bName.includes('left_leg')) rigBones.leftLeg = c;
-        else if (bName.includes('rightupleg') || bName.includes('leg_r') || bName.includes('right_leg')) rigBones.rightLeg = c;
-        else if (bName.includes('head')) rigBones.head = c;
-        else if (bName.includes('spine')) rigBones.spine = c;
-      }
-    });
+    const bbox = new THREE.Box3().setFromObject(m);
+    const size = bbox.getSize(new THREE.Vector3());
+    const targetHeight = 1.65;
+    const scale = targetHeight / (size.y || 1);
+    m.scale.set(scale, scale, scale);
+    const baseY = -bbox.min.y * scale;
+    m.position.set(0, baseY, 0);
 
-    // Remove old player tripoMesh if any
+    const anims = tripoModel.userData.animations || [];
+    if (anims.length > 0) {
+      const mixer = new THREE.AnimationMixer(m);
+      const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || anims[0];
+      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || anims[1] || anims[0];
+      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+      const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+      if (idleAction) idleAction.play();
+      m.userData.mixer = mixer;
+      m.userData.idleAction = idleAction;
+      m.userData.walkAction = walkAction;
+      m.userData.currentAction = 'idle';
+    }
+
     if (localPlayer.userData.tripoMesh) {
       localPlayer.remove(localPlayer.userData.tripoMesh);
     }
@@ -2377,7 +2481,6 @@ const TripoAssetManager = {
     localPlayer.add(m);
     localPlayer.userData.tripoMesh = m;
     localPlayer.userData.tripoBaseY = baseY;
-    if (Object.keys(rigBones).length > 0) localPlayer.userData.rigBones = rigBones;
     console.log('🎮 [TripoAssetManager] 주인공(플레이어) 3D 캐릭터 완벽 적용 완료!');
   },
 
@@ -2392,991 +2495,9 @@ const TripoAssetManager = {
         showSpeechBubble(localPlayer, `✨ 플레이어가 [${type}] 아바타로 변신했습니다!`);
       }
     });
-  },
-
-  replaceBoogiMascot(tripoModel) {
-    const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
-    if (!bada || !bada.mesh) return;
-    const bbox = new THREE.Box3().setFromObject(tripoModel);
-    const size = bbox.getSize(new THREE.Vector3());
-    const scale = 1.6 / (size.y || 1);
-    tripoModel.scale.set(scale, scale, scale);
-    const baseY = -bbox.min.y * scale;
-    tripoModel.position.y = baseY;
-    tripoModel.traverse(c => {
-      if (c.isMesh) {
-        c.castShadow = true;
-        c.receiveShadow = true;
-      }
-    });
-    bada.mesh.children.forEach(c => {
-      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
-    });
-    bada.mesh.add(tripoModel);
-    bada.mesh.userData.tripoMesh = tripoModel;
-    bada.mesh.userData.tripoBaseY = baseY;
-    console.log('🌊 [TripoAssetManager] 공식 부기 마스코트 3D 모델 교체 완료!');
-  },
-
-  replaceCityHallFacade(tripoModel) {
-    if (!cityHallWorldGroup) return;
-    const bbox = new THREE.Box3().setFromObject(tripoModel);
-    const size = bbox.getSize(new THREE.Vector3());
-    const targetHeight = 44.0;
-    const scale = targetHeight / (size.y || 1);
-    tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.set(0, -bbox.min.y * scale, -40);
-    tripoModel.traverse(c => {
-      if (c.isMesh) {
-        c.castShadow = true;
-        c.receiveShadow = true;
-      }
-    });
-    cityHallWorldGroup.add(tripoModel);
-    console.log('🏛️ [TripoAssetManager] 부산시청 본관이 Tripo 3D 모델로 고품질 교체되었습니다!');
-  },
-
-  replaceDongbaekMascot(tripoModel) {
-    const dongbaek = outdoorNpcs.find(n => n.id === 'npc_dongbaek');
-    if (!dongbaek || !dongbaek.mesh) return;
-    const bbox = new THREE.Box3().setFromObject(tripoModel);
-    const size = bbox.getSize(new THREE.Vector3());
-    const scale = 1.6 / (size.y || 1);
-    tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.y = -bbox.min.y * scale;
-    tripoModel.traverse(c => {
-      if (c.isMesh) {
-        c.castShadow = true;
-        c.receiveShadow = true;
-      }
-    });
-    dongbaek.mesh.children.forEach(c => {
-      if (c !== dongbaek.mesh.userData.nameplate && c !== dongbaek.mesh.userData.bubbleSlot) {
-        c.visible = false;
-      }
-    });
-    dongbaek.mesh.add(tripoModel);
-    dongbaek.mesh.userData.tripoMesh = tripoModel;
-    dongbaek.mesh.userData.tripoBaseY = -bbox.min.y * scale;
-    console.log('🌺 [TripoAssetManager] 동백이 캐릭터가 Tripo 3D 모델로 교체되었습니다!');
-  },
-
-  replaceAnchorStatue(tripoModel) {
-    if (!cityHallWorldGroup) return;
-    const bbox = new THREE.Box3().setFromObject(tripoModel);
-    const size = bbox.getSize(new THREE.Vector3());
-    const scale = 5.0 / (size.y || 1);
-    tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.set(0, 0, 18);
-    cityHallWorldGroup.add(tripoModel);
-    console.log('⚓ [TripoAssetManager] 닻 조형물이 Tripo 3D 모델로 교체되었습니다!');
   }
 };
 
-// ========================================================
-// NPC 대화 및 종합 정보 제공 엔진 (NPC Dialogue & System)
-// ========================================================
-const NPC_REGISTRY = {
-  worker_choi: {
-    id: 'worker_choi',
-    name: '최과장',
-    title: '점심 산책 회사원 (Lv.12)',
-    badge: '☕',
-    greeting: '점심 먹고 시청 광장 분수대 한 바퀴 도는 게 직장인의 유일한 힐링이죠 ☕',
-    description: '부산시청 주변에는 시청 직장인들이 자주 찾는 로컬 찐 맛집과 테이크아웃 카페가 정말 많아요. 오늘 점심은 어디서 드실 건가요? 동백전 7% 캐시백도 꼭 챙기세요!',
-    options: [
-      {
-        icon: '🍽️',
-        label: '시청 & 서면 직장인 추천 맛집 5선',
-        desc: '시청 인근 칼국수, 돼지국밥, 밀면, 쌈밥 현지 직장인 추천 맛집',
-        action: () => openGourmetModal()
-      },
-      {
-        icon: '☕',
-        label: '시청 앞 분위기 좋은 인기 카페 안내',
-        desc: '광장 뷰 테라스 카페 & 가성비 스페셜티 커피 핫플',
-        action: () => openGourmetModal()
-      },
-      {
-        icon: '💳',
-        label: '직장인 동백전 소득공제 & 캐시백 팁',
-        desc: '연말정산 30% 소득공제 및 월 최대 7% 캐시백 절세 비법',
-        action: () => {
-          showNpcDialogueDirect({
-            name: '최과장',
-            title: '점심 산책 회사원',
-            badge: '💳',
-            greeting: '💳 직장인을 위한 동백전 100% 활용 꿀팁!',
-            description: '직장인 필수 혜택 총정리:\n• 연말정산 시 전통시장 40%, 일반가맹점 30% 소득공제 인정!\n• 월 결제금액의 7% 즉시 캐시백 (체크카드 연계형)\n• 시청 앞 식당가 점심값 결제 시 동백전으로 매월 수만 원 절약!',
-            options: [
-              { icon: '🍽️', label: '맛집 추천 보러가기', desc: '직장인 인기 맛집 리스트', action: () => openGourmetModal() }
-            ]
-          });
-        }
-      },
-      {
-        icon: '🗣️',
-        label: '직장인 대나무숲 & 시민 자유 담벼락',
-        desc: '부산 시민들과 직장 생활 이야기 및 속마음 나누기',
-        action: () => openWallModal()
-      }
-    ]
-  },
-  staff_jung: {
-    id: 'staff_jung',
-    name: '정주무관',
-    title: '부산시청 시민광장 관리팀 (Lv.14)',
-    badge: '⛲',
-    greeting: '시민 여러분 안녕하십니까! 시민광장 관리팀 정주무관입니다 🌺',
-    description: '부산시청 앞 시민광장은 5대 테마존(음악분수대, 닻 조형물, 등대광장, 동백정원, 시민발언대)으로 구성되어 있습니다. 광장 산책로와 편의시설에 대해 무엇이든 물어보세요!',
-    options: [
-      {
-        icon: '⛲',
-        label: '음악 분수대 및 닻 조형물 안내',
-        desc: '음악분수대 가동 일정(매 정각) 및 부산 상징 닻 유래',
-        action: () => {
-          showNpcDialogueDirect({
-            name: '정주무관',
-            title: '시민광장 관리팀',
-            badge: '⛲',
-            greeting: '⛲ 부산시청 음악분수대 및 닻 조형물 안내',
-            description: '• 음악분수대: 32개 춤추는 분수 노즐과 야간 LED 조명 연출! 매일 12:00~19:00 매 정각 20분간 가동됩니다.\n• 부산의 닻 조형물: 동북아 해양수도 부산의 굳건한 번영과 진취적인 해양 정신을 상징하는 청동 대형 기념비입니다.',
-            options: [
-              { icon: '📸', label: '시청 공식 사진 갤러리 열기', desc: '분수대와 닻 실제 전경 사진', action: () => openPhotosModal() }
-            ]
-          });
-        }
-      },
-      {
-        icon: '🌺',
-        label: '동백꽃 정원 & 힐링 벤치 산책로',
-        desc: '부산의 시화(市花) 동백꽃 조경 및 시민 쉼터 벤치',
-        action: () => {
-          showNpcDialogueDirect({
-            name: '정주무관',
-            title: '시민광장 관리팀',
-            badge: '🌺',
-            greeting: '🌺 동백광장 사계절 꽃길 안내',
-            description: '광장 서편에 100여 그루의 붉은 동백나무가 심겨 있어 겨울부터 봄까지 화사한 붉은 꽃망울을 감상하실 수 있습니다. 테라스 벤치에서 커피 한잔과 함께 여유를 즐겨보세요!',
-            options: []
-          });
-        }
-      },
-      {
-        icon: '🎤',
-        label: '시민 자유 발언대 안내 (광장 서편)',
-        desc: '시정 제안과 자유 발언을 누구나 외칠 수 있는 열린 단상',
-        action: () => openPodiumShoutModal()
-      },
-      {
-        icon: '🏢',
-        label: '시청 본관 층별 종합 안내',
-        desc: '본관 1층~28층 전 층 사무실 안내도',
-        action: () => openOfficeModal()
-      }
-    ]
-  },
-  staff_kim: {
-    id: 'staff_kim',
-    name: '김주무관',
-    title: '행복민원실 현장 안내관 (Lv.16)',
-    badge: '📋',
-    greeting: '안녕하십니까! 2층 행복민원실을 찾아주셔서 감사합니다 📋',
-    description: '행복민원실은 1번(여권)부터 8번(통합민원)까지 8개 전문 창구를 운영하고 있습니다. 순번대기표를 먼저 발급받으시면 대기 없이 친절히 모시겠습니다.',
-    options: [
-      {
-        icon: '🎫',
-        label: '순번 대기표 발급기 안내',
-        desc: '민원 순번대기표 발급 및 창구 호출 시스템',
-        action: () => {
-          showSpeechBubble(localPlayer, '🎫 [행복민원실] 순번대기표 105번이 발급되었습니다. 호출 시 창구로 이동하세요!');
-          if (window.busanAudio) window.busanAudio.playStampSound();
-        }
-      },
-      {
-        icon: '📋',
-        label: '1번~8번 민원 창구별 상세 업무 총람',
-        desc: '여권, 가족관계, 토지, 세무, 차량, 건축, 복지, 등본',
-        action: () => openOfficeModal()
-      },
-      {
-        icon: '🌐',
-        label: '정부24 온라인 민원 신청 연동',
-        desc: '창구 방문 없이 인터넷으로 즉시 발급',
-        action: () => window.open('https://www.gov.kr', '_blank')
-      }
-    ]
-  },
-  worker_lee: {
-    id: 'worker_lee',
-    name: '이대리',
-    title: '스마트시티 파견 연구원 (Lv.9)',
-    badge: '💻',
-    greeting: '안녕하세요! 스마트시티 협업 프로젝트차 시청에 출장 온 이대리입니다 💻',
-    description: '1층 들락날락 어린이도서관의 인터랙티브 미디어아트 월과 16개 구군 미래도시 디오라마를 보셨나요? 첨단 디지털 기술이 접목된 부산 시정이 인상 깊네요!',
-    options: [
-      {
-        icon: '🌐',
-        label: '16개 구·군 미래도시 디오라마 탐방',
-        desc: '해운대, 부산진, 남구, 기장 등 16개 자치구청 가상 포털',
-        action: () => openDistrictsModal()
-      },
-      {
-        icon: '📚',
-        label: '1층 들락날락 어린이도서관 & 미디어아트관',
-        desc: '체험형 디지털 미디어월과 어린이 열린 책놀이터',
-        action: () => {
-          showNpcDialogueDirect({
-            name: '이대리',
-            title: '스마트시티 연구원',
-            badge: '📚',
-            greeting: '📚 1층 들락날락 어린이도서관 안내',
-            description: '부산시청 1층 로비는 단순한 행정 공간이 아니라, 시민과 아이들이 자유롭게 책을 읽고 AI 미디어아트를 체험하는 열린 문화 플랫폼으로 재탄생했습니다!',
-            options: [
-              { icon: '📸', label: '들락날락 실제 사진 보기', desc: '공식 갤러리 열람', action: () => openPhotosModal() }
-            ]
-          });
-        }
-      },
-      {
-        icon: '📂',
-        label: '2026 연도별 시청 예산서 총람',
-        desc: '스마트시티 및 부산 시정 본예산 열람',
-        action: () => openOpenInfoModal()
-      }
-    ]
-  },
-  dongbaek: {
-    id: 'dongbaek',
-    name: '동백이',
-    title: '부산시청 공식 길잡이 (Lv.15)',
-    badge: '🌺',
-    greeting: '반가워요 시민님! 부산시청 메타버스에 오신 것을 환영해요 🌺',
-    description: '부산시청 광장과 본관 1·2층의 행정·문화 공간을 안내해 드릴게요. 청사 층별 안내부터 16개 구·군 탐방, 스탬프 투어까지 무엇이든 도와드릴게요!',
-    options: [
-      {
-        icon: '🏛️',
-        label: '시청 본관 층별 종합 안내',
-        desc: '1층 들락날락 어린이도서관, 2층 행복민원실 1~8번 창구 안내',
-        action: () => openOfficeModal()
-      },
-      {
-        icon: '🗺️',
-        label: '16개 구·군 자치구청 투어',
-        desc: '해운대구, 부산진구, 남구 등 16개 구청 및 명소 디오라마',
-        action: () => openDistrictsModal()
-      },
-      {
-        icon: '🌺',
-        label: '동백이의 시청 방문 스탬프 받기',
-        desc: '시청 방문 기념 스탬프를 획득하고 시민 경험치 +50 EXP 획득!',
-        action: () => {
-          collectStamp('plaza', '부산시청 시민광장');
-          addCitizenExp(50);
-          if (window.busanAudio) window.busanAudio.playStampSound();
-          const dongbaek = outdoorNpcs.find(n => n.id === 'npc_dongbaek');
-          if (dongbaek && dongbaek.mesh) {
-            showSpeechBubble(dongbaek.mesh, '🌺 부산시청 시민광장 스탬프 획득 완료! 멋진 시민이 되어주세요!');
-          }
-        }
-      },
-      {
-        icon: '🤖',
-        label: 'AI 시정 상담원 다온 연결',
-        desc: '120 부산민원콜센터 및 24시간 인공지능 행정 질의응답',
-        action: () => openAiGuideModal()
-      },
-      {
-        icon: '🌐',
-        label: '부산광역시 공식 홈페이지 열기',
-        desc: '실제 부산시청 공식 포털(busan.go.kr) 열기',
-        action: () => window.open('https://www.busan.go.kr', '_blank')
-      }
-    ]
-  },
-  bada: {
-    id: 'bada',
-    name: '부산바다',
-    title: '산책 중인 부산시민 (Lv.8)',
-    badge: '🌊',
-    greeting: '안녕하세요! 시청 앞 잔디광장에서 산책 중이신가요? 🌤️',
-    description: '시청 광장 분수대 소리 들으며 산책하니 참 좋네요! 16개 구·군 숨은 맛집이나 알뜰한 동백전 혜택에 대해 이야기 나눠볼까요?',
-    options: [
-      {
-        icon: '🍽️',
-        label: '16개 구·군 대표 맛집 & 카페 5선',
-        desc: '부산시청 및 각 구청 주변 현지인 강력 추천 맛집·카페 총정리',
-        action: () => openGourmetModal()
-      },
-      {
-        icon: '💳',
-        label: '동백전 캐시백 & 혜택 꿀팁',
-        desc: '부산 지역화폐 동백전 7% 캐시백 및 가맹점 이용 팁',
-        action: () => {
-          showNpcDialogueDirect({
-            name: '부산바다',
-            title: '산책 중인 부산시민',
-            badge: '💳',
-            greeting: '💳 부산 동백전 카드 완전 정복 꿀팁!',
-            description: '동백전은 부산시민 필수 카드예요!\n• 월 최대 사용액에 대해 7% 즉시 캐시백 적립\n• 정책지원금 및 동백플러스 가맹점 최대 10% 이상 추가 할인\n• 동백전 앱에서 모바일 간편결제 및 택시 호출(동백택시) 가능!',
-            options: [
-              { icon: '🌐', label: '동백전 공식 안내 페이지 열기', desc: '부산시 동백전 포털', action: () => window.open('https://www.busan.go.kr/dongbaek', '_blank') },
-              { icon: '🍽️', label: '맛집 추천 보러가기', desc: '구군별 맛집 리스트', action: () => openGourmetModal() }
-            ]
-          });
-        }
-      },
-      {
-        icon: '🗣️',
-        label: '시민 자유 담벼락 & 열린 소통',
-        desc: '부산 시민들과 익명으로 소통하고 아이디어 제안하기',
-        action: () => openWallModal()
-      },
-      {
-        icon: '📜',
-        label: '오늘의 시민 미션 & 20단계 계급',
-        desc: '일일 퀘스트를 완료하고 명예 부산시민으로 성장하기',
-        action: () => openCivicLifeModal()
-      },
-      {
-        icon: '🎤',
-        label: '시민 발언대에서 시정 외치기',
-        desc: '시민광장 발언대에서 목소리를 내고 경험치 받기',
-        action: () => openPodiumShoutModal()
-      }
-    ]
-  },
-  daon: {
-    id: 'daon',
-    name: '안내원 다온',
-    title: '부산시 AI 시정 길잡이 (1층 종합안내데스크)',
-    badge: '🎧',
-    greeting: '안녕하십니까 시민 여러분! 부산광역시 종합안내데스크 AI 안내원 다온입니다 🎧',
-    description: '부산시청 본관 1층 종합안내데스크에 오신 것을 환영합니다. 120 부산민원콜센터와 시정 데이터베이스를 바탕으로 행정 업무, 조직도, 예산 정보까지 원스톱으로 안내해 드립니다.',
-    options: [
-      {
-        icon: '🤖',
-        label: 'AI 다온 행정 질의응답 (120 콜센터 연계)',
-        desc: '여권 발급, 청년 월세, 복지 지원 등 무엇이든 질문하세요',
-        action: () => openAiGuideModal()
-      },
-      {
-        icon: '📂',
-        label: '열린 정보공개방 (연도별 예산서 총람)',
-        desc: '2026 연도별 본예산 총람, 시정 핵심 프로젝트, 통계 열람',
-        action: () => openOpenInfoModal()
-      },
-      {
-        icon: '🔍',
-        label: '부산시청 소관부서 & 전화번호 검색 (Q키)',
-        desc: '공공기관 사무분장 법령 검증 엔진 및 직통 번호 조회',
-        action: () => openDivisionModal()
-      },
-      {
-        icon: '🔥',
-        label: '시민 최다 이용 인기 e-민원 메뉴',
-        desc: '여권, 세금, 일자리, 건축, 복지 원스톱 링크 포털',
-        action: () => openPopularMenusModal()
-      },
-      {
-        icon: '🏢',
-        label: '본관 1층~28층 전 층 부서 안내도',
-        desc: '세종청사 엔진 연동 전 층 사무실 위치 상세도',
-        action: () => openOfficeModal()
-      }
-    ]
-  }
-};
-
-function openNpcDialogue(npcId) {
-  const npc = NPC_REGISTRY[npcId];
-  if (!npc) return;
-  showNpcDialogueDirect(npc);
-}
-
-function showNpcDialogueDirect(cfg) {
-  const badgeEl = document.getElementById('npcDialogueBadge');
-  const nameEl = document.getElementById('npcDialogueName');
-  const titleEl = document.getElementById('npcDialogueTitle');
-  const greetingEl = document.getElementById('npcDialogueGreeting');
-  const descEl = document.getElementById('npcDialogueDesc');
-  const optionsEl = document.getElementById('npcDialogueOptions');
-
-  if (badgeEl) badgeEl.innerText = cfg.badge || '💬';
-  if (nameEl) nameEl.innerText = cfg.name || 'NPC';
-  if (titleEl) titleEl.innerText = cfg.title || '';
-  if (greetingEl) greetingEl.innerText = cfg.greeting || '';
-  if (descEl) descEl.innerText = cfg.description || '';
-
-  if (optionsEl) {
-    optionsEl.innerHTML = '';
-    (cfg.options || []).forEach(opt => {
-      const card = document.createElement('div');
-      card.className = 'npc-option-card clickable';
-      card.innerHTML = `
-        <div class="npc-option-icon">${opt.icon || '👉'}</div>
-        <div class="npc-option-content">
-          <div class="npc-option-label">${opt.label}</div>
-          <div class="npc-option-desc">${opt.desc || ''}</div>
-        </div>
-        <div class="npc-option-arrow">➔</div>
-      `;
-      card.onclick = () => {
-        closeModal('modal-npc-dialogue');
-        if (typeof opt.action === 'function') {
-          opt.action();
-        }
-      };
-      optionsEl.appendChild(card);
-    });
-  }
-
-  openModal('modal-npc-dialogue');
-  if (window.busanAudio) (window.busanAudio.playChime ? window.busanAudio.playChime() : window.busanAudio.playDingDong());
-}
-
-function openCivilOfficialDialogue(serviceName, counterNumber) {
-  const serviceDetails = {
-    "여권발급": {
-      desc: "여권 신규 발급, 갱신 재발급, 분실 신고 및 여권 우편 수령 서비스를 제공합니다.",
-      docs: "신분증, 6개월 이내 촬영한 여권용 컬러 사진 1매(3.5x4.5cm), 구여권",
-      fee: "10년 복수여권 (58면): 53,000원 / (26면): 50,000원",
-      url: "https://www.passport.go.kr"
-    },
-    "가족관계": {
-      desc: "출생·혼인·사망 신고 및 기본증명서, 가족관계증명서, 혼인관계증명서 발급을 처리합니다.",
-      docs: "신분증, 가족관계등록부 신청서, 대리 신청 시 위임장",
-      fee: "창구 발급 통당 1,000원 (대법원 전자가족관계시스템 온라인 무료)",
-      url: "https://efamily.scourt.go.kr"
-    },
-    "지적토지": {
-      desc: "토지대장, 임야대장, 지적도·임야도 등본 발급 및 개별공시지가 열람 업무를 수행합니다.",
-      docs: "신분증, 토지 소재지 지번 확인",
-      fee: "대장 발급 건당 500원 (정부24 열람 무료)",
-      url: "https://www.gov.kr"
-    },
-    "세무상담": {
-      desc: "취득세, 등록면허세, 재산세, 자동차세 등 지방세 부과 및 감면 신청 상담을 지원합니다.",
-      docs: "과세 대상 매매계약서, 신분증, 감면 증빙 서류",
-      fee: "상담 전액 무료 (위택스 온라인 전자신고 연계)",
-      url: "https://www.wetax.go.kr"
-    },
-    "차량등록": {
-      desc: "자동차 신규·이전·말소 등록, 자동차등록증 재교부, 이륜차 사용신고를 전담합니다.",
-      docs: "자동차등록증, 양도증명서, 매도용 인감증명서, 의무보험가입증명서",
-      fee: "취득세 및 증지·인지대 (공채 매입 별도)",
-      url: "https://www.car365.go.kr"
-    },
-    "건축주택": {
-      desc: "건축 허가·착공 신고, 건축물대장 발급 및 청년·신혼부부 공공임대주택 정책을 상담합니다.",
-      docs: "건축 허가 신청서, 설계도서, 대지 권리 증빙 서류",
-      fee: "신고 수수료 및 면허세",
-      url: "https://cloud.eais.go.kr"
-    },
-    "어르신복지": {
-      desc: "기초연금 신청, 노인일자리 지원, 노인장기요양 및 어르신 대중교통 혜택을 지원합니다.",
-      docs: "신분증, 본인 통장 사본, 소득·재산 신고서",
-      fee: "전액 무료 지원",
-      url: "https://www.bokjiro.go.kr"
-    },
-    "통합민원": {
-      desc: "주민등록 등·초본, 인감증명서 발급 및 어디서나 민원(타 기관 민원 신청)을 원스톱 처리합니다.",
-      docs: "주민등록증, 운전면허증 또는 모바일 신분증",
-      fee: "등본 통당 400원 (정부24 온라인 무료)",
-      url: "https://www.gov.kr"
-    }
-  };
-
-  const d = serviceDetails[serviceName] || {
-    desc: "부산시민 여러분의 신속한 행정 처리를 돕습니다.",
-    docs: "신분증 및 관련 구비 서류",
-    fee: "해당 조례 규정 수수료",
-    url: "https://www.gov.kr"
-  };
-
-  showNpcDialogueDirect({
-    name: `담당관 (${serviceName})`,
-    title: `부산광역시청 2층 행복민원실 ${counterNumber}번 창구`,
-    badge: '📋',
-    greeting: `어서오십시오! 2층 행복민원실 ${counterNumber}번 [${serviceName}] 창구입니다 🏛️`,
-    description: `[주요 업무] ${d.desc}\n\n📄 [필요 서류] ${d.docs}\n💰 [수수료] ${d.fee}`,
-    options: [
-      {
-        icon: '🌐',
-        label: `${serviceName} 온라인 민원 신청 바로가기`,
-        desc: '정부24 / 공공 포털 인터넷 신청',
-        action: () => window.open(d.url, '_blank')
-      },
-      {
-        icon: '🎫',
-        label: '순번 대기표 발급받기',
-        desc: '민원 대기 순번 알림을 수령합니다',
-        action: () => {
-          showSpeechBubble(localPlayer, `🎫 [${serviceName}] 창구 순번대기표 104번이 발급되었습니다.`);
-          if (window.busanAudio) window.busanAudio.playStampSound();
-        }
-      },
-      {
-        icon: '🏢',
-        label: '시청 청사 층별 사무실 안내도',
-        desc: '2층 민원실 및 1층~28층 전 층 안내',
-        action: () => openOfficeModal()
-      }
-    ]
-  });
-}
-
-function findNpcOrInteractiveTarget(obj) {
-  let cur = obj;
-  while (cur && cur !== scene) {
-    if (cur.userData) {
-      if (cur.userData.isPlayer) return null;
-      if (cur.userData.npcData) return { type: 'npc', data: cur.userData.npcData, mesh: cur };
-      if (cur.userData.isNpc) {
-        const outdoor = outdoorNpcs.find(n => n.mesh === cur);
-        if (outdoor) return { type: 'outdoor_npc', npc: outdoor, mesh: cur };
-        return { type: 'generic_npc', mesh: cur, name: cur.userData.name || '시민 NPC' };
-      }
-      if (cur.userData.interactiveAction) return { type: 'action', action: cur.userData.interactiveAction, mesh: cur };
-      if (cur.userData.interactiveId) {
-        const found = interactiveObjects.find(o => o.id === cur.userData.interactiveId);
-        if (found) return { type: 'interactive_obj', obj: found, mesh: cur };
-      }
-    }
-    cur = cur.parent;
-  }
-  return null;
-}
-
-function handleNpcOrInteractiveClick(target, clickPoint) {
-  if (!target) return;
-
-  if (localPlayer && target.mesh) {
-    const meshWorldPos = new THREE.Vector3();
-    target.mesh.getWorldPosition(meshWorldPos);
-    localPlayer.lookAt(meshWorldPos.x, localPlayer.position.y, meshWorldPos.z);
-    const dist = Math.hypot(localPlayer.position.x - meshWorldPos.x, localPlayer.position.z - meshWorldPos.z);
-    if (dist > 10.0) {
-      STATE.clickTargetPos = new THREE.Vector3(
-        meshWorldPos.x + (localPlayer.position.x > meshWorldPos.x ? 2.5 : -2.5),
-        localPlayer.position.y,
-        meshWorldPos.z + (localPlayer.position.z > meshWorldPos.z ? 2.5 : -2.5)
-      );
-      if (clickMarkerMesh) {
-        clickMarkerMesh.position.copy(STATE.clickTargetPos);
-        clickMarkerMesh.visible = true;
-      }
-    }
-  }
-
-  if (target.type === 'npc') {
-    const data = target.data;
-    if (data.type === 'civil_counter') {
-      openCivilOfficialDialogue(data.serviceName, data.counterNumber);
-      showSpeechBubble(target.mesh, `어서오세요! ${data.counterNumber}번 [${data.serviceName}] 창구입니다.`);
-    } else if (data.type === 'daon' || data.id === 'daon') {
-      openNpcDialogue('daon');
-      showSpeechBubble(target.mesh, "안녕하십니까 시민 여러분! AI 안내원 다온입니다 🎧");
-    } else if (data.id === 'dongbaek') {
-      openNpcDialogue('dongbaek');
-      showSpeechBubble(target.mesh, "반가워요 시민님! 부산시청 메타버스에 오신 것을 환영해요 🌺");
-    } else if (data.id === 'bada') {
-      openNpcDialogue('bada');
-      showSpeechBubble(target.mesh, "안녕하세요! 시청 앞 잔디광장에서 산책 중이신가요? 🌊");
-    } else {
-      openNpcDialogue(data.id);
-    }
-    if (window.busanAudio) (window.busanAudio.playChime ? window.busanAudio.playChime() : window.busanAudio.playDingDong());
-  } else if (target.type === 'outdoor_npc') {
-    const npc = target.npc;
-    if (npc.id === 'npc_dongbaek') {
-      openNpcDialogue('dongbaek');
-      showSpeechBubble(npc.mesh, "반가워요 시민님! 무엇이든 물어보세요 🌺");
-    } else if (npc.id === 'npc_bada') {
-      openNpcDialogue('bada');
-      showSpeechBubble(npc.mesh, "오늘 날씨 참 쾌청하네요! 맛집 추천해 드릴게요 🌊");
-    }
-    if (window.busanAudio) (window.busanAudio.playChime ? window.busanAudio.playChime() : window.busanAudio.playDingDong());
-  } else if (target.type === 'action') {
-    target.action();
-  } else if (target.type === 'interactive_obj') {
-    target.obj.action();
-  }
-}
-
-
-// 5-B. 시청 광장 & 야외공원 자율 산책 및 대화 NPC 시스템
-// ========================================================
-const outdoorNpcs = [];
-
-let dongbaekInteractObj = null;
-let badaInteractObj = null;
-
-let choiInteractObj = null;
-let jungInteractObj = null;
-
-function initOutdoorAutonomousNpcs() {
-  outdoorNpcs.forEach(n => {
-    if (n.mesh && n.mesh.parent) n.mesh.parent.remove(n.mesh);
-  });
-  outdoorNpcs.length = 0;
-
-  // 1. [안내 NPC] 동백이: 광장 분수대와 시청 앞마당을 순찰하는 귀여운 시청 길잡이
-  const dongbaekMesh = createCuteCitizenMesh({
-    name: "동백이",
-    title: "시청 길잡이",
-    level: 15,
-    robeColor: "camellia",
-    hatType: "camellia",
-    wingsType: "none",
-    hairStyle: "bob",
-    hairColor: "pink",
-    skinTone: "warm",
-    isNpc: true
-  });
-  dongbaekMesh.userData.isNpc = true;
-  dongbaekMesh.userData.npcData = {
-    id: 'dongbaek',
-    name: '동백이',
-    title: '부산시청 공식 길잡이 (Lv.15)',
-    type: 'dongbaek'
-  };
-  dongbaekMesh.position.set(0, 0, 22);
-  cityHallWorldGroup.add(dongbaekMesh);
-
-  outdoorNpcs.push({
-    id: 'npc_dongbaek',
-    mesh: dongbaekMesh,
-    name: '동백이',
-    title: '시청 길잡이',
-    speed: 3.2,
-    waypoints: [
-      { x: 0, z: 22 },
-      { x: 14, z: 22 },
-      { x: 16, z: 12 },
-      { x: 0, z: 8 },
-      { x: -16, z: 12 },
-      { x: -14, z: 22 }
-    ],
-    wpIndex: 0,
-    chatCooldown: 8.0,
-    chatLines: [
-      "안녕하세요 시민님! 부산시청 메타버스에 오신 것을 환영해요 🌺",
-      "시청 1층 들락날락 어린이도서관에 미디어아트가 정말 멋져요!",
-      "2026 연도별 시청 예산서는 열린 정보공개방에서 확인하실 수 있어요 📂",
-      "소관부서 검색기로 담당부서와 직통전화를 바로 찾을 수 있답니다!"
-    ]
-  });
-
-  // 2. [시민 NPC] 부산바다: 분수대와 공원 벤치를 거닐며 휴식하는 단골 시민
-  const badaMesh = createCuteCitizenMesh({
-    name: "부산바다",
-    title: "산책 중인 시민",
-    level: 8,
-    robeColor: "denim",
-    hatType: "seagull",
-    wingsType: "none",
-    hairStyle: "short",
-    hairColor: "ocean",
-    skinTone: "warm",
-    isNpc: true
-  });
-  badaMesh.userData.isNpc = true;
-  badaMesh.userData.npcData = {
-    id: 'bada',
-    name: '부산바다',
-    title: '산책 중인 부산시민 (Lv.8)',
-    type: 'bada'
-  };
-  badaMesh.position.set(-8, 0, 18);
-  cityHallWorldGroup.add(badaMesh);
-
-  outdoorNpcs.push({
-    id: 'npc_bada',
-    mesh: badaMesh,
-    name: '부산바다',
-    title: '산책 시민',
-    speed: 2.8,
-    waypoints: [
-      { x: -8, z: 18 },
-      { x: -8, z: 34 },
-      { x: 8, z: 34 },
-      { x: 8, z: 18 }
-    ],
-    wpIndex: 0,
-    chatCooldown: 12.0,
-    chatLines: [
-      "오늘 부산 날씨 정말 청명하네요~ 광장 분수대 소리 들으니 힐링돼요 🌤️",
-      "16개 구청 포털 타고 해운대구청 가봤는데 맛집 정보가 가득하더라고요!",
-      "동백전 카드 쓰면 7% 캐시백 되는 거 다들 알고 계시죠? 💳",
-      "시민 발언대에서 부산 발전 아이디어 외치고 경험치도 받았어요!"
-    ]
-  });
-
-  // 동적 상호작용 객체 등록 (NPC 실시간 위치 추적)
-  dongbaekInteractObj = {
-    id: 'npc_dongbaek_interact',
-    pos: { x: 0, y: 0, z: 22 },
-    radius: 5.0,
-    prompt: "💬 [E키 또는 클릭] 동백이와 대화하기 (시청 길잡이)",
-    action: () => {
-      openNpcDialogue('dongbaek');
-      showSpeechBubble(dongbaekMesh, "반가워요 시민님! 부산시청 메타버스에 오신 것을 환영해요 🌺");
-      if (window.busanAudio) (window.busanAudio.playChime ? window.busanAudio.playChime() : window.busanAudio.playDingDong());
-    }
-  };
-  registerInteractiveObject(dongbaekInteractObj);
-
-  badaInteractObj = {
-    id: 'npc_bada_interact',
-    pos: { x: -8, y: 0, z: 18 },
-    radius: 5.0,
-    prompt: "💬 [E키 또는 클릭] 부산바다와 대화하기 (산책 시민)",
-    action: () => {
-      openNpcDialogue('bada');
-      showSpeechBubble(badaMesh, "오늘 날씨 참 상쾌하네요! 맛집이나 동백전 소식 나눠요 🌊");
-      if (window.busanAudio) (window.busanAudio.playChime ? window.busanAudio.playChime() : window.busanAudio.playDingDong());
-    }
-  };
-  registerInteractiveObject(badaInteractObj);
-  // 3. [회사원 NPC] 최과장: 점심시간 분수대 앞을 산책하며 커피 마시는 귀여운 직장인
-  const choiMesh = createCuteCitizenMesh({
-    name: "최과장",
-    title: "점심 산책 회사원",
-    level: 12,
-    robeColor: "office_suit",
-    hatType: "none",
-    wingsType: "none",
-    hairStyle: "comma",
-    hairColor: "brown",
-    skinTone: "warm",
-    isNpc: true,
-    itemHeld: "coffee"
-  });
-  choiMesh.userData.isNpc = true;
-  choiMesh.userData.npcData = {
-    id: 'worker_choi',
-    name: '최과장',
-    title: '점심 산책 회사원 (Lv.12)',
-    type: 'worker'
-  };
-  choiMesh.position.set(12, 0, 36);
-  cityHallWorldGroup.add(choiMesh);
-
-  outdoorNpcs.push({
-    id: 'npc_worker_choi',
-    mesh: choiMesh,
-    name: '최과장',
-    title: '점심 산책 회사원',
-    speed: 2.6,
-    waypoints: [
-      { x: 12, z: 36 },
-      { x: 14, z: 46 },
-      { x: 4, z: 46 },
-      { x: 4, z: 36 }
-    ],
-    wpIndex: 0,
-    chatCooldown: 10.0,
-    chatLines: [
-      "점심 먹고 시청 광장 분수대 한 바퀴 도는 게 직장인의 유일한 낙이죠 ☕",
-      "시청 앞 식당가에 동백전 쓰니까 점심값이 7%나 절약돼요!",
-      "오늘 오후엔 1층 들락날락에서 스마트시티 미팅이 잡혀 있네요 ㅎㅎ"
-    ]
-  });
-
-  choiInteractObj = {
-    id: 'npc_choi_interact',
-    pos: { x: 12, y: 0, z: 36 },
-    radius: 5.0,
-    prompt: "💬 [E키 또는 클릭] 최과장과 대화하기 (점심 산책 회사원)",
-    action: () => {
-      openNpcDialogue('worker_choi');
-      showSpeechBubble(choiMesh, "점심 맛있게 드셨나요? 직장인 꿀팁 나눠드릴게요 ☕");
-      if (window.busanAudio) window.busanAudio.playDingDong();
-    }
-  };
-  registerInteractiveObject(choiInteractObj);
-
-  // 4. [공무원 NPC] 정주무관: 광장 정원과 분수대를 순찰 점검하는 청사 관리 주무관
-  const jungMesh = createCuteCitizenMesh({
-    name: "정주무관",
-    title: "시민광장 관리팀",
-    level: 14,
-    robeColor: "civil_suit",
-    hatType: "none",
-    wingsType: "none",
-    hairStyle: "short",
-    hairColor: "black",
-    skinTone: "warm",
-    isNpc: true,
-    itemHeld: "clipboard"
-  });
-  jungMesh.userData.isNpc = true;
-  jungMesh.userData.npcData = {
-    id: 'staff_jung',
-    name: '정주무관',
-    title: '시민광장 관리팀 (Lv.14)',
-    type: 'officer'
-  };
-  jungMesh.position.set(-14, 0, 24);
-  cityHallWorldGroup.add(jungMesh);
-
-  outdoorNpcs.push({
-    id: 'npc_officer_jung',
-    mesh: jungMesh,
-    name: '정주무관',
-    title: '시민광장 관리팀',
-    speed: 3.0,
-    waypoints: [
-      { x: -14, z: 24 },
-      { x: -24, z: 24 },
-      { x: -24, z: 40 },
-      { x: -14, z: 40 }
-    ],
-    wpIndex: 0,
-    chatCooldown: 14.0,
-    chatLines: [
-      "시민 여러분, 안녕하십니까! 시민광장 관리팀 정주무관입니다 🌺",
-      "분수대 음악쇼는 매시간 정각마다 가동됩니다!",
-      "시청 광장 서편의 동백나무 정원에서 편안한 휴식 취하세요!"
-    ]
-  });
-
-  jungInteractObj = {
-    id: 'npc_jung_interact',
-    pos: { x: -14, y: 0, z: 24 },
-    radius: 5.0,
-    prompt: "💬 [E키 또는 클릭] 정주무관과 대화하기 (시민광장 관리 공무원)",
-    action: () => {
-      openNpcDialogue('staff_jung');
-      showSpeechBubble(jungMesh, "시민광장에 오신 것을 환영합니다! 시설 안내를 도와드릴게요 ⛲");
-      if (window.busanAudio) window.busanAudio.playDingDong();
-    }
-  };
-  registerInteractiveObject(jungInteractObj);
-
-}
-
-function updateOutdoorNpcs(dt) {
-  if (STATE.currentRoom !== 'BUSAN-HQ') return;
-  outdoorNpcs.forEach(npc => {
-    if (!npc.mesh) return;
-    const wp = npc.waypoints[npc.wpIndex];
-    const cur = npc.mesh.position;
-    const dx = wp.x - cur.x;
-    const dz = wp.z - cur.z;
-    const dist = Math.hypot(dx, dz);
-
-    if (dist > 0.35) {
-      const dirX = dx / dist;
-      const dirZ = dz / dist;
-      cur.x += dirX * npc.speed * dt;
-      cur.z += dirZ * npc.speed * dt;
-
-      // 이동 방향 회전
-      const targetAngle = Math.atan2(dirX, dirZ);
-      let diff = targetAngle - npc.mesh.rotation.y;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      npc.mesh.rotation.y += diff * Math.min(1, dt * 8);
-
-      npc.mesh.userData.isWalking = true;
-    } else {
-      npc.wpIndex = (npc.wpIndex + 1) % npc.waypoints.length;
-    }
-
-    // ★ 실시간 상호작용 위치 동기화 (NPC가 걸어다녀도 E키/클릭 완벽 동작!)
-    if (npc.id === 'npc_dongbaek' && dongbaekInteractObj) {
-      dongbaekInteractObj.pos.x = cur.x;
-      dongbaekInteractObj.pos.z = cur.z;
-    } else if (npc.id === 'npc_bada' && badaInteractObj) {
-      badaInteractObj.pos.x = cur.x;
-      badaInteractObj.pos.z = cur.z;
-    } else if (npc.id === 'npc_worker_choi' && choiInteractObj) {
-      choiInteractObj.pos.x = cur.x;
-      choiInteractObj.pos.z = cur.z;
-    } else if (npc.id === 'npc_officer_jung' && jungInteractObj) {
-      jungInteractObj.pos.x = cur.x;
-      jungInteractObj.pos.z = cur.z;
-    }
-
-    // 주기적 말풍선 대사 출력
-    npc.chatCooldown -= dt;
-    if (npc.chatCooldown <= 0) {
-      npc.chatCooldown = 14.0 + Math.random() * 8.0;
-      const line = npc.chatLines[Math.floor(Math.random() * npc.chatLines.length)];
-      showSpeechBubble(npc.mesh, line);
-    }
-  });
-}
-
-function buildBusanCityHallWorld() {
-  busanCityHallObstacles = [];
-
-  // (1) 메인 지형: 푸른 잔디 공원 (텍스처 적용)
-  const terrainGeo = new THREE.PlaneGeometry(240, 240);
-  const terrainMat = new THREE.MeshStandardMaterial({
-    map: TEXTURES.grass,
-    roughness: 0.85
-  });
-  const terrain = new THREE.Mesh(terrainGeo, terrainMat);
-  terrain.rotation.x = -Math.PI / 2;
-  terrain.position.y = -0.02;
-  terrain.receiveShadow = true;
-  cityHallWorldGroup.add(terrain);
-
-  // (2) 시민광장 화강석 석재 바닥 (텍스처 적용)
-  const plazaFloorGeo = new THREE.PlaneGeometry(54, 46);
-  const plazaFloorMat = new THREE.MeshStandardMaterial({
-    map: TEXTURES.plaza,
-    roughness: 0.4
-  });
-  const plazaFloor = new THREE.Mesh(plazaFloorGeo, plazaFloorMat);
-  plazaFloor.rotation.x = -Math.PI / 2;
-  plazaFloor.position.set(0, 0.01, 31);
-  plazaFloor.receiveShadow = true;
-  cityHallWorldGroup.add(plazaFloor);
-
-  // (3) 부산광역시청 본관 외관 타워 (28층 모던 커튼월)
-  buildCityHallTowerFacade();
-
-  // (4) 시민광장: 부산의 닻 조형물 & 음악 분수대
-  buildAnchorSculpture(0, 0, 26);
-  buildDancingFountain(0, 0, 42);
-
-  // (5) 등대광장: 해양 등대 & 소원 연못
-  buildLighthouseSquare(34, 0, 30);
-
-  // (6) 동백광장: 만개한 동백나무 정원 & 벤치
-  buildCamelliaSquare(-34, 0, 30);
-
-  // (7) 녹음광장 야외공연장: 반원형 관람석 & 버스킹 무대
-  buildGreenPlazaAmphitheater(-33, 0, 60);
-
-  // (8) 잔디광장 시민 발언대: 확성기 발언대
-  buildFreeSpeechPodium(33, 0, 60);
-
-  // [가즈아 대성전급 조명 및 지피티 추천 컨텐츠]
-  buildPlazaStreetlamps();
-  buildCamelliaFortuneKiosk(18, 0, 24);
-  buildFireworksLauncher(-18, 0, 24);
-  buildCivicHonorHallExhibition(-26, 0, 46);
-
-  // (9) 1층 들락날락 어린이 도서관 & 미래도시관 & 안내데스크
-  buildFirstFloorAtriumLobby();
-
-  // (10) 1F -> 2F 중앙 그랜드 계단 및 에스컬레이터
-  buildCentralGrandStairs();
-
-  // (11) 2층 행복민원실 (여권창구, 120콜센터, 아주라 수유실, 순번 키오스크)
-  buildSecondFloorCivilServiceHall();
-
-  // (12) 갈매기 비행 무리
-  createFlockOfSeagulls();
-  buildEnhancedPlazaLandscaping();
-  buildEnhancedLobbyArt();
-  buildEnhancedCivilHall();
-}
 
 // --------------------------------------------------------
 // [건축 1] 부산시청 본관 28층 타워 외관 파사드
@@ -3891,6 +3012,307 @@ function activateGoldenAura(durationSec = 15) {
       target.userData.auraRing.material.opacity = 0.0;
     }
   }, durationSec * 1000);
+}
+
+
+// ========================================================
+// [부산광역시청 야외 시민광장 월드 (BUSAN-HQ)]
+// (3D 본관 외관 + 시민광장 + 닻 조형물 + 음악분수 + 원경 파노라마 + 민원실 입구 포털)
+// ========================================================
+
+// ========================================================
+// 5-B. 시청 광장 & 야외공원 자율 산책 및 대화 NPC 시스템
+// (부기, 시청공무원, 스마트회사원, 동백이 자율 보행 및 상호작용)
+// ========================================================
+const outdoorNpcs = [];
+
+function initOutdoorAutonomousNpcs() {
+  outdoorNpcs.forEach(n => {
+    if (n.mesh && n.mesh.parent) n.mesh.parent.remove(n.mesh);
+  });
+  outdoorNpcs.length = 0;
+
+  // 1. [부산시 소통 마스코트 부기] Boogi Seagull Mascot
+  const badaMesh = createCuteCitizenMesh({
+    name: "부산 부기",
+    title: "부산시 소통 캐릭터 (Lv.20)",
+    level: 20,
+    robeColor: "denim",
+    hatType: "seagull",
+    hairStyle: "short",
+    hairColor: "ocean",
+    skinTone: "warm",
+    isNpc: true
+  });
+  badaMesh.position.set(-6, 0, 20);
+  badaMesh.userData.npcData = {
+    id: 'npc_bada',
+    name: '부기 (Boogi)',
+    title: '부산시 공식 소통 마스코트',
+    type: 'bada'
+  };
+  cityHallWorldGroup.add(badaMesh);
+
+  outdoorNpcs.push({
+    id: 'npc_bada',
+    mesh: badaMesh,
+    name: '부기',
+    title: '부산 소통캐릭터',
+    speed: 2.6,
+    waypoints: [
+      { x: -6, z: 20 },
+      { x: -14, z: 28 },
+      { x: -10, z: 42 },
+      { x: 0, z: 36 },
+      { x: 10, z: 42 },
+      { x: 14, z: 28 },
+      { x: 6, z: 20 },
+      { x: 0, z: 14 }
+    ],
+    wpIndex: 0,
+    chatCooldown: 8.0,
+    chatLines: [
+      "안녕! 나는 부산시 소통 캐릭터 부기야! 반가워~ 🌊",
+      "시청 광장 음악분수 소리 들으니 시원하지? ⛲",
+      "시청 2층 행복민원실 들어가면 여권이랑 증명서 다 발급받을 수 있어! 🏛️",
+      "16개 구·군청도 실제 청사 모습으로 멋지게 꾸며져 있으니 구경해봐! 🗺️"
+    ]
+  });
+
+  // 2. [부산시청 공무원] Civil Officer NPC
+  const officerMesh = createCuteCitizenMesh({
+    name: "박주무관",
+    title: "시민광장 현장안내관 (Lv.16)",
+    level: 16,
+    robeColor: "civil_suit",
+    hairStyle: "dandy",
+    hairColor: "black",
+    itemHeld: "clipboard",
+    isNpc: true
+  });
+  officerMesh.position.set(6, 0, 18);
+  officerMesh.userData.npcData = {
+    id: 'npc_officer',
+    name: '박주무관',
+    title: '시정안내 공무원',
+    type: 'officer'
+  };
+  cityHallWorldGroup.add(officerMesh);
+
+  outdoorNpcs.push({
+    id: 'npc_officer',
+    mesh: officerMesh,
+    name: '박주무관',
+    title: '시정 공무원',
+    speed: 2.4,
+    waypoints: [
+      { x: 6, z: 18 },
+      { x: 16, z: 18 },
+      { x: 16, z: 8 },
+      { x: -6, z: 8 },
+      { x: -16, z: 18 },
+      { x: 0, z: 18 }
+    ],
+    wpIndex: 0,
+    chatCooldown: 12.0,
+    chatLines: [
+      "안녕하십니까! 부산광역시청을 찾아주신 시민 여러분을 환영합니다 🏛️",
+      "정문 앞 포털이나 상단 [민원실 바로가기]를 누르시면 2층 행복민원실로 바로 연결됩니다.",
+      "120 부산민원콜센터와 열린 정보공개방에서 다양한 시정 정보를 열람하실 수 있습니다."
+    ]
+  });
+
+  // 3. [스마트 회사원] Office Worker NPC
+  const workerMesh = createCuteCitizenMesh({
+    name: "이대리",
+    title: "스마트 행정타운 회사원 (Lv.12)",
+    level: 12,
+    robeColor: "navy_suit",
+    hairStyle: "wavy",
+    hairColor: "dark_brown",
+    itemHeld: "coffee",
+    isNpc: true
+  });
+  workerMesh.position.set(12, 0, 32);
+  workerMesh.userData.npcData = {
+    id: 'npc_worker',
+    name: '이대리',
+    title: '스마트 회사원',
+    type: 'worker'
+  };
+  cityHallWorldGroup.add(workerMesh);
+
+  outdoorNpcs.push({
+    id: 'npc_worker',
+    mesh: workerMesh,
+    name: '이대리',
+    title: '스마트 회사원',
+    speed: 2.5,
+    waypoints: [
+      { x: 12, z: 32 },
+      { x: 22, z: 32 },
+      { x: 22, z: 46 },
+      { x: 4, z: 46 },
+      { x: 4, z: 32 }
+    ],
+    wpIndex: 0,
+    chatCooldown: 14.0,
+    chatLines: [
+      "시청 광장 커피 한 잔의 여유~ 시정 앱도 빠르고 편리하네요 ☕",
+      "오늘도 부산시민 모두 화이팅입니다!"
+    ]
+  });
+
+  // 4. [동백이] Dongbaek Mascot
+  const dongbaekMesh = createCuteCitizenMesh({
+    name: "동백이",
+    title: "부산시 소통 길잡이 (Lv.15)",
+    level: 15,
+    robeColor: "camellia",
+    hatType: "camellia",
+    hairStyle: "bob",
+    hairColor: "pink",
+    skinTone: "warm",
+    isNpc: true
+  });
+  dongbaekMesh.position.set(-14, 0, 30);
+  dongbaekMesh.userData.npcData = {
+    id: 'npc_dongbaek',
+    name: '동백이',
+    title: '부산시 소통 길잡이',
+    type: 'dongbaek'
+  };
+  cityHallWorldGroup.add(dongbaekMesh);
+
+  outdoorNpcs.push({
+    id: 'npc_dongbaek',
+    mesh: dongbaekMesh,
+    name: '동백이',
+    title: '소통 길잡이',
+    speed: 2.8,
+    waypoints: [
+      { x: -14, z: 30 },
+      { x: -24, z: 30 },
+      { x: -24, z: 44 },
+      { x: -14, z: 44 }
+    ],
+    wpIndex: 0,
+    chatCooldown: 10.0,
+    chatLines: [
+      "동백꽃 만개한 부산시청 광장에 오신 것을 환영해요 🌺",
+      "동백전 카드 혜택과 구·군별 맛집 리스트도 확인해 보세요!"
+    ]
+  });
+}
+
+function updateOutdoorNpcs(dt) {
+  if (STATE.currentRoom !== 'BUSAN-HQ') return;
+  outdoorNpcs.forEach(npc => {
+    if (!npc.mesh) return;
+    const wp = npc.waypoints[npc.wpIndex];
+    const cur = npc.mesh.position;
+    const dx = wp.x - cur.x;
+    const dz = wp.z - cur.z;
+    const dist = Math.hypot(dx, dz);
+
+    const ud = npc.mesh.userData;
+
+    if (dist > 0.4) {
+      const dirX = dx / dist;
+      const dirZ = dz / dist;
+      cur.x += dirX * npc.speed * dt;
+      cur.z += dirZ * npc.speed * dt;
+
+      const targetAngle = Math.atan2(dirX, dirZ);
+      npc.mesh.rotation.y = targetAngle;
+
+      ud.isWalking = true;
+      if (ud.tripoMesh && ud.tripoMesh.userData.mixer) {
+        if (ud.tripoMesh.userData.currentAction !== 'walk' && ud.tripoMesh.userData.walkAction) {
+          if (ud.tripoMesh.userData.idleAction) ud.tripoMesh.userData.idleAction.fadeOut(0.2);
+          ud.tripoMesh.userData.walkAction.reset().fadeIn(0.2).play();
+          ud.tripoMesh.userData.currentAction = 'walk';
+        }
+        ud.tripoMesh.userData.mixer.update(dt);
+      }
+    } else {
+      npc.wpIndex = (npc.wpIndex + 1) % npc.waypoints.length;
+      ud.isWalking = false;
+      if (ud.tripoMesh && ud.tripoMesh.userData.mixer) {
+        if (ud.tripoMesh.userData.currentAction !== 'idle' && ud.tripoMesh.userData.idleAction) {
+          if (ud.tripoMesh.userData.walkAction) ud.tripoMesh.userData.walkAction.fadeOut(0.2);
+          ud.tripoMesh.userData.idleAction.reset().fadeIn(0.2).play();
+          ud.tripoMesh.userData.currentAction = 'idle';
+        }
+        ud.tripoMesh.userData.mixer.update(dt);
+      }
+    }
+
+    npc.chatCooldown -= dt;
+    if (npc.chatCooldown <= 0) {
+      const line = npc.chatLines[Math.floor(Math.random() * npc.chatLines.length)];
+      showSpeechBubble(npc.mesh, line);
+      npc.chatCooldown = 12.0 + Math.random() * 8.0;
+    }
+  });
+}
+
+function buildBusanCityHallWorld() {
+  busanCityHallObstacles = [];
+
+  // (1) 메인 지형: 푸른 잔디 공원 (텍스처 적용)
+  const terrainGeo = new THREE.PlaneGeometry(240, 240);
+  const terrainMat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.grass,
+    roughness: 0.85
+  });
+  const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+  terrain.rotation.x = -Math.PI / 2;
+  terrain.position.y = -0.02;
+  terrain.receiveShadow = true;
+  cityHallWorldGroup.add(terrain);
+
+  // (2) 시민광장 화강석 석재 바닥
+  const plazaFloorGeo = new THREE.PlaneGeometry(64, 52);
+  const plazaFloorMat = new THREE.MeshStandardMaterial({
+    map: TEXTURES.plaza,
+    roughness: 0.4
+  });
+  const plazaFloor = new THREE.Mesh(plazaFloorGeo, plazaFloorMat);
+  plazaFloor.rotation.x = -Math.PI / 2;
+  plazaFloor.position.set(0, 0.01, 25);
+  plazaFloor.receiveShadow = true;
+  cityHallWorldGroup.add(plazaFloor);
+
+  // (3) 시민광장 닻 조형물 & 음악 분수대
+  buildAnchorSculpture(0, 0, 24);
+  buildDancingFountain(0, 0, 42);
+
+  // (4) 등대광장 & 소원 연못
+  buildLighthouseSquare(34, 0, 30);
+
+  // (5) 동백광장 정원 & 벤치
+  buildCamelliaSquare(-34, 0, 30);
+
+  // (6) 녹음광장 야외공연장 & 버스킹 무대
+  buildGreenPlazaAmphitheater(-33, 0, 60);
+
+  // (7) 잔디광장 시민 발언대
+  buildFreeSpeechPodium(33, 0, 60);
+
+  // (8) 가로등 & 조경 & 전시
+  buildPlazaStreetlamps();
+  buildCamelliaFortuneKiosk(18, 0, 24);
+  buildFireworksLauncher(-18, 0, 24);
+  buildCivicHonorHallExhibition(-26, 0, 46);
+  createFlockOfSeagulls();
+  buildEnhancedPlazaLandscaping();
+
+  // (9) 원경 명산 (황령산 & 금정산 파노라마)
+  createDistantBusanSkylinePanorama();
+
+  // (10) ★ 부산시청 본관 정문 & 2층 종합민원실(행복민원실) 워프 게이트!
+  buildCityHallEntrancePortal(cityHallWorldGroup);
 }
 
 function buildCityHallTowerFacade() {
@@ -4658,6 +4080,275 @@ function buildCentralGrandStairs() {
 // --------------------------------------------------------
 // [건축 10] 2층 행복민원실 (Happy Civil Service Hall)
 // --------------------------------------------------------
+
+// ========================================================
+// [시청 야외 본관 정문 & 종합민원실 입구 포털]
+// ========================================================
+function buildCityHallEntrancePortal(parentGroup) {
+  const portalGroup = new THREE.Group();
+  portalGroup.position.set(0, 0, -26);
+
+  // 정문 캐노피 프레임
+  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 });
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(16, 0.6, 6), canopyMat);
+  roof.position.set(0, 4.8, 0);
+  portalGroup.add(roof);
+
+  // 양측 지지 기둥
+  const colL = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 4.8, 16), canopyMat);
+  colL.position.set(-7.5, 2.4, 2.5);
+  portalGroup.add(colL);
+  const colR = colL.clone();
+  colR.position.set(7.5, 2.4, 2.5);
+  portalGroup.add(colR);
+
+  // 자동 유리문
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45, roughness: 0.1 });
+  const doorL = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.8, 0.2), glassMat);
+  doorL.position.set(-2.0, 1.9, 0);
+  portalGroup.add(doorL);
+  const doorR = doorL.clone();
+  doorR.position.set(2.0, 1.9, 0);
+  portalGroup.add(doorR);
+
+  // 블루 LED 발광 바닥 워프 패드
+  const padGeo = new THREE.CylinderGeometry(4.2, 4.2, 0.08, 32);
+  const padMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    emissive: 0x0284c7,
+    emissiveIntensity: 0.65,
+    roughness: 0.2
+  });
+  const pad = new THREE.Mesh(padGeo, padMat);
+  pad.position.set(0, 0.04, 1.0);
+  portalGroup.add(pad);
+
+  // 상단 3D 간판: [ 🏛️ 부산광역시청 종합민원실(행복민원실) 입구 ]
+  createSignBoard(0, 5.8, 0, "🏛️ 부산광역시청 2층 행복민원실 입구", 0x0284c7, portalGroup);
+  createSignBoard(0, 5.1, 0, "▶ 클릭 또는 E키를 누르면 민원실로 입장합니다", 0x0f172a, portalGroup);
+
+  parentGroup.add(portalGroup);
+
+  // 인터랙티브 상호작용 등록
+  registerInteractiveObject({
+    id: 'cityhall_entrance_gate',
+    pos: { x: 0, y: 0, z: -25 },
+    radius: 6.5,
+    prompt: "🏛️ [E키 또는 클릭] 부산시청 종합민원실(행복민원실) 입장",
+    action: () => {
+      switchRealm('BUSAN-CIVIL');
+    }
+  });
+
+  busanCityHallObstacles.push({ type: 'box', x: -6, z: -26, w: 4, d: 2, h: 5 });
+  busanCityHallObstacles.push({ type: 'box', x: 6, z: -26, w: 4, d: 2, h: 5 });
+}
+
+// ========================================================
+// [부산광역시청 전용 실내 종합민원실(행복민원실) 월드]
+// (외벽 간섭 전혀 없이 탁 트이고 쾌적한 럭셔리 실내 행정 공간)
+// ========================================================
+function buildBusanCivilServiceWorld() {
+  while (civilHallWorldGroup.children.length > 0) {
+    civilHallWorldGroup.remove(civilHallWorldGroup.children[0]);
+  }
+  civilHallInteractables = [];
+  civilHallObstacles = [];
+
+  // 1. 대리석 바닥 (76m x 48m)
+  const floorGeo = new THREE.PlaneGeometry(76, 48);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc,
+    roughness: 0.25,
+    metalness: 0.05
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0.01, 0);
+  floor.receiveShadow = true;
+  civilHallWorldGroup.add(floor);
+
+  // 2. 아늑한 우드월 & 천장 (높이 7m)
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 });
+  const woodAccentMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.5 }); // 온화한 원목 루버
+
+  // 뒷벽 (카운터 뒤)
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(76, 7.5, 0.8), wallMat);
+  backWall.position.set(0, 3.75, -23.5);
+  civilHallWorldGroup.add(backWall);
+
+  // 뒷벽 대형 부산 슬로건 간판
+  createSignBoard(0, 5.8, -23.0, "Busan is Good! 🏛️ 부산광역시청 행복민원실", 0x0284c7, civilHallWorldGroup);
+  createSignBoard(0, 5.0, -23.0, "시민과 함께하는 열린 행정 · 120 바로콜 · 스마트 원스톱 민원서비스", 0x334155, civilHallWorldGroup);
+
+  // 앞벽 (출구 게이트 방면)
+  const frontWallL = new THREE.Mesh(new THREE.BoxGeometry(32, 7.5, 0.8), wallMat);
+  frontWallL.position.set(-22, 3.75, 23.5);
+  civilHallWorldGroup.add(frontWallL);
+  const frontWallR = new THREE.Mesh(new THREE.BoxGeometry(32, 7.5, 0.8), wallMat);
+  frontWallR.position.set(22, 3.75, 23.5);
+  civilHallWorldGroup.add(frontWallR);
+
+  // 좌측벽 / 우측벽
+  const sideWallL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7.5, 48), wallMat);
+  sideWallL.position.set(-38, 3.75, 0);
+  civilHallWorldGroup.add(sideWallL);
+  const sideWallR = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7.5, 48), wallMat);
+  sideWallR.position.set(38, 3.75, 0);
+  civilHallWorldGroup.add(sideWallR);
+
+  // 천장
+  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(76, 48), ceilMat);
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(0, 7.5, 0);
+  civilHallWorldGroup.add(ceiling);
+
+  // 은은한 실내 조명 (앰비언트 + 펜던트 LED)
+  const civilAmbient = new THREE.HemisphereLight(0xffffff, 0xcfd8dc, 1.2);
+  civilHallWorldGroup.add(civilAmbient);
+
+  // 3. 8개 전문 종합 민원 창구 (여권, 차량, 세무, 복지 등)
+  const cGroup = new THREE.Group();
+  cGroup.position.set(0, 0, -14);
+
+  const deskMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 });
+  const deskTopMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+
+  const deskBase = new THREE.Mesh(new THREE.BoxGeometry(54, 1.15, 2.4), deskMat);
+  deskBase.position.y = 0.575;
+  cGroup.add(deskBase);
+
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(54.4, 0.1, 2.8), deskTopMat);
+  deskTop.position.y = 1.2;
+  cGroup.add(deskTop);
+
+  const services = [
+    { num: 1, name: "여권발급·교부", color: 0x0284c7 },
+    { num: 2, name: "주민·가족관계", color: 0x0284c7 },
+    { num: 3, name: "지적·부동산토지", color: 0x0284c7 },
+    { num: 4, name: "지방세·세무상담", color: 0x0284c7 },
+    { num: 5, name: "차량등록·취득세", color: 0x0284c7 },
+    { num: 6, name: "도시건축·인허가", color: 0x0284c7 },
+    { num: 7, name: "어르신·장애인복지", color: 0x0284c7 },
+    { num: 8, name: "통합민원·120상담", color: 0x059669 }
+  ];
+
+  services.forEach((s, idx) => {
+    const cx = -23.5 + idx * 6.7;
+    // 아크릴 비말차단막
+    const barrier = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.9, 0.05), new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.45 }));
+    barrier.position.set(cx, 1.7, 0.4);
+    cGroup.add(barrier);
+
+    // 상단 LED 번호 안내판
+    createSignBoard(cx, 2.5, 0.4, `[${s.num}번 창구] ${s.name}`, s.color, cGroup);
+
+    // 창구 담당 공무원 NPC
+    const officer = createCuteCitizenMesh({
+      name: `창구 주무관 ${s.num}`,
+      title: s.name,
+      level: 15,
+      robeColor: 'civil_suit',
+      hairStyle: 'dandy',
+      hairColor: 'dark_brown',
+      isNpc: true
+    });
+    officer.position.set(cx, 0, -1.2);
+    cGroup.add(officer);
+  });
+
+  civilHallWorldGroup.add(cGroup);
+
+  // 4. 순번 대기표 발급 키오스크 (중앙 배치)
+  buildQueueTicketKiosk(0, 0, 0, civilHallWorldGroup);
+
+  // 5. 365 스마트 무인민원발급존
+  const kioskGroup = new THREE.Group();
+  kioskGroup.position.set(24, 0, 4);
+  for (let k = 0; k < 3; k++) {
+    const kx = -4 + k * 4.0;
+    const km = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 1.2), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 }));
+    km.position.set(kx, 1.1, 0);
+    kioskGroup.add(km);
+    createSignBoard(kx, 2.6, 0, `365 무인발급기 ${k + 1}`, 0x0369a1, kioskGroup);
+  }
+  civilHallWorldGroup.add(kioskGroup);
+
+  // 6. 편안한 시민 대기 라운지 (가죽 소파, 혈압측정기, 정수기)
+  buildCivilWaitingLounge(-20, 0, 4, civilHallWorldGroup);
+
+  // 7. 행복민원실 현장 안내 공무원 (김주무관)
+  const officerKim = createCuteCitizenMesh({
+    name: "김주무관",
+    title: "민원실 총괄안내관",
+    level: 18,
+    robeColor: "civil_suit",
+    hairStyle: "dandy",
+    hairColor: "black",
+    itemHeld: "clipboard",
+    isNpc: true
+  });
+  officerKim.position.set(-6, 0, 2.0);
+  officerKim.userData.npcData = {
+    id: 'staff_kim',
+    name: '김주무관',
+    title: '행복민원실 현장 총괄안내관',
+    type: 'officer'
+  };
+  civilHallWorldGroup.add(officerKim);
+
+  // 김주무관 대화 인터랙티브
+  registerCivilHallInteractive({
+    pos: { x: -6, z: 2.0 },
+    radius: 4.5,
+    prompt: "💬 [E키 또는 클릭] 김주무관과 대화하기 (민원 서식 및 순번 안내)",
+    action: () => {
+      openNpcDialogue('staff_kim');
+      showSpeechBubble(officerKim, "반갑습니다! 순번대기표를 발급받으시면 더 신속히 모시겠습니다 📋");
+      if (window.busanAudio) window.busanAudio.playDingDong();
+    }
+  });
+
+  // 8. ★ 야외 시민광장으로 복귀하는 출구 게이트 (남쪽 입구)
+  const exitGroup = new THREE.Group();
+  exitGroup.position.set(0, 0, 22);
+
+  const exitPad = new THREE.Mesh(new THREE.CylinderGeometry(4.0, 4.0, 0.08, 32), new THREE.MeshStandardMaterial({
+    color: 0x10b981,
+    emissive: 0x10b981,
+    emissiveIntensity: 0.65
+  }));
+  exitPad.position.y = 0.04;
+  exitGroup.add(exitPad);
+
+  createSignBoard(0, 4.5, 0, "🌳 시청 야외 시민광장 나가기", 0x10b981, exitGroup);
+  createSignBoard(0, 3.8, 0, "▶ 클릭 또는 E키를 누르면 야외 광장으로 복귀합니다", 0x334155, exitGroup);
+
+  civilHallWorldGroup.add(exitGroup);
+
+  registerCivilHallInteractive({
+    pos: { x: 0, z: 22 },
+    radius: 6.5,
+    prompt: "🌳 [E키 또는 클릭] 시청 야외 시민광장 나가기",
+    action: () => {
+      switchRealm('BUSAN-HQ');
+    }
+  });
+
+  // 실내 충돌체 등록
+  civilHallObstacles.push({ type: 'box', x: 0, z: -14, w: 56, d: 3.5, h: 4 });
+  civilHallObstacles.push({ type: 'box', x: 0, z: -23.5, w: 76, d: 2, h: 8 });
+  civilHallObstacles.push({ type: 'box', x: -38, z: 0, w: 2, d: 48, h: 8 });
+  civilHallObstacles.push({ type: 'box', x: 38, z: 0, w: 2, d: 48, h: 8 });
+  civilHallObstacles.push({ type: 'box', x: -22, z: 23.5, w: 32, d: 2, h: 8 });
+  civilHallObstacles.push({ type: 'box', x: 22, z: 23.5, w: 32, d: 2, h: 8 });
+}
+
+function registerCivilHallInteractive(item) {
+  civilHallInteractables.push(item);
+}
+
 function buildSecondFloorCivilServiceHall() {
   const floor2Group = new THREE.Group();
 
@@ -5689,7 +5380,7 @@ function resolveObstacleCollision(currX, currZ, nextX, nextZ, footY) {
   if (resZ > 72) resZ = 72;
   if (resZ < -80) resZ = -80;
 
-  const activeObstacles = (STATE.currentRoom === 'BUSAN-HQ') ? busanCityHallObstacles : districtObstacles;
+  const activeObstacles = (STATE.currentRoom === 'BUSAN-HQ') ? busanCityHallObstacles : ((STATE.currentRoom === 'BUSAN-CIVIL') ? civilHallObstacles : districtObstacles);
   for (const obs of activeObstacles) {
     if (obs.type === 'box') {
       const halfW = obs.w / 2;
@@ -6203,6 +5894,14 @@ function updateCuteCitizenAnimation(c, dt, t) {
 
     // ★ Tripo 3D 리깅 뼈대(Bone) 및 고화질 캐릭터 관절 보행 모션!
     if (ud.tripoMesh) {
+      if (ud.tripoMesh.userData.mixer) {
+        if (ud.tripoMesh.userData.currentAction !== 'walk' && ud.tripoMesh.userData.walkAction) {
+          if (ud.tripoMesh.userData.idleAction) ud.tripoMesh.userData.idleAction.fadeOut(0.2);
+          ud.tripoMesh.userData.walkAction.reset().fadeIn(0.2).play();
+          ud.tripoMesh.userData.currentAction = 'walk';
+        }
+        ud.tripoMesh.userData.mixer.update(dt);
+      }
       // 발걸음 통통 바운스
       ud.tripoMesh.position.y = (ud.tripoBaseY || 0) + Math.abs(Math.sin(t * 11)) * 0.12;
       // 골반 / 몸체 좌우 뒤뚱뒤뚱 스윙
@@ -6228,6 +5927,14 @@ function updateCuteCitizenAnimation(c, dt, t) {
 
     // ★ Tripo 3D 대기 시 자연스러운 호흡(Breathing) 바운스 & 관절 이완
     if (ud.tripoMesh) {
+      if (ud.tripoMesh.userData.mixer) {
+        if (ud.tripoMesh.userData.currentAction !== 'idle' && ud.tripoMesh.userData.idleAction) {
+          if (ud.tripoMesh.userData.walkAction) ud.tripoMesh.userData.walkAction.fadeOut(0.2);
+          ud.tripoMesh.userData.idleAction.reset().fadeIn(0.2).play();
+          ud.tripoMesh.userData.currentAction = 'idle';
+        }
+        ud.tripoMesh.userData.mixer.update(dt);
+      }
       ud.tripoMesh.position.y = (ud.tripoBaseY || 0) + Math.sin(t * 2.5) * 0.025;
       ud.tripoMesh.rotation.z *= 0.85;
       ud.tripoMesh.rotation.x *= 0.85;
@@ -7407,8 +7114,12 @@ function switchRealm(realmCode) {
   const sel = document.getElementById('realm-select');
   if (sel) sel.value = realmCode;
 
+  updateQuickRealmButton(realmCode);
+
   if (realmCode === 'BUSAN-HQ') {
+    // 🌳 부산시청 야외 시민광장
     if (cityHallWorldGroup) cityHallWorldGroup.visible = true;
+    if (civilHallWorldGroup) civilHallWorldGroup.visible = false;
     if (districtWorldGroup) districtWorldGroup.visible = false;
     interactiveObjects = [...cityHallInteractablesBackup];
     if (localPlayer) {
@@ -7420,9 +7131,30 @@ function switchRealm(realmCode) {
         controls.update();
       }
     }
-    showSpeechBubble(localPlayer, "🌊 [부산광역시청 본관] 중앙 시민광장에 도착했습니다!");
-  } else {
+    showSpeechBubble(localPlayer, "🌳 [부산광역시청 야외 시민광장]에 오신 것을 환영합니다!");
+  } else if (realmCode === 'BUSAN-CIVIL') {
+    // 🏛️ 부산시청 전용 실내 종합민원실(행복민원실)
     if (cityHallWorldGroup) cityHallWorldGroup.visible = false;
+    if (civilHallWorldGroup) {
+      civilHallWorldGroup.visible = true;
+      buildBusanCivilServiceWorld();
+    }
+    if (districtWorldGroup) districtWorldGroup.visible = false;
+    interactiveObjects = [...civilHallInteractables];
+    if (localPlayer) {
+      localPlayer.position.set(0, 0, 14.0);
+      localPlayer.rotation.y = Math.PI; // 카운터를 정면으로 바라봄
+      if (controls && camera) {
+        controls.target.set(0, 1.4, 14.0);
+        camera.position.set(0, 4.2, 20.0);
+        controls.update();
+      }
+    }
+    showSpeechBubble(localPlayer, "🏛️ [부산광역시청 2층 행복민원실]에 입장하셨습니다!");
+  } else {
+    // 🏛️ 16개 자치구·군 청사 및 종합민원실 월드
+    if (cityHallWorldGroup) cityHallWorldGroup.visible = false;
+    if (civilHallWorldGroup) civilHallWorldGroup.visible = false;
     if (districtWorldGroup) {
       districtWorldGroup.visible = true;
       buildDistrictOfficeWorld(realmCode);
@@ -7439,7 +7171,7 @@ function switchRealm(realmCode) {
     }
     const dist = (typeof BUSAN_DISTRICT_DETAILS !== 'undefined') ? BUSAN_DISTRICT_DETAILS[realmCode] : null;
     const distName = dist ? dist.name : realmCode;
-    showSpeechBubble(localPlayer, `🏛️ [${distName}] 청사 월드에 도착했습니다!`);
+    showSpeechBubble(localPlayer, `🏛️ [${distName}] 청사 및 종합민원실에 도착했습니다!`);
   }
 
   if (window.busanAudio && typeof window.busanAudio.playChime === 'function') {
@@ -7621,6 +7353,65 @@ function openDistrictPrModal(realmCode) {
   openModal('modal-district-pr');
 }
 
+
+function buildDistrictNaturalLandscape(realmCode, group) {
+  const coastal = ['DIST-HAEUNDAE', 'DIST-SUYEONG', 'DIST-NAM', 'DIST-YEONGDO', 'DIST-GIJANG', 'DIST-SEO'];
+  const riverside = ['DIST-GANGSEO', 'DIST-SASANG', 'DIST-BUK', 'DIST-SAHA', 'DIST-GEUMJEONG'];
+
+  if (coastal.includes(realmCode)) {
+    // 해양 구: 시원한 부산 바다 수면 & 해안 데크
+    const seaGeo = new THREE.PlaneGeometry(300, 160);
+    const seaMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      roughness: 0.15,
+      metalness: 0.8
+    });
+    const sea = new THREE.Mesh(seaGeo, seaMat);
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.set(0, -0.4, 110);
+    group.add(sea);
+
+    // 광안대교 및 오션 파노라마 타워
+    const bridgeGroup = new THREE.Group();
+    bridgeGroup.position.set(0, 10, 140);
+    for (let p = -40; p <= 40; p += 80) {
+      const pylon = new THREE.Mesh(new THREE.BoxGeometry(3, 26, 3), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.6 }));
+      pylon.position.x = p;
+      bridgeGroup.add(pylon);
+    }
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(220, 1.5, 6), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+    deck.position.y = 8;
+    bridgeGroup.add(deck);
+    group.add(bridgeGroup);
+
+  } else if (riverside.includes(realmCode)) {
+    // 낙동강 및 호수 수변 구: 잔잔한 수변과 갈대/수목
+    const riverGeo = new THREE.PlaneGeometry(300, 120);
+    const riverMat = new THREE.MeshStandardMaterial({
+      color: 0x0369a1,
+      roughness: 0.3,
+      metalness: 0.5
+    });
+    const river = new THREE.Mesh(riverGeo, riverMat);
+    river.rotation.x = -Math.PI / 2;
+    river.position.set(0, -0.3, 90);
+    group.add(river);
+
+  } else {
+    // 도심 및 산악 구 (금정산, 황령산 등 백그라운드)
+    const mGroup = new THREE.Group();
+    for (let m = -3; m <= 3; m++) {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(38 + Math.abs(m) * 6, 42 + Math.abs(m) * 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0x2e4a3d, roughness: 0.9 })
+      );
+      cone.position.set(m * 45, 18, -80);
+      mGroup.add(cone);
+    }
+    group.add(mGroup);
+  }
+}
+
 function buildDistrictOfficeWorld(realmCode) {
   while (districtWorldGroup.children.length > 0) {
     districtWorldGroup.remove(districtWorldGroup.children[0]);
@@ -7631,6 +7422,7 @@ function buildDistrictOfficeWorld(realmCode) {
   const dist = (typeof BUSAN_DISTRICT_DETAILS !== 'undefined' && BUSAN_DISTRICT_DETAILS[realmCode]) 
     ? BUSAN_DISTRICT_DETAILS[realmCode] 
     : BUSAN_DISTRICT_DETAILS['DIST-DONGNAE'];
+  const distName = dist ? dist.name : realmCode;
 
   // (1) 구청 광장 화강석 석재 바닥 (80x80m)
   const floorGeo = new THREE.PlaneGeometry(80, 80);
@@ -7671,6 +7463,7 @@ function buildDistrictOfficeWorld(realmCode) {
 
   // (6) 지역 랜드마크 조경 및 수목
   buildDistrictLandmarkLandscape(realmCode, dist, districtWorldGroup);
+  buildDistrictNaturalLandscape(realmCode, districtWorldGroup);
 
   // (6-B) 구정 공식 홍보관 & 비전 대형 전광판
   buildDistrictPrMediaWall(realmCode, dist, districtWorldGroup);
@@ -9948,4 +9741,31 @@ function buildEnhancedCivilHall() {
   group.add(dispScreen);
 
   cityHallWorldGroup.add(group);
+}
+
+
+function updateQuickRealmButton(currentRealm) {
+  const btn = document.getElementById('quick-realm-toggle-btn');
+  if (!btn) return;
+  if (currentRealm === 'BUSAN-HQ') {
+    btn.innerHTML = '🏛️ 시청 민원실 바로가기';
+    btn.title = '2층 종합행복민원실로 바로 이동합니다';
+    btn.style.background = 'linear-gradient(135deg, #0284c7, #0369a1)';
+  } else if (currentRealm === 'BUSAN-CIVIL') {
+    btn.innerHTML = '🌳 야외 시민광장 나가기';
+    btn.title = '시청 앞 푸른 야외 시민광장으로 나갑니다';
+    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+  } else {
+    btn.innerHTML = '🏢 시청 본관 광장 복귀';
+    btn.title = '부산광역시청 본청 야외광장으로 복귀합니다';
+    btn.style.background = 'linear-gradient(135deg, #6366f1, #4f46e5)';
+  }
+}
+
+function toggleCityHallOrCivil() {
+  if (STATE.currentRoom === 'BUSAN-HQ') {
+    switchRealm('BUSAN-CIVIL');
+  } else {
+    switchRealm('BUSAN-HQ');
+  }
 }

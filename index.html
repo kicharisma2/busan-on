@@ -50,7 +50,8 @@
       <div class="realm-badge-container clickable">
         <span class="realm-icon">🏛️</span>
         <select id="realm-select" class="realm-select" onchange="switchRealm(this.value); this.blur();">
-          <option value="BUSAN-HQ">🏢 부산광역시청 본관 (시민광장·들락날락·민원실)</option>
+          <option value="BUSAN-HQ">🌳 부산광역시청 야외 시민광장 (3D 본관·음악분수·부기)</option>
+          <option value="BUSAN-CIVIL">🏛️ 부산광역시청 종합민원실 (2층 행복민원실·여권·창구)</option>
           <option value="DIST-YEONJE">연제구청 (시청 소재지·행정중심)</option>
           <option value="DIST-HAEUNDAE">해운대구청 (해변·센텀시티)</option>
           <option value="DIST-BUSANJIN">부산진구청 (서면·부산시민공원)</option>
@@ -69,6 +70,12 @@
           <option value="DIST-GIJANG">기장군청 (오시리아관광단지·해동용궁사)</option>
         </select>
       </div>
+
+      
+      <!-- 시청 야외광장 <-> 종합민원실 원클릭 퀵 이동 버튼 -->
+      <button id="quick-realm-toggle-btn" class="quick-realm-btn" onclick="toggleCityHallOrCivil()" title="시청 야외광장 ↔ 종합민원실 원클릭 이동">
+        🏛️ 시청 민원실 바로가기
+      </button>
 
       <!-- 시민 탐험가 레벨 & 프로그레스 바 (클릭 시 수첩/스토리) -->
       <div class="explorer-progress clickable" onclick="openStoryModal()" title="시민 등급 및 탐험 수첩">
