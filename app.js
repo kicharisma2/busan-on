@@ -2225,23 +2225,41 @@ const TripoAssetManager = {
 
   replaceFountain(tripoModel) {
     if (!cityHallWorldGroup) return;
+    cityHallWorldGroup.children.forEach(c => {
+      if (c.userData && c.userData.isProceduralFountain) {
+        c.visible = false;
+      }
+    });
     const bbox = new THREE.Box3().setFromObject(tripoModel);
     const size = bbox.getSize(new THREE.Vector3());
-    const scale = 6.0 / (size.y || 1);
+    const scale = 7.5 / (size.y || 1);
     tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.set(0, 0, 42);
+    tripoModel.position.set(0, -bbox.min.y * scale, 42);
+    tripoModel.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
     cityHallWorldGroup.add(tripoModel);
     console.log('⛲ [TripoAssetManager] 음악분수대 Tripo 3D 모델 교체 완료!');
   },
 
   replaceCivilOfficerModel(tripoModel) {
     outdoorNpcs.forEach(n => {
-      if (n.id && n.id.includes('officer') && n.mesh) {
+      if (n.id && (n.id.includes('officer') || n.id.includes('staff')) && n.mesh) {
         const bbox = new THREE.Box3().setFromObject(tripoModel);
         const size = bbox.getSize(new THREE.Vector3());
         const scale = 1.6 / (size.y || 1);
         const m = tripoModel.clone();
         m.scale.set(scale, scale, scale);
+        m.position.y = -bbox.min.y * scale;
+        m.traverse(c => {
+          if (c.isMesh) {
+            c.castShadow = true;
+            c.receiveShadow = true;
+          }
+        });
         n.mesh.children.forEach(c => {
           if (c !== n.mesh.userData.nameplate && c !== n.mesh.userData.bubbleSlot) c.visible = false;
         });
@@ -2253,12 +2271,19 @@ const TripoAssetManager = {
 
   replaceOfficeWorkerModel(tripoModel) {
     outdoorNpcs.forEach(n => {
-      if (n.id && n.id.includes('worker') && n.mesh) {
+      if (n.id && (n.id.includes('worker') || n.id.includes('choi') || n.id.includes('lee')) && n.mesh) {
         const bbox = new THREE.Box3().setFromObject(tripoModel);
         const size = bbox.getSize(new THREE.Vector3());
         const scale = 1.6 / (size.y || 1);
         const m = tripoModel.clone();
         m.scale.set(scale, scale, scale);
+        m.position.y = -bbox.min.y * scale;
+        m.traverse(c => {
+          if (c.isMesh) {
+            c.castShadow = true;
+            c.receiveShadow = true;
+          }
+        });
         n.mesh.children.forEach(c => {
           if (c !== n.mesh.userData.nameplate && c !== n.mesh.userData.bubbleSlot) c.visible = false;
         });
@@ -2266,6 +2291,27 @@ const TripoAssetManager = {
       }
     });
     console.log('💼 [TripoAssetManager] 회사원 캐릭터가 Tripo 3D 모델로 교체되었습니다!');
+  },
+
+  replaceBoogiMascot(tripoModel) {
+    const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
+    if (!bada || !bada.mesh) return;
+    const bbox = new THREE.Box3().setFromObject(tripoModel);
+    const size = bbox.getSize(new THREE.Vector3());
+    const scale = 1.6 / (size.y || 1);
+    tripoModel.scale.set(scale, scale, scale);
+    tripoModel.position.y = -bbox.min.y * scale;
+    tripoModel.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
+    bada.mesh.children.forEach(c => {
+      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
+    });
+    bada.mesh.add(tripoModel);
+    console.log('🌊 [TripoAssetManager] 부기 마스코트 3D 모델 교체 완료!');
   },
 
   replaceCityHallFacade(tripoModel) {
@@ -2293,6 +2339,13 @@ const TripoAssetManager = {
     const size = bbox.getSize(new THREE.Vector3());
     const scale = 1.6 / (size.y || 1);
     tripoModel.scale.set(scale, scale, scale);
+    tripoModel.position.y = -bbox.min.y * scale;
+    tripoModel.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
     dongbaek.mesh.children.forEach(c => {
       if (c !== dongbaek.mesh.userData.nameplate && c !== dongbaek.mesh.userData.bubbleSlot) {
         c.visible = false;
@@ -3910,6 +3963,7 @@ function buildAnchorSculpture(x, y, z) {
 function buildDancingFountain(x, y, z) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
+  group.userData.isProceduralFountain = true;
 
   const basinGeo = new THREE.CylinderGeometry(6.2, 6.4, 0.7, 32);
   const basinMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });

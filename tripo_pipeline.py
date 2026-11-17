@@ -29,25 +29,25 @@ API_BASE = "https://api.tripo3d.ai/v2/openapi"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 TARGET_PRESETS = {
-    "civil_officer": {
-        "prompt": "Cute stylized 3D Korean civil servant public official, wearing smart suit with city hall ID card lanyard badge on neck, clean hairstyle, friendly smiling face, chibi game asset, 8k pbr textures, rigged",
-        "output": "models/civil_officer.glb",
-        "desc": "부산시청 공무원 캐릭터 (공무원증 목걸이 & 단정한 정장)"
-    },
     "office_worker": {
-        "prompt": "Cute chibi Korean office worker businessman wearing stylish slim-fit navy suit with corporate employee lanyard card, holding leather briefcase, friendly expression, stylized 3d character, game ready, rigged",
+        "prompt": "Cute chibi 3D Korean young businessman office worker, voluminous stylish wavy dark brown hair, large expressive sparkling eyes with friendly smile, wearing dark charcoal business suit, white collared shirt, blue necktie, corporate ID card badge lanyard hanging on chest, holding paper coffee cup and yellow document folder, neat black dress shoes, stylized chibi game character, clean topology, symmetrical A-pose, isolated on solid white background",
         "output": "models/office_worker.glb",
-        "desc": "스마트 회사원 캐릭터 (사원증 목걸이 & 비즈니스 정장 & 서류가방)"
+        "desc": "스마트 회사원 캐릭터 (두 번째 사진 스타일: 웨이브 헤어 + 사원증 + 커피 + 서류)"
     },
-    "dongbaek": {
-        "prompt": "Cute stylized 3D mascot of red camellia flower girl, chibi game character, vibrant red petals and green leaf ribbon, rigged",
-        "output": "models/dongbaek.glb",
-        "desc": "동백이 (시청 공식 길잡이 NPC)"
+    "civil_officer": {
+        "prompt": "Cute chibi 3D Korean public civil servant officer, neat dark hair, large sparkling eyes with warm friendly smile, wearing crisp navy blue formal suit blazer, city hall government ID card badge lanyard on chest, white shirt, holding digital tablet and document clipboard, neat shoes, stylized chibi game character, clean topology, symmetrical A-pose, isolated on solid white background",
+        "output": "models/civil_officer.glb",
+        "desc": "부산시청 공무원 캐릭터 (공무원증 목걸이 & 단정한 정복 & 클립보드)"
     },
     "boogi": {
-        "prompt": "Cute cartoon seagull mascot wearing red framed eyeglasses and red sneakers, friendly expression, 3d game asset, rigged",
+        "prompt": "Cute chubby white seagull mascot character Boogi, small compact thin-framed red round glasses on forehead, delicate proportionate glasses, dot eyes, small yellow beak, wave-shaped blue crest feather on top of head, light blue wings with black tips, black tail feathers, black sneakers with red camellia flower on feet, stylized 3d chibi game asset, clean topology, symmetrical A-pose, isolated on solid white background",
         "output": "models/boogi.glb",
-        "desc": "부산시 소통 마스코트 부기 (갈매기)"
+        "desc": "부산시 소통 마스코트 부기 (작고 얇은 빨간 안경 + 파도머리 + 동백꽃 운동화)"
+    },
+    "dongbaek": {
+        "prompt": "Cute chibi 3D Korean mascot girl Dongbaek, hair styled with blooming red camellia flowers and glossy green leaves, wearing modern stylized red and white hanbok-inspired dress, friendly cheerful expression, large sparkling eyes, stylized 3d chibi character, clean topology, symmetrical A-pose, isolated on white background",
+        "output": "models/dongbaek.glb",
+        "desc": "동백이 (부산 소통 길잡이 NPC)"
     },
     "city_hall": {
         "prompt": "Realistic modern Busan City Hall glass tower facade, architectural exterior, 8k pbr texture, clean windows, high quality glb",
@@ -60,7 +60,7 @@ TARGET_PRESETS = {
         "desc": "시청 앞 광장 닻(Anchor) 상징 조형물"
     },
     "fountain": {
-        "prompt": "Classic tiered architectural fountain basin with carved marble reliefs, plaza centerpiece, high detail",
+        "prompt": "Modern luxury civic plaza musical fountain, circular granite tiered basin, multi-level water jets and crystal water spray, elegant LED underwater illumination, clean architectural 3d game asset",
         "output": "models/fountain.glb",
         "desc": "시민광장 중앙 음악 분수대"
     },
