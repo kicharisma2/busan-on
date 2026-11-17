@@ -2253,23 +2253,43 @@ const TripoAssetManager = {
         const scale = 1.6 / (size.y || 1);
         const m = tripoModel.clone();
         m.scale.set(scale, scale, scale);
-        m.position.y = -bbox.min.y * scale;
+        const baseY = -bbox.min.y * scale;
+        m.position.y = baseY;
         m.traverse(c => {
           if (c.isMesh) {
             c.castShadow = true;
             c.receiveShadow = true;
           }
         });
+
+        // Mixamo 뼈대 관절 바인딩
+        const rigBones = {};
+        m.traverse(c => {
+          if (c.isBone) {
+            const bName = c.name.toLowerCase();
+            if (bName.includes('leftarm') || bName.includes('arm_l') || bName.includes('left_arm')) rigBones.leftArm = c;
+            else if (bName.includes('rightarm') || bName.includes('arm_r') || bName.includes('right_arm')) rigBones.rightArm = c;
+            else if (bName.includes('leftupleg') || bName.includes('leg_l') || bName.includes('left_leg')) rigBones.leftLeg = c;
+            else if (bName.includes('rightupleg') || bName.includes('leg_r') || bName.includes('right_leg')) rigBones.rightLeg = c;
+            else if (bName.includes('head')) rigBones.head = c;
+            else if (bName.includes('spine')) rigBones.spine = c;
+          }
+        });
+
         n.mesh.children.forEach(c => {
           if (c !== n.mesh.userData.nameplate && c !== n.mesh.userData.bubbleSlot) c.visible = false;
         });
         n.mesh.add(m);
+        n.mesh.userData.tripoMesh = m;
+        n.mesh.userData.tripoBaseY = baseY;
+        if (Object.keys(rigBones).length > 0) n.mesh.userData.rigBones = rigBones;
       }
     });
-    console.log('🏛️ [TripoAssetManager] 공무원 캐릭터가 Tripo 3D 모델로 교체되었습니다!');
+    console.log('🏛️ [TripoAssetManager] 공무원 캐릭터가 리깅 3D 모델로 교체되었습니다!');
   },
 
   replaceOfficeWorkerModel(tripoModel) {
+    // 1) NPC 교체
     outdoorNpcs.forEach(n => {
       if (n.id && (n.id.includes('worker') || n.id.includes('choi') || n.id.includes('lee')) && n.mesh) {
         const bbox = new THREE.Box3().setFromObject(tripoModel);
@@ -2277,20 +2297,101 @@ const TripoAssetManager = {
         const scale = 1.6 / (size.y || 1);
         const m = tripoModel.clone();
         m.scale.set(scale, scale, scale);
-        m.position.y = -bbox.min.y * scale;
+        const baseY = -bbox.min.y * scale;
+        m.position.y = baseY;
         m.traverse(c => {
           if (c.isMesh) {
             c.castShadow = true;
             c.receiveShadow = true;
           }
         });
+
+        const rigBones = {};
+        m.traverse(c => {
+          if (c.isBone) {
+            const bName = c.name.toLowerCase();
+            if (bName.includes('leftarm') || bName.includes('arm_l') || bName.includes('left_arm')) rigBones.leftArm = c;
+            else if (bName.includes('rightarm') || bName.includes('arm_r') || bName.includes('right_arm')) rigBones.rightArm = c;
+            else if (bName.includes('leftupleg') || bName.includes('leg_l') || bName.includes('left_leg')) rigBones.leftLeg = c;
+            else if (bName.includes('rightupleg') || bName.includes('leg_r') || bName.includes('right_leg')) rigBones.rightLeg = c;
+            else if (bName.includes('head')) rigBones.head = c;
+            else if (bName.includes('spine')) rigBones.spine = c;
+          }
+        });
+
         n.mesh.children.forEach(c => {
           if (c !== n.mesh.userData.nameplate && c !== n.mesh.userData.bubbleSlot) c.visible = false;
         });
         n.mesh.add(m);
+        n.mesh.userData.tripoMesh = m;
+        n.mesh.userData.tripoBaseY = baseY;
+        if (Object.keys(rigBones).length > 0) n.mesh.userData.rigBones = rigBones;
       }
     });
-    console.log('💼 [TripoAssetManager] 회사원 캐릭터가 Tripo 3D 모델로 교체되었습니다!');
+
+    // 2) ★ 주인공(플레이어) 캐릭터를 고품질 3D 모델로 교체!
+    if (localPlayer) {
+      this.replacePlayerModel(tripoModel);
+    }
+    console.log('💼 [TripoAssetManager] 회사원 & 플레이어 캐릭터가 리깅 3D 모델로 교체되었습니다!');
+  },
+
+  replacePlayerModel(tripoModel) {
+    if (!localPlayer) return;
+    const bbox = new THREE.Box3().setFromObject(tripoModel);
+    const size = bbox.getSize(new THREE.Vector3());
+    const scale = 1.6 / (size.y || 1);
+    const m = tripoModel.clone();
+    m.scale.set(scale, scale, scale);
+    const baseY = -bbox.min.y * scale;
+    m.position.y = baseY;
+    m.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
+
+    const rigBones = {};
+    m.traverse(c => {
+      if (c.isBone) {
+        const bName = c.name.toLowerCase();
+        if (bName.includes('leftarm') || bName.includes('arm_l') || bName.includes('left_arm')) rigBones.leftArm = c;
+        else if (bName.includes('rightarm') || bName.includes('arm_r') || bName.includes('right_arm')) rigBones.rightArm = c;
+        else if (bName.includes('leftupleg') || bName.includes('leg_l') || bName.includes('left_leg')) rigBones.leftLeg = c;
+        else if (bName.includes('rightupleg') || bName.includes('leg_r') || bName.includes('right_leg')) rigBones.rightLeg = c;
+        else if (bName.includes('head')) rigBones.head = c;
+        else if (bName.includes('spine')) rigBones.spine = c;
+      }
+    });
+
+    // Remove old player tripoMesh if any
+    if (localPlayer.userData.tripoMesh) {
+      localPlayer.remove(localPlayer.userData.tripoMesh);
+    }
+    localPlayer.children.forEach(c => {
+      if (c !== localPlayer.userData.nameplate && c !== localPlayer.userData.bubbleSlot && c !== localPlayer.userData.auraRing) {
+        c.visible = false;
+      }
+    });
+    localPlayer.add(m);
+    localPlayer.userData.tripoMesh = m;
+    localPlayer.userData.tripoBaseY = baseY;
+    if (Object.keys(rigBones).length > 0) localPlayer.userData.rigBones = rigBones;
+    console.log('🎮 [TripoAssetManager] 주인공(플레이어) 3D 캐릭터 완벽 적용 완료!');
+  },
+
+  setPlayerModelByType(type) {
+    const file = type === 'boogi' ? 'models/boogi.glb' :
+                 type === 'officer' ? 'models/civil_officer.glb' :
+                 type === 'worker' ? 'models/office_worker.glb' : null;
+    if (!file) return;
+    this.loadModel(file, (model) => {
+      this.replacePlayerModel(model);
+      if (typeof showSpeechBubble !== 'undefined' && localPlayer) {
+        showSpeechBubble(localPlayer, `✨ 플레이어가 [${type}] 아바타로 변신했습니다!`);
+      }
+    });
   },
 
   replaceBoogiMascot(tripoModel) {
@@ -2300,7 +2401,8 @@ const TripoAssetManager = {
     const size = bbox.getSize(new THREE.Vector3());
     const scale = 1.6 / (size.y || 1);
     tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.y = -bbox.min.y * scale;
+    const baseY = -bbox.min.y * scale;
+    tripoModel.position.y = baseY;
     tripoModel.traverse(c => {
       if (c.isMesh) {
         c.castShadow = true;
@@ -2311,7 +2413,9 @@ const TripoAssetManager = {
       if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
     });
     bada.mesh.add(tripoModel);
-    console.log('🌊 [TripoAssetManager] 부기 마스코트 3D 모델 교체 완료!');
+    bada.mesh.userData.tripoMesh = tripoModel;
+    bada.mesh.userData.tripoBaseY = baseY;
+    console.log('🌊 [TripoAssetManager] 공식 부기 마스코트 3D 모델 교체 완료!');
   },
 
   replaceCityHallFacade(tripoModel) {
@@ -2321,7 +2425,7 @@ const TripoAssetManager = {
     const targetHeight = 44.0;
     const scale = targetHeight / (size.y || 1);
     tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.set(0, 0, -40);
+    tripoModel.position.set(0, -bbox.min.y * scale, -40);
     tripoModel.traverse(c => {
       if (c.isMesh) {
         c.castShadow = true;
@@ -2352,6 +2456,8 @@ const TripoAssetManager = {
       }
     });
     dongbaek.mesh.add(tripoModel);
+    dongbaek.mesh.userData.tripoMesh = tripoModel;
+    dongbaek.mesh.userData.tripoBaseY = -bbox.min.y * scale;
     console.log('🌺 [TripoAssetManager] 동백이 캐릭터가 Tripo 3D 모델로 교체되었습니다!');
   },
 
@@ -5525,6 +5631,11 @@ function createLocalPlayer() {
   });
   localPlayer.position.set(0, 0, 10.0);
   scene.add(localPlayer);
+
+  // ★ Tripo 3D 캐시가 준비되어 있으면 플레이어 캐릭터에 즉시 3D 리깅 모델 적용!
+  if (typeof TripoAssetManager !== 'undefined' && TripoAssetManager.cache['models/office_worker.glb']) {
+    TripoAssetManager.replacePlayerModel(TripoAssetManager.cache['models/office_worker.glb']);
+  }
 }
 
 // ========================================================
@@ -6089,12 +6200,46 @@ function updateCuteCitizenAnimation(c, dt, t) {
     if (ud.legGroupL) ud.legGroupL.rotation.x = -swing * 0.9;
     if (ud.legGroupR) ud.legGroupR.rotation.x = swing * 0.9;
     if (ud.headGroup) ud.headGroup.position.y = 1.22 + Math.abs(Math.sin(t * 11)) * 0.05;
+
+    // ★ Tripo 3D 리깅 뼈대(Bone) 및 고화질 캐릭터 관절 보행 모션!
+    if (ud.tripoMesh) {
+      // 발걸음 통통 바운스
+      ud.tripoMesh.position.y = (ud.tripoBaseY || 0) + Math.abs(Math.sin(t * 11)) * 0.12;
+      // 골반 / 몸체 좌우 뒤뚱뒤뚱 스윙
+      ud.tripoMesh.rotation.z = Math.sin(t * 11) * 0.09;
+      // 달리기 전방 피치 기울임
+      ud.tripoMesh.rotation.x = 0.08;
+
+      if (ud.rigBones) {
+        const armSwing = Math.sin(t * 11) * 0.65;
+        const legSwing = Math.sin(t * 11) * 0.75;
+        if (ud.rigBones.leftArm) ud.rigBones.leftArm.rotation.x = armSwing;
+        if (ud.rigBones.rightArm) ud.rigBones.rightArm.rotation.x = -armSwing;
+        if (ud.rigBones.leftLeg) ud.rigBones.leftLeg.rotation.x = -legSwing;
+        if (ud.rigBones.rightLeg) ud.rigBones.rightLeg.rotation.x = legSwing;
+      }
+    }
   } else {
     if (ud.armL) ud.armL.rotation.x = Math.sin(t * 2.5) * 0.08;
     if (ud.armR) ud.armR.rotation.x = -Math.sin(t * 2.5) * 0.08;
     if (ud.legGroupL) ud.legGroupL.rotation.x = 0;
     if (ud.legGroupR) ud.legGroupR.rotation.x = 0;
     if (ud.headGroup) ud.headGroup.position.y = 1.22 + Math.sin(t * 3.0) * 0.02;
+
+    // ★ Tripo 3D 대기 시 자연스러운 호흡(Breathing) 바운스 & 관절 이완
+    if (ud.tripoMesh) {
+      ud.tripoMesh.position.y = (ud.tripoBaseY || 0) + Math.sin(t * 2.5) * 0.025;
+      ud.tripoMesh.rotation.z *= 0.85;
+      ud.tripoMesh.rotation.x *= 0.85;
+
+      if (ud.rigBones) {
+        if (ud.rigBones.spine) ud.rigBones.spine.rotation.x = Math.sin(t * 2.5) * 0.04;
+        if (ud.rigBones.leftArm) ud.rigBones.leftArm.rotation.x = Math.sin(t * 2) * 0.05;
+        if (ud.rigBones.rightArm) ud.rigBones.rightArm.rotation.x = -Math.sin(t * 2) * 0.05;
+        if (ud.rigBones.leftLeg) ud.rigBones.leftLeg.rotation.x *= 0.85;
+        if (ud.rigBones.rightLeg) ud.rigBones.rightLeg.rotation.x *= 0.85;
+      }
+    }
   }
 
   // 3. 날개 펄럭임
