@@ -2215,15 +2215,18 @@ const TripoAssetManager = {
       (gltf) => {
         console.log(`✅ [TripoAssetManager] 모델 로드 성공: ${url} (애니메이션: ${gltf.animations.length}개)`);
         
-        // PBR 머티리얼 최적화: 시커먼 메탈릭 버그 수정 & 몬스터 블락 풍 화사한 토이 재질 적용
+        // PBR 머티리얼 최적화: 시커먼 메탈릭 버그 100% 박멸 & 화사한 순백 클레이/비닐 토이 광택
         gltf.scene.traverse(c => {
           if (c.isMesh) {
             c.castShadow = true;
             c.receiveShadow = true;
             c.frustumCulled = false;
             if (c.material) {
-              c.material.metalness = 0.05; // 100% 금속 반사 블랙 버그 방지
-              c.material.roughness = 0.42; // 부드러운 몬스터 블락 클레이/비닐 토이 광택
+              c.material.metalness = 0.0;
+              c.material.metalnessMap = null;
+              c.material.roughness = 0.35;
+              c.material.roughnessMap = null;
+              c.material.color.setHex(0xffffff);
               c.material.needsUpdate = true;
             }
           }
@@ -2245,24 +2248,35 @@ const TripoAssetManager = {
     );
   },
 
+  boogiModel: null,
+  civilOfficerModel: null,
+  officeWorkerModel: null,
+  anchorModel: null,
+  cityHallModel: null,
+
   checkAndLoadDefaultModels() {
-    this.loadModel('models/city_hall.glb', (model) => {
-      this.replaceCityHallFacade(model);
-    });
-    this.loadModel('models/fountain.glb', (model) => {
-      this.replaceFountain(model);
-    });
-    this.loadModel('models/anchor_statue.glb', (model) => {
-      this.replaceAnchorStatue(model);
-    });
+    // 1. 소통 캐릭터 부기 마스코트 우선 로드 (화사한 순백 몬스터블락 3D)
     this.loadModel('models/boogi.glb', (model) => {
+      this.boogiModel = model;
       this.replaceBoogiMascot(model);
     });
+    // 2. 공무원 및 스마트 회사원
     this.loadModel('models/civil_officer.glb', (model) => {
+      this.civilOfficerModel = model;
       this.replaceCivilOfficerModel(model);
     });
     this.loadModel('models/office_worker.glb', (model) => {
+      this.officeWorkerModel = model;
       this.replaceOfficeWorkerModel(model);
+    });
+    // 3. 부산 닻 상징 조형물 및 시청 3D 외관 본관
+    this.loadModel('models/anchor_statue.glb', (model) => {
+      this.anchorModel = model;
+      this.replaceAnchorStatue(model);
+    });
+    this.loadModel('models/city_hall.glb', (model) => {
+      this.cityHallModel = model;
+      this.replaceCityHallFacade(model);
     });
   },
 
@@ -2290,19 +2304,9 @@ const TripoAssetManager = {
     console.log('🏛️ [TripoAssetManager] 부산시청 3D 본관 타워가 야외 광장에 당당히 세워졌습니다!');
   },
 
-  // 2. 시민광장 음악분수대 교체
+  // 2. 시민광장 음악분수대는 100% 실시간 Three.js 동적 댄싱 분수(중력+물줄기+수중LED)로 작동
   replaceFountain(tripoModel) {
-    if (!cityHallWorldGroup) return;
-    cityHallWorldGroup.children.forEach(c => {
-      if (c.userData && c.userData.isProceduralFountain) c.visible = false;
-    });
-    const bbox = new THREE.Box3().setFromObject(tripoModel);
-    const size = bbox.getSize(new THREE.Vector3());
-    const scale = 7.5 / (size.y || 1);
-    tripoModel.scale.set(scale, scale, scale);
-    tripoModel.position.set(0, -bbox.min.y * scale, 42);
-    cityHallWorldGroup.add(tripoModel);
-    console.log('⛲ [TripoAssetManager] 음악분수대 Tripo 3D 모델 교체 완료!');
+    // 석고처럼 굳은 정적 모델 대신 살아 숨쉬는 역동적 음악 분수대 적용 (사용자 요청 완벽 반영)
   },
 
   // 3. 부산의 닻 상징 조형물 교체
@@ -2317,12 +2321,34 @@ const TripoAssetManager = {
     console.log('⚓ [TripoAssetManager] 닻 상징 조형물 교체 완료!');
   },
 
-  // 4. 부산 소통 캐릭터 부기 (Monster Block 토이 스타일 + 풀 애니메이션 보행)
+  // 4. 부산 소통 캐릭터 부기 (Monster Block 토이 스타일 + 화사한 순백 클레이 + 풀 애니메이션 보행)
   replaceBoogiMascot(tripoModel) {
+    this.boogiModel = tripoModel;
     const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
     if (!bada || !bada.mesh) return;
 
+    if (bada.mesh.userData.tripoMesh) {
+      bada.mesh.remove(bada.mesh.userData.tripoMesh);
+      bada.mesh.userData.tripoMesh = null;
+    }
+
     const m = cloneWithBones(tripoModel);
+    m.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+        c.frustumCulled = false;
+        if (c.material) {
+          c.material.metalness = 0.0;
+          c.material.metalnessMap = null;
+          c.material.roughness = 0.32;
+          c.material.roughnessMap = null;
+          c.material.color.setHex(0xffffff);
+          c.material.needsUpdate = true;
+        }
+      }
+    });
+
     const bbox = new THREE.Box3().setFromObject(m);
     const size = bbox.getSize(new THREE.Vector3());
     const scale = 1.7 / (size.y || 1);
@@ -2345,13 +2371,16 @@ const TripoAssetManager = {
       m.userData.currentAction = 'idle';
     }
 
+    // Hide procedural body meshes, keep nameplate and bubble
     bada.mesh.children.forEach(c => {
-      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot) c.visible = false;
+      if (c !== bada.mesh.userData.nameplate && c !== bada.mesh.userData.bubbleSlot && c !== m) {
+        c.visible = false;
+      }
     });
     bada.mesh.add(m);
     bada.mesh.userData.tripoMesh = m;
     bada.mesh.userData.tripoBaseY = baseY;
-    console.log('🌊 [TripoAssetManager] 부기 마스코트 Monster Block 3D 애니메이션 모델 교체 완료!');
+    console.log('🌊 [TripoAssetManager] 부기 마스코트 Monster Block 3D 화사한 순백 애니메이션 모델 교체 완료!');
   },
 
   // 5. 공무원 캐릭터 (시청 정복 + 태블릿 + 애니메이션 관절 보행)
@@ -3032,16 +3061,16 @@ function initOutdoorAutonomousNpcs() {
   });
   outdoorNpcs.length = 0;
 
-  // 1. [부산시 소통 마스코트 부기] Boogi Seagull Mascot
+  // 1. [부산시 소통 마스코트 부기] Boogi Seagull Mascot (화사한 순백 마스코트 베이스)
   const badaMesh = createCuteCitizenMesh({
     name: "부산 부기",
     title: "부산시 소통 캐릭터 (Lv.20)",
     level: 20,
-    robeColor: "denim",
+    robeColor: "white",
     hatType: "seagull",
     hairStyle: "short",
     hairColor: "ocean",
-    skinTone: "warm",
+    skinTone: "light",
     isNpc: true
   });
   badaMesh.position.set(-6, 0, 20);
@@ -3203,10 +3232,46 @@ function initOutdoorAutonomousNpcs() {
       "동백전 카드 혜택과 구·군별 맛집 리스트도 확인해 보세요!"
     ]
   });
+
+  // ★ Tripo 3D 모델이 이미 로드되어 있다면 즉시 재바인딩 (화면 전환/초기화 시 절대 유실 방지)
+  if (typeof TripoAssetManager !== 'undefined') {
+    if (TripoAssetManager.boogiModel) {
+      TripoAssetManager.replaceBoogiMascot(TripoAssetManager.boogiModel);
+    }
+    if (TripoAssetManager.civilOfficerModel) {
+      TripoAssetManager.replaceCivilOfficerModel(TripoAssetManager.civilOfficerModel);
+    }
+    if (TripoAssetManager.officeWorkerModel) {
+      TripoAssetManager.replaceOfficeWorkerModel(TripoAssetManager.officeWorkerModel);
+    }
+  }
 }
 
 function updateOutdoorNpcs(dt) {
   if (STATE.currentRoom !== 'BUSAN-HQ') return;
+
+  // ★ Tripo 3D 모델 비동기 로드 완료 시 즉시 3D 리깅 메시 바인딩 (지연 로딩 자동 감지)
+  if (typeof TripoAssetManager !== 'undefined') {
+    if (TripoAssetManager.boogiModel) {
+      const bada = outdoorNpcs.find(n => n.id === 'npc_bada');
+      if (bada && bada.mesh && !bada.mesh.userData.tripoMesh) {
+        TripoAssetManager.replaceBoogiMascot(TripoAssetManager.boogiModel);
+      }
+    }
+    if (TripoAssetManager.civilOfficerModel) {
+      const off = outdoorNpcs.find(n => n.id && n.id.includes('officer'));
+      if (off && off.mesh && !off.mesh.userData.tripoMesh) {
+        TripoAssetManager.replaceCivilOfficerModel(TripoAssetManager.civilOfficerModel);
+      }
+    }
+    if (TripoAssetManager.officeWorkerModel) {
+      const wrk = outdoorNpcs.find(n => n.id && n.id.includes('worker'));
+      if (wrk && wrk.mesh && !wrk.mesh.userData.tripoMesh) {
+        TripoAssetManager.replaceOfficeWorkerModel(TripoAssetManager.officeWorkerModel);
+      }
+    }
+  }
+
   outdoorNpcs.forEach(npc => {
     if (!npc.mesh) return;
     const wp = npc.waypoints[npc.wpIndex];
@@ -3486,58 +3551,297 @@ function buildAnchorSculpture(x, y, z) {
 }
 
 // --------------------------------------------------------
-// [건축 3] 음악 분수대 (Dancing Fountain)
+// [건축 3] 다이내믹 3D 음악 분수대 (Dynamic Animated Musical Dancing Fountain)
+// - 바닥 접지 완벽 밀착 (y: 0~0.65 단차 화강석 석조 수조)
+// - 실시간 포물선 물줄기 16열 파도 댄스 (Sinusoidal Arches)
+// - 중앙 고압 용솟음 기저 (Center Geyser Spout 10m + 50개 낙하 물방울 파티클)
+// - 내측 8열 나선 회전 물줄기 (Swirling Spiral Jets)
+// - 수중 다채색 RGB LED 나이트쇼 조명 (Cyan, Sapphire, Magenta, Gold, Emerald)
 // --------------------------------------------------------
+let musicalFountainData = null;
+
 function buildDancingFountain(x, y, z) {
   const group = new THREE.Group();
-  group.position.set(x, y, z);
+  group.position.set(x, 0, z); // Plaza floor y = 0 바닥 완벽 접지!
   group.userData.isProceduralFountain = true;
 
-  const basinGeo = new THREE.CylinderGeometry(6.2, 6.4, 0.7, 32);
-  const basinMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 });
-  const basin = new THREE.Mesh(basinGeo, basinMat);
-  basin.position.y = 0.35;
-  basin.receiveShadow = true;
-  group.add(basin);
-
-  const waterGeo = new THREE.CylinderGeometry(5.8, 5.8, 0.65, 32);
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x0284c7,
-    roughness: 0.1,
-    metalness: 0.3,
-    transparent: true,
-    opacity: 0.85
+  // 1. 외곽 1단 웅장한 다각형 화강석 석조 테두리 (Outer Basin Rim)
+  const outerBasinGeo = new THREE.CylinderGeometry(7.2, 7.5, 0.65, 32);
+  const graniteMat = new THREE.MeshStandardMaterial({
+    color: 0x475569, // Slate granite
+    roughness: 0.35,
+    metalness: 0.1
   });
-  const water = new THREE.Mesh(waterGeo, waterMat);
-  water.position.y = 0.38;
-  group.add(water);
+  const outerBasin = new THREE.Mesh(outerBasinGeo, graniteMat);
+  outerBasin.position.y = 0.325;
+  outerBasin.receiveShadow = true;
+  outerBasin.castShadow = true;
+  group.add(outerBasin);
 
-  for (let i = 0; i < 16; i++) {
-    const pGeo = new THREE.SphereGeometry(0.14, 8, 8);
-    const pMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe, transparent: true, opacity: 0.9 });
-    const p = new THREE.Mesh(pGeo, pMat);
-    const angle = (i / 16) * Math.PI * 2;
-    p.position.set(Math.cos(angle) * 3.5, 0.6, Math.sin(angle) * 3.5);
-    p.userData = { baseY: 0.6, speed: 3.5 + Math.random(), phase: i * 0.4 };
-    fountainParticles.push(p);
-    group.add(p);
+  // 2. 상단 마감 화강석 코핑 몰딩 (Top Coping Ring)
+  const copingGeo = new THREE.TorusGeometry(7.15, 0.22, 12, 32);
+  copingGeo.rotateX(Math.PI / 2);
+  const copingMat = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8, // Light granite trim
+    roughness: 0.25
+  });
+  const coping = new THREE.Mesh(copingGeo, copingMat);
+  coping.position.y = 0.65;
+  group.add(coping);
+
+  // 3. 내측 2단 원형 대리석 단상 (Inner Basin Step)
+  const innerStepGeo = new THREE.CylinderGeometry(4.2, 4.4, 0.45, 24);
+  const innerStepMat = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    roughness: 0.4
+  });
+  const innerStep = new THREE.Mesh(innerStepGeo, innerStepMat);
+  innerStep.position.y = 0.45;
+  innerStep.receiveShadow = true;
+  group.add(innerStep);
+
+  // 4. 중앙 예술 석조 분수탑 타워 (Central Stepped Fountain Tower)
+  const towerBaseGeo = new THREE.CylinderGeometry(1.5, 1.8, 1.2, 20);
+  const towerBase = new THREE.Mesh(towerBaseGeo, copingMat);
+  towerBase.position.y = 0.85;
+  group.add(towerBase);
+
+  const towerBowlGeo = new THREE.CylinderGeometry(2.2, 1.4, 0.4, 20);
+  const towerBowl = new THREE.Mesh(towerBowlGeo, copingMat);
+  towerBowl.position.y = 1.6;
+  group.add(towerBowl);
+
+  const topSpoutGeo = new THREE.CylinderGeometry(0.3, 0.6, 0.7, 16);
+  const topSpout = new THREE.Mesh(topSpoutGeo, new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 }));
+  topSpout.position.y = 2.1;
+  group.add(topSpout);
+
+  // 5. 맑고 푸른 수면 (Shimmering Water Surface)
+  const waterGeo = new THREE.CircleGeometry(6.9, 32);
+  waterGeo.rotateX(-Math.PI / 2);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7, // Marine Royal Blue
+    roughness: 0.05,
+    metalness: 0.15,
+    transparent: true,
+    opacity: 0.88
+  });
+  const waterPlane = new THREE.Mesh(waterGeo, waterMat);
+  waterPlane.position.y = 0.58;
+  group.add(waterPlane);
+
+  // 6. 상부 볼 수면
+  const upperWaterGeo = new THREE.CircleGeometry(2.0, 20);
+  upperWaterGeo.rotateX(-Math.PI / 2);
+  const upperWater = new THREE.Mesh(upperWaterGeo, waterMat);
+  upperWater.position.y = 1.75;
+  group.add(upperWater);
+
+  // 7. 실시간 물 파동 동심원 링 (Animated Wave Ripples)
+  const ripples = [];
+  for (let r = 0; r < 4; r++) {
+    const ringGeo = new THREE.RingGeometry(0.8, 1.1, 24);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.y = 0.59;
+    ring.userData = { phase: r * 0.7, maxRadius: 6.8 };
+    group.add(ring);
+    ripples.push(ring);
   }
+
+  // 8. 수중 컬러 LED 스포트라이트 (Submerged Underwater RGB LEDs)
+  const underwaterLights = [];
+  const lightColors = [0x06b6d4, 0x2563eb, 0xd946ef, 0x10b981];
+  for (let li = 0; li < 4; li++) {
+    const pl = new THREE.PointLight(lightColors[li], 3.0, 12);
+    const la = (li / 4) * Math.PI * 2;
+    pl.position.set(Math.cos(la) * 3.8, 0.7, Math.sin(la) * 3.8);
+    group.add(pl);
+    underwaterLights.push(pl);
+  }
+
+  // 9. [파티클 시스템 A] 중앙 고압 기저 (Center Geyser Plume - 50 particles)
+  const geyserParticles = [];
+  const dropletGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  const dropletMat = new THREE.MeshStandardMaterial({
+    color: 0xf0fdf4,
+    emissive: 0x38bdf8,
+    emissiveIntensity: 0.4,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.92
+  });
+
+  for (let i = 0; i < 50; i++) {
+    const p = new THREE.Mesh(dropletGeo, dropletMat);
+    const angle = Math.random() * Math.PI * 2;
+    const spread = Math.random() * 0.4;
+    p.position.set(Math.cos(angle) * spread, 2.3, Math.sin(angle) * spread);
+    p.userData = {
+      vy: 7.0 + Math.random() * 4.5,
+      vx: (Math.random() - 0.5) * 1.2,
+      vz: (Math.random() - 0.5) * 1.2,
+      baseY: 2.3,
+      age: Math.random() * 1.5,
+      lifetime: 1.5 + Math.random() * 0.6
+    };
+    group.add(p);
+    geyserParticles.push(p);
+  }
+
+  // 10. [파티클 시스템 B] 외곽 16열 파도 곡선 아치 분수 (16 Parabolic Arched Jets - 96 particles)
+  const archParticles = [];
+  for (let jet = 0; jet < 16; jet++) {
+    const angle = (jet / 16) * Math.PI * 2;
+    for (let step = 0; step < 6; step++) {
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), dropletMat);
+      p.userData = {
+        jetIndex: jet,
+        angle: angle,
+        stepFrac: (step + 1) / 6.0,
+        baseRadius: 6.2,
+        phase: jet * 0.39
+      };
+      group.add(p);
+      archParticles.push(p);
+    }
+  }
+
+  // 11. [파티클 시스템 C] 내측 8열 나선 회전 회오리 분수 (8 Swirling Spiral Jets - 32 particles)
+  const spiralParticles = [];
+  for (let s = 0; s < 8; s++) {
+    for (let step = 0; step < 4; step++) {
+      const sp = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), dropletMat);
+      sp.userData = {
+        spiralIndex: s,
+        stepFrac: (step + 1) / 4.0,
+        radius: 3.6,
+        phase: s * (Math.PI / 4)
+      };
+      group.add(sp);
+      spiralParticles.push(sp);
+    }
+  }
+
+  // 12. 바닥 분수 포말 스플래시 (Splash rings at landing points)
+  const splashParticles = [];
+  for (let k = 0; k < 16; k++) {
+    const splash = new THREE.Mesh(
+      new THREE.RingGeometry(0.1, 0.45, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+    );
+    splash.rotateX(-Math.PI / 2);
+    splash.position.set(0, 0.6, 0);
+    splash.userData = { phase: k * 0.4 };
+    group.add(splash);
+    splashParticles.push(splash);
+  }
+
+  musicalFountainData = {
+    group,
+    ripples,
+    underwaterLights,
+    geyserParticles,
+    archParticles,
+    spiralParticles,
+    splashParticles
+  };
 
   cityHallWorldGroup.add(group);
 
   registerInteractiveObject({
     id: 'fountain',
-    pos: { x, y, z },
-    radius: 7.0,
-    prompt: "음악 분수대 물줄기 감상하기",
+    pos: { x, y: 0, z },
+    radius: 8.0,
+    prompt: "⛲ E키: 시정 음악 분수대 (빛과 물의 오케스트라 감상)",
     action: () => {
-      showSpeechBubble(localPlayer, "⛲ 시원한 분수대 물줄기를 보니 마음까지 상쾌해집니다!");
+      showSpeechBubble(localPlayer, "⛲ 시원하게 솟구치는 음악 분수대와 찬란한 LED 불빛이 시민광장을 화사하게 밝힙니다!");
       if (window.busanAudio) window.busanAudio.playFountainSplash();
       addCitizenExp(30);
     }
   });
 
-  busanCityHallObstacles.push({ type: 'cyl', x, z, r: 6.2, h: 0.7 });
+  busanCityHallObstacles.push({ type: 'cyl', x, z, r: 7.2, h: 0.7 });
+}
+
+function updateDancingMusicalFountain(dt, t) {
+  if (!musicalFountainData || STATE.currentRoom !== 'BUSAN-HQ') return;
+  const d = musicalFountainData;
+
+  // 1. 수면 동심원 리플 (Expanding Ripple Rings)
+  d.ripples.forEach(r => {
+    const progress = ((t * 0.8 + r.userData.phase) % 1.0);
+    const scale = 1.0 + progress * 5.5;
+    r.scale.set(scale, scale, 1);
+    r.material.opacity = Math.max(0, 0.7 * (1.0 - progress));
+  });
+
+  // 2. 수중 RGB LED 라이트쇼 색상 순환 (Vivid Cycle)
+  const baseHue = (t * 0.12) % 1.0;
+  d.underwaterLights.forEach((pl, i) => {
+    const h = (baseHue + i * 0.25) % 1.0;
+    pl.color.setHSL(h, 0.95, 0.55);
+    pl.intensity = 2.5 + Math.sin(t * 3.0 + i) * 1.0;
+  });
+
+  // 3. 중앙 고압 기저 (Geyser Particles: Gravity simulation)
+  d.geyserParticles.forEach(p => {
+    const ud = p.userData;
+    ud.age += dt;
+    p.position.y += ud.vy * dt;
+    ud.vy -= 12.0 * dt; // Gravity
+    p.position.x += ud.vx * dt;
+    p.position.z += ud.vz * dt;
+
+    if (p.position.y < ud.baseY || ud.age > ud.lifetime) {
+      ud.age = 0;
+      const angle = Math.random() * Math.PI * 2;
+      const spread = Math.random() * 0.35;
+      p.position.set(Math.cos(angle) * spread, ud.baseY, Math.sin(angle) * spread);
+      ud.vy = 8.5 + Math.sin(t * 2.0) * 2.0 + Math.random() * 2.5;
+      ud.vx = Math.cos(angle) * (0.4 + Math.random() * 0.8);
+      ud.vz = Math.sin(angle) * (0.4 + Math.random() * 0.8);
+    }
+  });
+
+  // 4. 외곽 16열 파도 곡선 아치 분수 (Sinusoidal Parabolic Arches)
+  const waveHeight = 3.6 + Math.sin(t * 2.8) * 1.8;
+  d.archParticles.forEach(p => {
+    const ud = p.userData;
+    const jetWave = Math.sin(t * 3.2 + ud.phase);
+    const curPeak = Math.max(1.5, waveHeight + jetWave * 1.2);
+    
+    const frac = ud.stepFrac;
+    const curR = ud.baseRadius * (1.0 - frac * 0.7);
+    const curY = 0.65 + 4.0 * curPeak * frac * (1.0 - frac);
+    p.position.set(Math.cos(ud.angle) * curR, curY, Math.sin(ud.angle) * curR);
+  });
+
+  // 5. 내측 8열 나선 회전 회오리 분수 (Swirling Vortex Jets)
+  const swirlRot = t * 1.8;
+  d.spiralParticles.forEach(sp => {
+    const ud = sp.userData;
+    const curAngle = ud.phase + swirlRot;
+    const frac = ud.stepFrac;
+    const curR = ud.radius * (1.0 - frac * 0.4);
+    const curY = 0.85 + frac * 3.2 * (0.8 + Math.sin(t * 4.0 + ud.phase) * 0.3);
+    sp.position.set(Math.cos(curAngle) * curR, curY, Math.sin(curAngle) * curR);
+  });
+
+  // 6. 스플래시 착수 포말 링 애니메이션
+  d.splashParticles.forEach((sp, idx) => {
+    const a = (idx / d.splashParticles.length) * Math.PI * 2;
+    const r = 2.0 + Math.sin(t * 2.5 + sp.userData.phase) * 0.8;
+    sp.position.set(Math.cos(a) * r, 0.61, Math.sin(a) * r);
+    const sc = 0.6 + Math.sin(t * 6.0 + sp.userData.phase) * 0.4;
+    sp.scale.set(sc, sc, 1);
+  });
 }
 
 // --------------------------------------------------------
@@ -6014,9 +6318,9 @@ function animate() {
     }
   }
 
-  fountainParticles.forEach(p => {
-    p.position.y = p.userData.baseY + Math.sin(t * p.userData.speed + p.userData.phase) * 1.6 + 1.2;
-  });
+  if (typeof updateDancingMusicalFountain === 'function') {
+    updateDancingMusicalFountain(dt, t);
+  }
 
   // 희망 풍선 상승 물리 애니메이션
   for (let i = activeHopeBalloons.length - 1; i >= 0; i--) {
