@@ -2814,43 +2814,63 @@ const TripoAssetManager = {
     m.position.set(0, baseY, 0);
 
     // AnimationMixer 바인딩 (idle & walk)
+    // ★ v28: Tripo 공식 리타겟 애니메이션 (idle, walk, run) 정밀 바인딩
     let anims = tripoModel.userData.animations || [];
     if (anims.length === 0 && this.sharedWalkClip) {
       anims = [this.sharedWalkClip];
     }
-    if (anims.length > 0) {
-      const mixer = new THREE.AnimationMixer(m);
-      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || this.sharedWalkClip || anims[0];
-      const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || null;
-      const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
-      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
 
-      // ★ v27: 걷기 애니메이션을 idle 상태로 세팅 (weight=0, 재생은 하되 효과 없음)
-      // → 플레이어가 움직이면 weight=1로 올려서 자연스럽게 걷기
-      if (walkAction) {
-        walkAction.setLoop(THREE.LoopRepeat, Infinity);
-        walkAction.clampWhenFinished = false;
-        walkAction.play();
-        walkAction.weight = 0; // 초기에는 보이지 않음 (idle 상태)
-      }
-      if (idleAction) {
-        idleAction.setLoop(THREE.LoopRepeat, Infinity);
-        idleAction.play();
-        idleAction.weight = 1;
-      }
-      m.userData.mixer = mixer;
-      m.userData.walkAction = walkAction;
-      m.userData.idleAction = idleAction;
-      m.userData.currentAction = 'idle';
-      console.log('🦾 [v27] 애니메이션 믹서 초기화: walk=', !!walkAction, ' idle=', !!idleAction);
-    } else {
-      // 애니메이션 없는 모델도 mixer 초기화 (sharedWalkClip 대기)
-      const mixer = new THREE.AnimationMixer(m);
-      m.userData.mixer = mixer;
-      m.userData.walkAction = null;
-      m.userData.idleAction = null;
-      m.userData.currentAction = 'idle';
+    const mixer = new THREE.AnimationMixer(m);
+    m.userData.mixer = mixer;
+
+    // 클립 탐색 (이름 대소문자 무관)
+    const idleClip = anims.find(a => /idle|wait|stand/i.test(a.name));
+    const walkClip = anims.find(a => /walk/i.test(a.name)) || this.sharedWalkClip;
+    const runClip  = anims.find(a => /run|jog/i.test(a.name));
+
+    const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+    const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+    const runAction  = runClip  ? mixer.clipAction(runClip)  : null;
+
+    if (idleAction) {
+      idleAction.setLoop(THREE.LoopRepeat, Infinity);
+      idleAction.enabled = true;
+      idleAction.play();
+      idleAction.setEffectiveWeight(1.0);
     }
+    if (walkAction) {
+      walkAction.setLoop(THREE.LoopRepeat, Infinity);
+      walkAction.enabled = true;
+      walkAction.play();
+      walkAction.setEffectiveWeight(0.0);
+    }
+    if (runAction) {
+      runAction.setLoop(THREE.LoopRepeat, Infinity);
+      runAction.enabled = true;
+      runAction.play();
+      runAction.setEffectiveWeight(0.0);
+    }
+
+    m.userData.idleAction = idleAction;
+    m.userData.walkAction = walkAction;
+    m.userData.runAction  = runAction;
+    m.userData.currentAction = 'idle';
+    console.log('🦾 [v28] 정품 애니메이션 바인딩 완료: idle=', !!idleAction, ' walk=', !!walkAction, ' run=', !!runAction, `(총 ${anims.length}개 클립)`);
+
+    // ★ 안전장치: 애니메이션이 전혀 없거나 바인드 포즈(T-포즈) 완화를 위한 팔 본 A-포즈 기본값 설정
+    m.traverse(node => {
+      if (node.isBone) {
+        const name = (node.name || '').toLowerCase();
+        if (/leftarm|left_arm|mixamorig:leftarm/i.test(name) && !/forearm/i.test(name)) {
+          m.userData.boneLeftArm = node;
+          if (!idleAction) { node.rotation.z = -1.25; node.rotation.x = 0.1; }
+        }
+        if (/rightarm|right_arm|mixamorig:rightarm/i.test(name) && !/forearm/i.test(name)) {
+          m.userData.boneRightArm = node;
+          if (!idleAction) { node.rotation.z = 1.25; node.rotation.x = 0.1; }
+        }
+      }
+    });
 
     // Hide procedural body meshes, keep nameplate and bubble
     bada.mesh.children.forEach(c => {
@@ -2969,43 +2989,63 @@ const TripoAssetManager = {
     const baseY = -bbox.min.y * scale; // ★ 완벽한 지면 밀착 접지 (붕 뜨는 현상 박멸) // ★ 발바닥 잠김 방지
     m.position.set(0, baseY, 0);
 
+    // ★ v28: Tripo 공식 리타겟 애니메이션 (idle, walk, run) 정밀 바인딩
     let anims = tripoModel.userData.animations || [];
     if (anims.length === 0 && this.sharedWalkClip) {
       anims = [this.sharedWalkClip];
     }
-    if (anims.length > 0) {
-      const mixer = new THREE.AnimationMixer(m);
-      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || this.sharedWalkClip || anims[0];
-      const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || null;
-      const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
-      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
 
-      // ★ v27: 걷기 애니메이션을 idle 상태로 세팅 (weight=0, 재생은 하되 효과 없음)
-      // → 플레이어가 움직이면 weight=1로 올려서 자연스럽게 걷기
-      if (walkAction) {
-        walkAction.setLoop(THREE.LoopRepeat, Infinity);
-        walkAction.clampWhenFinished = false;
-        walkAction.play();
-        walkAction.weight = 0; // 초기에는 보이지 않음 (idle 상태)
-      }
-      if (idleAction) {
-        idleAction.setLoop(THREE.LoopRepeat, Infinity);
-        idleAction.play();
-        idleAction.weight = 1;
-      }
-      m.userData.mixer = mixer;
-      m.userData.walkAction = walkAction;
-      m.userData.idleAction = idleAction;
-      m.userData.currentAction = 'idle';
-      console.log('🦾 [v27] 애니메이션 믹서 초기화: walk=', !!walkAction, ' idle=', !!idleAction);
-    } else {
-      // 애니메이션 없는 모델도 mixer 초기화 (sharedWalkClip 대기)
-      const mixer = new THREE.AnimationMixer(m);
-      m.userData.mixer = mixer;
-      m.userData.walkAction = null;
-      m.userData.idleAction = null;
-      m.userData.currentAction = 'idle';
+    const mixer = new THREE.AnimationMixer(m);
+    m.userData.mixer = mixer;
+
+    // 클립 탐색 (이름 대소문자 무관)
+    const idleClip = anims.find(a => /idle|wait|stand/i.test(a.name));
+    const walkClip = anims.find(a => /walk/i.test(a.name)) || this.sharedWalkClip;
+    const runClip  = anims.find(a => /run|jog/i.test(a.name));
+
+    const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+    const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+    const runAction  = runClip  ? mixer.clipAction(runClip)  : null;
+
+    if (idleAction) {
+      idleAction.setLoop(THREE.LoopRepeat, Infinity);
+      idleAction.enabled = true;
+      idleAction.play();
+      idleAction.setEffectiveWeight(1.0);
     }
+    if (walkAction) {
+      walkAction.setLoop(THREE.LoopRepeat, Infinity);
+      walkAction.enabled = true;
+      walkAction.play();
+      walkAction.setEffectiveWeight(0.0);
+    }
+    if (runAction) {
+      runAction.setLoop(THREE.LoopRepeat, Infinity);
+      runAction.enabled = true;
+      runAction.play();
+      runAction.setEffectiveWeight(0.0);
+    }
+
+    m.userData.idleAction = idleAction;
+    m.userData.walkAction = walkAction;
+    m.userData.runAction  = runAction;
+    m.userData.currentAction = 'idle';
+    console.log('🦾 [v28] 정품 애니메이션 바인딩 완료: idle=', !!idleAction, ' walk=', !!walkAction, ' run=', !!runAction, `(총 ${anims.length}개 클립)`);
+
+    // ★ 안전장치: 애니메이션이 전혀 없거나 바인드 포즈(T-포즈) 완화를 위한 팔 본 A-포즈 기본값 설정
+    m.traverse(node => {
+      if (node.isBone) {
+        const name = (node.name || '').toLowerCase();
+        if (/leftarm|left_arm|mixamorig:leftarm/i.test(name) && !/forearm/i.test(name)) {
+          m.userData.boneLeftArm = node;
+          if (!idleAction) { node.rotation.z = -1.25; node.rotation.x = 0.1; }
+        }
+        if (/rightarm|right_arm|mixamorig:rightarm/i.test(name) && !/forearm/i.test(name)) {
+          m.userData.boneRightArm = node;
+          if (!idleAction) { node.rotation.z = 1.25; node.rotation.x = 0.1; }
+        }
+      }
+    });
 
     if (localPlayer.userData.tripoMesh) {
       localPlayer.remove(localPlayer.userData.tripoMesh);
@@ -6546,11 +6586,30 @@ function updatePlayerMovement(dt) {
     while (diff > Math.PI) diff -= Math.PI * 2;
     localPlayer.rotation.y += diff * Math.min(1, dt * 14);
 
-    const speed = (ud && typeof ud.walkSpeed === 'number' && ud.walkSpeed > 0) ? ud.walkSpeed : 7.8;
-    const step = speed * dt;
-    nextX += moveDir.x * step;
-    nextZ += moveDir.z * step;
-  } else if (STATE.clickTargetPos) {
+    // ★ v28: Sketchbook 0.4 스타일 부드러운 관성 가속/감속 (Inertia & Smooth Damping)
+    if (!ud._velocity) ud._velocity = new THREE.Vector3();
+    const isShiftRun = !!(STATE.keys && (STATE.keys.shift || STATE.keys.Shift));
+    const targetSpeed = isShiftRun ? 11.2 : ((ud && ud.walkSpeed) ? ud.walkSpeed : 7.6);
+    
+    // 가속도 보간
+    ud._velocity.x += (moveDir.x * targetSpeed - ud._velocity.x) * Math.min(1, dt * 14);
+    ud._velocity.z += (moveDir.z * targetSpeed - ud._velocity.z) * Math.min(1, dt * 14);
+    
+    nextX += ud._velocity.x * dt;
+    nextZ += ud._velocity.z * dt;
+  } else {
+    // 키 입력 없을 때 부드러운 감속 정지
+    if (ud && ud._velocity) {
+      ud._velocity.x *= Math.max(0, 1 - dt * 18);
+      ud._velocity.z *= Math.max(0, 1 - dt * 18);
+      if (ud._velocity.lengthSq() > 0.04) {
+        nextX += ud._velocity.x * dt;
+        nextZ += ud._velocity.z * dt;
+        isMoving = true;
+      }
+    }
+  }
+  if (false) { // click target bypassed
     const toTarget = new THREE.Vector3().subVectors(STATE.clickTargetPos, curPos);
     toTarget.y = 0;
     const dist = toTarget.length();
@@ -6646,6 +6705,17 @@ function updatePlayerMovement(dt) {
       }));
     }
   }
+}
+
+// ★ Sketchbook급 뼈(Bone) 이름 검색 유틸리티
+function findBoneByNames(mesh, names) {
+  let found = null;
+  mesh.traverse(c => {
+    if (found) return;
+    const n = c.name.toLowerCase();
+    if (names.some(k => n.includes(k))) found = c;
+  });
+  return found;
 }
 
 function updateCuteCitizenAnimation(c, dt, t) {
@@ -6800,69 +6870,73 @@ function updateCuteCitizenAnimation(c, dt, t) {
     }
   }
 
-  // 2. 걷기 시 팔다리 스윙 및 통통 바운스
-  if (ud.isWalking) {
-    ud.gestureTimer = 0;
-    ud.currentGesture = null;
-    const swing = Math.sin(t * 11) * 0.55;
-    if (ud.armL) ud.armL.rotation.x = swing;
-    if (ud.armR) ud.armR.rotation.x = -swing;
-    if (ud.legGroupL) ud.legGroupL.rotation.x = -swing * 0.9;
-    if (ud.legGroupR) ud.legGroupR.rotation.x = swing * 0.9;
-    if (ud.headGroup) ud.headGroup.position.y = 1.22 + Math.abs(Math.sin(t * 11)) * 0.05;
+  // 2. ★ v28: Sketchbook 스타일 완벽 애니메이션 블렌딩 & 팔 벌림(T-포즈) 방지
+  if (ud.tripoMesh) {
+    const tm = ud.tripoMesh;
+    const mixer = tm.userData.mixer;
+    const idleA = tm.userData.idleAction;
+    const walkA = tm.userData.walkAction;
+    const runA  = tm.userData.runAction;
 
-    // ★ Tripo 3D 리깅 뼈대(Bone) 및 고화질 캐릭터 관절 보행 모션!
-    if (ud.tripoMesh) {
-      if (ud.tripoMesh.userData.mixer) {
-        if (ud.tripoMesh.userData.currentAction !== 'walk' && ud.tripoMesh.userData.walkAction) {
-          if (ud.tripoMesh.userData.idleAction) ud.tripoMesh.userData.idleAction.fadeOut(0.2);
-          ud.tripoMesh.userData.walkAction.reset().fadeIn(0.2).play();
-          ud.tripoMesh.userData.currentAction = 'walk';
-        }
-        ud.tripoMesh.userData.mixer.update(dt);
+    tm.position.y = ud.tripoBaseY || 0.0;
+    tm.rotation.z = 0.0;
+
+    if (mixer) {
+      // 믹서 기반 Tripo 정품 애니메이션 크로스페이드
+      const isWalking = !!ud.isWalking;
+      const isRunning = isWalking && (STATE.keys && (STATE.keys.shift || STATE.keys.Shift));
+
+      if (isRunning && runA) {
+        if (idleA) idleA.setEffectiveWeight(0.0);
+        if (walkA) walkA.setEffectiveWeight(0.0);
+        runA.setEffectiveWeight(1.0);
+        tm.userData.currentAction = 'run';
+      } else if (isWalking && walkA) {
+        if (idleA) idleA.setEffectiveWeight(0.0);
+        if (runA)  runA.setEffectiveWeight(0.0);
+        walkA.setEffectiveWeight(1.0);
+        tm.userData.currentAction = 'walk';
+      } else if (idleA) {
+        if (walkA) walkA.setEffectiveWeight(0.0);
+        if (runA)  runA.setEffectiveWeight(0.0);
+        idleA.setEffectiveWeight(1.0);
+        tm.userData.currentAction = 'idle';
       }
-      // ★ 리깅 캐릭터 보행 시: 뼈대 관절이 자연 보행하므로 Y축 위치는 바닥(baseY)에 완벽 고정!
-      ud.tripoMesh.position.y = ud.tripoBaseY || 0.0;
-      ud.tripoMesh.rotation.z = 0.0;
-      ud.tripoMesh.rotation.x = 0.0;
 
-      if (ud.rigBones) {
-        const armSwing = Math.sin(t * 11) * 0.65;
-        const legSwing = Math.sin(t * 11) * 0.75;
-        if (ud.rigBones.leftArm) ud.rigBones.leftArm.rotation.x = armSwing;
-        if (ud.rigBones.rightArm) ud.rigBones.rightArm.rotation.x = -armSwing;
-        if (ud.rigBones.leftLeg) ud.rigBones.leftLeg.rotation.x = -legSwing;
-        if (ud.rigBones.rightLeg) ud.rigBones.rightLeg.rotation.x = legSwing;
+      mixer.update(dt);
+
+      // 보행 시 상체 살짝 앞기울임
+      const targetLean = isWalking ? 0.07 : 0.0;
+      tm.rotation.x += (targetLean - tm.rotation.x) * Math.min(1, dt * 8);
+    } else {
+      // ★ 믹서가 없는 절차적 모델용: T-포즈 방지 차렷(A-포즈) + 자연스러운 스윙
+      const bLA = tm.userData.boneLeftArm;
+      const bRA = tm.userData.boneRightArm;
+      if (ud.isWalking) {
+        const swing = Math.sin(t * 10) * 0.6;
+        if (bLA) { bLA.rotation.z = -1.25; bLA.rotation.x = swing; }
+        if (bRA) { bRA.rotation.z = 1.25;  bRA.rotation.x = -swing; }
+      } else {
+        const breathe = Math.sin(t * 2.2) * 0.04;
+        if (bLA) { bLA.rotation.z = -1.25 + breathe; bLA.rotation.x = 0.05; }
+        if (bRA) { bRA.rotation.z = 1.25 - breathe;  bRA.rotation.x = 0.05; }
       }
     }
-  } else {
-    if (ud.armL) ud.armL.rotation.x = Math.sin(t * 2.5) * 0.08;
-    if (ud.armR) ud.armR.rotation.x = -Math.sin(t * 2.5) * 0.08;
-    if (ud.legGroupL) ud.legGroupL.rotation.x = 0;
-    if (ud.legGroupR) ud.legGroupR.rotation.x = 0;
-    if (ud.headGroup) ud.headGroup.position.y = 1.22 + Math.sin(t * 3.0) * 0.02;
+  }
 
-    // ★ Tripo 3D 대기 시 자연스러운 호흡(Breathing) 바운스 & 관절 이완
-    if (ud.tripoMesh) {
-      if (ud.tripoMesh.userData.mixer) {
-        if (ud.tripoMesh.userData.currentAction !== 'idle' && ud.tripoMesh.userData.idleAction) {
-          if (ud.tripoMesh.userData.walkAction) ud.tripoMesh.userData.walkAction.fadeOut(0.2);
-          ud.tripoMesh.userData.idleAction.reset().fadeIn(0.2).play();
-          ud.tripoMesh.userData.currentAction = 'idle';
-        }
-        ud.tripoMesh.userData.mixer.update(dt);
-      }
-      ud.tripoMesh.position.y = ud.tripoBaseY || 0.0;
-      ud.tripoMesh.rotation.z = 0.0;
-      ud.tripoMesh.rotation.x = 0.0;
-
-      if (ud.rigBones) {
-        if (ud.rigBones.spine) ud.rigBones.spine.rotation.x = Math.sin(t * 2.5) * 0.04;
-        if (ud.rigBones.leftArm) ud.rigBones.leftArm.rotation.x = Math.sin(t * 2) * 0.05;
-        if (ud.rigBones.rightArm) ud.rigBones.rightArm.rotation.x = -Math.sin(t * 2) * 0.05;
-        if (ud.rigBones.leftLeg) ud.rigBones.leftLeg.rotation.x *= 0.85;
-        if (ud.rigBones.rightLeg) ud.rigBones.rightLeg.rotation.x *= 0.85;
-      }
+  // 절차적 캐릭터(구형) 팔다리 스윙 호환 유지
+  if (ud.armL && ud.armR) {
+    if (ud.isWalking) {
+      const swing = Math.sin(t * 11) * 0.55;
+      ud.armL.rotation.x = swing;
+      ud.armR.rotation.x = -swing;
+      if (ud.legGroupL) ud.legGroupL.rotation.x = -swing * 0.9;
+      if (ud.legGroupR) ud.legGroupR.rotation.x = swing * 0.9;
+    } else {
+      ud.armL.rotation.x = Math.sin(t * 2.5) * 0.08;
+      ud.armR.rotation.x = -Math.sin(t * 2.5) * 0.08;
+      if (ud.legGroupL) ud.legGroupL.rotation.x = 0;
+      if (ud.legGroupR) ud.legGroupR.rotation.x = 0;
     }
   }
 
@@ -6879,11 +6953,138 @@ function updateCuteCitizenAnimation(c, dt, t) {
 // ========================================================
 // 9. 렌더 루프 및 파티클 / 동적 환경 업데이트
 // ========================================================
+
+// ========================================================
+// ★ v28: Bruno Simon 스타일 바닥 하이라이트 인터랙션 존 시스템
+// ========================================================
+const BRUNO_ZONES = [
+  { id: 'civil_office', name: '시청 열린민원실', x: 0, z: -14.5, radius: 4.0, color: 0x00d2ff, action: () => switchRealm('BUSAN-CIVIL'), label: '[ E ] 열린민원실 입장' },
+  { id: 'fountain', name: '시민 음악분수대', x: 0, z: 2.0, radius: 6.5, color: 0x00ffcc, action: () => { toggleFountainShow(); showSpeechBubble(localPlayer, '🎵 희망 부산 음악분수 쇼가 펼쳐집니다!'); }, label: '[ E ] 음악분수 감상' },
+  { id: 'info_desk', name: '행정안내소 (다온·부기)', x: 12.0, z: -6.0, radius: 4.2, color: 0xffd700, action: () => openOpenDataModal('budgets'), label: '[ E ] 행정안내소 상담' },
+  { id: 'bulletin', name: '시민 자유담벼락', x: -12.0, z: -6.0, radius: 4.2, color: 0xff4081, action: () => openModal('modal-community-board'), label: '[ E ] 시민 자유담벼락 열기' },
+  { id: 'anchor', name: '부산 닻 상징 조형물', x: 0, z: 24.0, radius: 5.0, color: 0x7c4dff, action: () => openModal('modal-district-pr'), label: '[ E ] 16개 구·군 비전 탐방' }
+];
+
+let brunoZoneMeshes = [];
+let activeNearbyZone = null;
+
+function initBrunoInteractionZones() {
+  if (!scene) return;
+  BRUNO_ZONES.forEach(z => {
+    const group = new THREE.Group();
+    group.position.set(z.x, 0.05, z.z);
+
+    // 1. 외곽 펄싱 네온 링
+    const ringGeo = new THREE.RingGeometry(z.radius - 0.25, z.radius, 48);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: z.color,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.65
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    group.add(ringMesh);
+
+    // 2. 내부 반투명 원판 (바닥 채움)
+    const discGeo = new THREE.CircleGeometry(z.radius - 0.25, 48);
+    discGeo.rotateX(-Math.PI / 2);
+    const discMat = new THREE.MeshBasicMaterial({
+      color: z.color,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.12
+    });
+    const discMesh = new THREE.Mesh(discGeo, discMat);
+    group.add(discMesh);
+
+    group.userData = { zone: z, ringMesh, discMesh, baseRadius: z.radius };
+    scene.add(group);
+    brunoZoneMeshes.push(group);
+  });
+
+  // 플로팅 E키 UI 배지 DOM 생성
+  if (!document.getElementById('bruno-interaction-badge')) {
+    const badge = document.createElement('div');
+    badge.id = 'bruno-interaction-badge';
+    badge.style.position = 'fixed';
+    badge.style.bottom = '85px';
+    badge.style.left = '50%';
+    badge.style.transform = 'translateX(-50%) scale(0.9)';
+    badge.style.padding = '12px 28px';
+    badge.style.borderRadius = '30px';
+    badge.style.background = 'rgba(15, 23, 42, 0.88)';
+    badge.style.backdropFilter = 'blur(12px)';
+    badge.style.border = '2px solid rgba(0, 210, 255, 0.8)';
+    badge.style.boxShadow = '0 0 25px rgba(0, 210, 255, 0.45)';
+    badge.style.color = '#ffffff';
+    badge.style.fontSize = '15px';
+    badge.style.fontWeight = '700';
+    badge.style.letterSpacing = '0.5px';
+    badge.style.cursor = 'pointer';
+    badge.style.zIndex = '9999';
+    badge.style.display = 'none';
+    badge.style.transition = 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    badge.innerHTML = '<span style="background:#00d2ff;color:#000;padding:3px 10px;border-radius:6px;margin-right:8px;font-weight:900;">E</span> 상호작용하기';
+    badge.onclick = () => { if (activeNearbyZone) activeNearbyZone.action(); };
+    document.body.appendChild(badge);
+  }
+}
+
+function updateBrunoZones(dt, t) {
+  if (!localPlayer) return;
+  const px = localPlayer.position.x;
+  const pz = localPlayer.position.z;
+  let closestZone = null;
+  let minD = 999;
+
+  brunoZoneMeshes.forEach(zg => {
+    const z = zg.userData.zone;
+    const dx = px - z.x;
+    const dz = pz - z.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    // 펄싱 애니메이션
+    const pulse = 1.0 + Math.sin(t * 3.5) * 0.06;
+    zg.scale.set(pulse, 1.0, pulse);
+
+    if (dist < z.radius) {
+      zg.userData.ringMesh.material.opacity = 0.95;
+      zg.userData.discMesh.material.opacity = 0.28;
+      if (dist < minD) { minD = dist; closestZone = z; }
+    } else {
+      zg.userData.ringMesh.material.opacity = 0.45;
+      zg.userData.discMesh.material.opacity = 0.08;
+    }
+  });
+
+  activeNearbyZone = closestZone;
+  const badge = document.getElementById('bruno-interaction-badge');
+  if (badge) {
+    if (closestZone && (STATE.currentRoom === 'BUSAN-HQ' || !STATE.currentRoom)) {
+      badge.style.display = 'block';
+      badge.innerHTML = `<span style="background:#00d2ff;color:#000;padding:3px 10px;border-radius:6px;margin-right:8px;font-weight:900;">E</span> ${closestZone.label}`;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+// E키 입력 시 호출
+function triggerProximityAction() {
+  if (activeNearbyZone && activeNearbyZone.action) {
+    activeNearbyZone.action();
+    return true;
+  }
+  return false;
+}
+
 function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = clock.getElapsedTime();
+  updateBrunoZones(dt, t);
 
   // 지피티 추천 동백꽃 행운 키오스크 회전
   if (typeof camelliaBlessingMesh !== 'undefined' && camelliaBlessingMesh) {
@@ -10802,4 +11003,11 @@ function toggleCityHallOrCivil() {
   } else {
     switchRealm('BUSAN-HQ');
   }
+}
+
+// 🎵 v28: 동적 음악분수 쇼 토글
+let _fountainShowActive = false;
+function toggleFountainShow() {
+  _fountainShowActive = !_fountainShowActive;
+  console.log('⛲ 음악분수 쇼:', _fountainShowActive ? 'ON' : 'OFF');
 }

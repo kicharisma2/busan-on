@@ -24,6 +24,71 @@
   <script src="OrbitControls.js"></script>
   <script src="GLTFLoader.js"></script>
   <script src="DRACOLoader.js"></script>
+
+  <style id="sketchbook-minimal-hud-style">
+    /* ★ v28: Sketchbook 0.4 스타일 미니멀 HUD */
+    .top-nav {
+      background: rgba(15, 23, 42, 0.72) !important;
+      backdrop-filter: blur(12px) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+      height: 52px !important;
+      padding: 0 16px !important;
+    }
+    .center-hud {
+      display: none !important; /* 평소에는 화면 중앙을 가리지 않도록 숨김 */
+    }
+    .control-guide {
+      top: 60px !important;
+      left: 16px !important;
+      transform: none !important;
+      padding: 6px 14px !important;
+      background: rgba(15, 23, 42, 0.65) !important;
+      backdrop-filter: blur(8px) !important;
+      border-radius: 20px !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      font-size: 11px !important;
+      opacity: 0.85 !important;
+    }
+    .event-sidebar {
+      top: 70px !important;
+      right: 14px !important;
+      background: rgba(15, 23, 42, 0.6) !important;
+      backdrop-filter: blur(10px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 16px !important;
+      padding: 8px !important;
+      gap: 6px !important;
+      transform: scale(0.9) !important;
+      transform-origin: top right !important;
+    }
+    .sidebar-circle-btn {
+      width: 44px !important;
+      height: 44px !important;
+      font-size: 16px !important;
+      border-radius: 12px !important;
+    }
+    .sidebar-circle-btn .circle-label {
+      display: none !important; /* 미니멀 아이콘 전용 */
+    }
+    .sidebar-circle-btn:hover .circle-label {
+      display: block !important;
+      position: absolute !important;
+      right: 52px !important;
+      background: rgba(15, 23, 42, 0.95) !important;
+      padding: 4px 10px !important;
+      border-radius: 6px !important;
+      font-size: 12px !important;
+      white-space: nowrap !important;
+      border: 1px solid rgba(0, 210, 255, 0.5) !important;
+    }
+    .quick-realm-btn {
+      background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+      padding: 6px 14px !important;
+      font-size: 12px !important;
+      border-radius: 20px !important;
+    }
+  </style>
+
 </head>
 <body>
 

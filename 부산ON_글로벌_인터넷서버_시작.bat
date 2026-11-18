@@ -12,7 +12,13 @@ python --version >nul 2>&1
 if %errorlevel% equ 0 (
     python start_online_server.py
 ) else (
-    if exist "부산ON_글로벌서버_v2.exe" (
+    if exist "부산ON_글로벌서버_v3.exe" (
+        echo [안내] Python 대신 최신 독립 실행형 서버(부산ON_글로벌서버_v3.exe)를 실행합니다.
+        "부산ON_글로벌서버_v3.exe"
+    ) else if exist "dist\부산ON_글로벌서버_v3.exe" (
+        echo [안내] dist 폴더 내 최신 독립 실행형 서버(v3)를 실행합니다.
+        "dist\부산ON_글로벌서버_v3.exe"
+    ) else if exist "부산ON_글로벌서버_v2.exe" (
         echo [안내] Python 대신 독립 실행형 서버(부산ON_글로벌서버_v2.exe)를 실행합니다.
         "부산ON_글로벌서버_v2.exe"
     ) else if exist "dist\부산ON_글로벌서버_v2.exe" (
