@@ -93,7 +93,7 @@
 <body>
 
   <!-- ★ v29: 시작 시 옛날 캐릭터 번쩍임/건물 팝인 방지 프리미엄 로딩 오버레이 -->
-  <div id="busan-loading-screen" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:linear-gradient(135deg, #0f172a 0%, #0369a1 100%);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.5s ease;color:#ffffff;font-family:'Pretendard', sans-serif;">
+  <div id="busan-loading-screen" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:linear-gradient(135deg, #0f172a 0%, #0369a1 100%);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.4s ease;color:#ffffff;font-family:'Pretendard', sans-serif;">
     <div style="font-size:56px;margin-bottom:16px;animation:pulse 1.8s infinite ease-in-out;">🏛️</div>
     <div style="font-size:26px;font-weight:800;letter-spacing:1px;margin-bottom:8px;">부산ON 메타버스 월드</div>
     <div style="font-size:14px;color:#bae6fd;margin-bottom:28px;">부산광역시청 & 16개 구·군 열린 시민 3D 공간으로 입장 중...</div>
@@ -102,6 +102,18 @@
     </div>
     <div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,0.65);">3D 청사 및 아바타 리소스를 최적화하고 있습니다</div>
   </div>
+  <script>
+    // ★ v30: 시작 지연 방지 - 최대 0.8초 후 무조건 로딩창 해제
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const ldr = document.getElementById('busan-loading-screen');
+        if (ldr) {
+          ldr.style.opacity = '0';
+          setTimeout(() => { ldr.style.display = 'none'; }, 400);
+        }
+      }, 700);
+    });
+  </script>
   <style>
     @keyframes loadbar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
   </style>

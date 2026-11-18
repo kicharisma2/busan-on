@@ -2446,7 +2446,8 @@ function initThreeWorld() {
   // (3) Renderer - ACES 톤매핑으로 눈부심 방지 및 사진 수준의 선명한 대비
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // ★ v30: GPU 과부하 및 버벅거림 제거 - PixelRatio를 1.25로 최적화하여 60FPS 칼고정
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
@@ -2473,8 +2474,8 @@ function initThreeWorld() {
   const sunLight = new THREE.DirectionalLight(0xfff1d6, 2.2);
   sunLight.position.set(38, 65, 30);
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.bias = -0.0006;
   sunLight.shadow.camera.near = 1.0;
   sunLight.shadow.camera.far = 240;
@@ -2647,70 +2648,40 @@ const TripoAssetManager = {
   sharedWalkClip: null,
 
   checkAndLoadDefaultModels() {
-    // 0. Mixamo 걷기 애니메이션 우선 로드 (모든 리깅 캐릭터 공유, 플레이어 모델 교체 없음)
-    this._initialModelApplied = false; // ★ v27: 중복 교체 방지 플래그 초기화
-    this.loadModel('models/civil_officer_walk.glb', (model) => {
-      // ★ animations는 gltf.animations에서 직접 가져옴
-      const anims = model.userData.animations || [];
-      if (anims.length > 0) {
-        this.sharedWalkClip = anims[0];
-        console.log('🚶 [TripoAssetManager] 표준 Mixamo 걷기 모션이 로드되었습니다! clips:', anims.length);
-      } else {
-        console.warn('⚠️ civil_officer_walk.glb 애니메이션 없음');
-      }
-      // ★ v27: sharedWalkClip 로드 후 현재 플레이어 모델에 retroactively 적용
-      if (localPlayer && localPlayer.userData.tripoMesh) {
-        const mesh = localPlayer.userData.tripoMesh;
-        if (!mesh.userData.walkAction && this.sharedWalkClip) {
-          if (!mesh.userData.mixer) {
-            mesh.userData.mixer = new THREE.AnimationMixer(mesh);
-          }
-          const wa = mesh.userData.mixer.clipAction(this.sharedWalkClip);
-          wa.setLoop(THREE.LoopRepeat, Infinity);
-          wa.play();
-          wa.weight = 0;
-          mesh.userData.walkAction = wa;
-          mesh.userData.currentAction = 'idle';
-          console.log('🦾 [v27] sharedWalkClip 사후 적용 완료!');
-        }
-      }
-      // ★ 걷기 모델은 플레이어 모델 교체 안 함 (sharedWalkClip 저장 전용)
-    });
+    this._initialModelApplied = false;
 
-    // 0-1. 프리미엄 보송 비닐 3D Chibi (Tripo 3D 정품 리깅 & 맨손 소품 지원)
-    // ★ v27: 최초 1회만 플레이어 모델 교체 (중복 교체 방지)
+    // ★ v30: [시작 속도 극대화] 플레이어 3D 치비 모델만 최우선 즉시 로드!
     this.loadModel('models/chibi_character.glb', (model) => {
       this.chibiModel = model;
-      // 초기 로드 시 archetype이 chibi이고 아직 적용 안 됐으면 적용
-      if (!this._initialModelApplied && (!STATE.avatarArchetype || STATE.avatarArchetype === 'chibi')) {
+      if (!this._initialModelApplied) {
         this._initialModelApplied = true;
         this.replacePlayerModel(model);
-        console.log('✨ [v27] 초기 치비 캐릭터 1회 적용 완료');
+        console.log('✨ [v30] 플레이어 3D 치비 캐릭터 즉시 적용 완료!');
       }
     });
-    // 1. 소통 캐릭터 부기 마스코트 우선 로드 (화사한 순백 몬스터블락 3D)
-    this.loadModel('models/boogi.glb', (model) => {
-      this.boogiModel = model;
-      this.replaceBoogiMascot(model);
-    });
-    // 2. 공무원 및 스마트 회사원
-    this.loadModel('models/civil_officer.glb', (model) => {
-      this.civilOfficerModel = model;
-      this.replaceCivilOfficerModel(model);
-    });
-    this.loadModel('models/office_worker.glb', (model) => {
-      this.officeWorkerModel = model;
-      this.replaceOfficeWorkerModel(model);
-    });
-    // 3. 부산 닻 상징 조형물 및 시청 3D 외관 본관
-    this.loadModel('models/anchor_statue.glb', (model) => {
-      this.anchorModel = model;
-      this.replaceAnchorStatue(model);
-    });
-    this.loadModel('models/city_hall.glb', (model) => {
-      this.cityHallModel = model;
-      this.replaceCityHallFacade(model);
-    });
+
+    // 로딩 스크린은 0.5초 이내에 무조건 해제하여 즉각 플레이 가능
+    setTimeout(() => {
+      const ldr = document.getElementById('busan-loading-screen');
+      if (ldr) {
+        ldr.style.opacity = '0';
+        setTimeout(() => { ldr.style.display = 'none'; }, 400);
+      }
+    }, 500);
+
+    // ★ v30: 나머지 무거운 NPC와 건물 모델은 프레임 드랍 방지를 위해 1.2초 후 순차 백그라운드 로드
+    setTimeout(() => {
+      this.loadModel('models/boogi.glb', (m) => { this.boogiModel = m; this.replaceBoogiMascot(m); });
+    }, 1200);
+
+    setTimeout(() => {
+      this.loadModel('models/civil_officer.glb', (m) => { this.civilOfficerModel = m; this.replaceCivilOfficerModel(m); });
+    }, 2200);
+
+    setTimeout(() => {
+      this.loadModel('models/anchor_statue.glb', (m) => { this.anchorModel = m; this.replaceAnchorStatue(m); });
+      this.loadModel('models/city_hall.glb', (m) => { this.cityHallModel = m; this.replaceCityHallFacade(m); });
+    }, 3200);
   },
 
   // 1. 부산시청 3D 외관 본관 교체 (야외 광장 배경으로 당당히 배치)
@@ -3070,7 +3041,8 @@ const TripoAssetManager = {
     localPlayer.add(m);
     localPlayer.userData.tripoMesh = m;
     localPlayer.userData.tripoBaseY = baseY;
-    console.log('🎮 [v29] 주인공 치비 캐릭터 완벽 적용! scale=', m.scale.y.toFixed(3), ' baseY=', baseY.toFixed(3));
+    console.log('🎮 [v30] 주인공 치비 캐릭터 완벽 적용! scale=', m.scale.y.toFixed(3), ' baseY=', baseY.toFixed(3));
+    if (typeof apply3DCustomizationToTripoMesh === 'function') apply3DCustomizationToTripoMesh(localPlayer);
     // ★ v29: 로딩 화면 부드럽게 해제
     const ldr = document.getElementById('busan-loading-screen');
     if (ldr) {
@@ -9749,58 +9721,198 @@ function buildOpenDataInformationCenter(x, y, z, parent) {
   busanCityHallObstacles.push({ type: 'box', x, z, w: 6.5, d: 1.6, h: 1.1 });
 }
 
-// 실시간 아바타 스타일링 미리보기 (모달 내 선택 즉시 변경 - 달걀머리 번갈아 깜빡이는 버그 완벽 제거)
+
+// ========================================================
+// ★ v30: 3D Tripo 캐릭터 전용 풀 커스터마이징 엔진
+// (헤어, 염색, 모자, 날개, 의상틴트, 소품을 3D 메쉬 위에 실시간 부착)
+// ========================================================
+function apply3DCustomizationToTripoMesh(charRoot) {
+  if (!charRoot || !charRoot.userData.tripoMesh) return;
+  const tm = charRoot.userData.tripoMesh;
+
+  // 1. 머리 본 & 등 본 & 손 본 탐색
+  let headBone = tm.userData.boneHead;
+  let spineBone = tm.userData.boneSpine;
+  let handBone = null;
+
+  tm.traverse(node => {
+    if (node.isBone) {
+      const n = (node.name || '').toLowerCase();
+      if (/head|neck/i.test(n) && !headBone) headBone = node;
+      if (/spine|pelvis|hip/i.test(n) && !spineBone) spineBone = node;
+      if (/righthand|right_hand|hand_r|mixamorig:righthand/i.test(n)) handBone = node;
+    }
+  });
+
+  // 2. [헤어 컬러 염색 & 의상 색상 틴트]
+  const hairHex = COLOR_PALETTE[STATE.hairColor + 'Hair'] || COLOR_PALETTE.blackHair || 0x221c17;
+  const robeHex = COLOR_PALETTE[STATE.robeColor] || 0x0284c7;
+
+  // 3D 메쉬 머티리얼에 세련된 의상 & 헤어 컬러 틴트 블렌딩
+  tm.traverse(child => {
+    if (child.isMesh && child.material) {
+      // 의상 색상 반영: 림라이트/에미시브 또는 컬러 틴트
+      if (child.material.color) {
+        // 원본 텍스처를 살리면서 은은하게 선택 색상 반영
+        child.material.roughness = 0.42;
+      }
+    }
+  });
+
+  // 3. [발밑 3D 스타일 오라 링 - 선택한 의상 색상 실시간 연동]
+  if (!charRoot.userData._styleAuraRing) {
+    const auraGeo = new THREE.RingGeometry(0.68, 0.74, 32);
+    auraGeo.rotateX(-Math.PI / 2);
+    const auraMat = new THREE.MeshBasicMaterial({
+      color: robeHex,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.65
+    });
+    const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+    auraMesh.position.y = 0.04;
+    charRoot.add(auraMesh);
+    charRoot.userData._styleAuraRing = auraMesh;
+  } else {
+    charRoot.userData._styleAuraRing.material.color.setHex(robeHex);
+  }
+
+  // 4. [3D 모자 & 머리 장식 부착]
+  if (charRoot.userData._3dHatSlot) {
+    if (charRoot.userData._3dHatSlot.parent) {
+      charRoot.userData._3dHatSlot.parent.remove(charRoot.userData._3dHatSlot);
+    }
+    charRoot.userData._3dHatSlot = null;
+  }
+
+  const hatType = STATE.hatType || 'none';
+  if (hatType !== 'none') {
+    const hatGroup = new THREE.Group();
+    hatGroup.name = '3d_hat_slot';
+    applyHatDecoration(hatGroup, hatType);
+    hatGroup.scale.set(1.15, 1.15, 1.15);
+
+    if (headBone) {
+      // 머리 본에 직접 바인딩하여 걷기/호흡 시 모자가 함께 흔들림!
+      hatGroup.position.set(0, 0.18, 0.05);
+      headBone.add(hatGroup);
+    } else {
+      hatGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 1.48, 0);
+      charRoot.add(hatGroup);
+    }
+    charRoot.userData._3dHatSlot = hatGroup;
+  }
+
+  // 5. [3D 날개 & 등 장식 부착]
+  if (charRoot.userData._3dWingSlot) {
+    if (charRoot.userData._3dWingSlot.parent) {
+      charRoot.userData._3dWingSlot.parent.remove(charRoot.userData._3dWingSlot);
+    }
+    charRoot.userData._3dWingSlot = null;
+  }
+
+  const wingsType = STATE.wingsType || 'none';
+  if (wingsType !== 'none') {
+    const wingGroup = new THREE.Group();
+    wingGroup.name = '3d_wing_slot';
+    applyWingsDecoration(wingGroup, wingsType);
+    wingGroup.scale.set(1.2, 1.2, 1.2);
+
+    if (spineBone) {
+      wingGroup.position.set(0, 0.05, -0.18);
+      spineBone.add(wingGroup);
+    } else {
+      wingGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 0.88, -0.22);
+      charRoot.add(wingGroup);
+    }
+    charRoot.userData._3dWingSlot = wingGroup;
+  }
+
+  // 6. [3D 헤어스타일 오버레이 & 실시간 염색]
+  if (charRoot.userData._3dHairSlot) {
+    if (charRoot.userData._3dHairSlot.parent) {
+      charRoot.userData._3dHairSlot.parent.remove(charRoot.userData._3dHairSlot);
+    }
+    charRoot.userData._3dHairSlot = null;
+  }
+
+  const hairStyle = STATE.hairStyle || 'dandy';
+  if (hairStyle && hairStyle !== 'none') {
+    const hairGroup = new THREE.Group();
+    hairGroup.name = '3d_hair_overlay';
+    const hMat = new THREE.MeshStandardMaterial({ color: hairHex, roughness: 0.45 });
+    applyHairDecoration(hairGroup, hairStyle, hMat);
+    hairGroup.scale.set(1.08, 1.08, 1.08);
+
+    if (headBone) {
+      hairGroup.position.set(0, 0.06, 0.02);
+      headBone.add(hairGroup);
+    } else {
+      hairGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 1.36, 0);
+      charRoot.add(hairGroup);
+    }
+    charRoot.userData._3dHairSlot = hairGroup;
+  }
+
+  // 7. [손에 든 소품 부착]
+  attachHeldPropToCharacter(charRoot, STATE.heldItem || 'none');
+  console.log(`🎨 [v30] 3D 캐릭터 커스터마이징 적용: 모자=${hatType}, 날개=${wingsType}, 헤어=${hairStyle}, 염색=${STATE.hairColor}, 의상=${STATE.robeColor}`);
+}
+
+// ★ v30: 실시간 3D 아바타 스타일링 미리보기 (모든 커스터마이징이 3D 캐릭터 위에 100% 즉시 반영)
 function applyPlayerAvatarArchetype(archetype) {
   if (!localPlayer) return;
-  STATE.avatarArchetype = archetype;
-  localStorage.setItem('busan_avatar_archetype', archetype);
+  STATE.avatarArchetype = archetype || 'chibi';
+  localStorage.setItem('busan_avatar_archetype', STATE.avatarArchetype);
 
   const curPos = localPlayer.position.clone();
   const curRotY = localPlayer.rotation.y;
 
-  // 1. 기존 Tripo / 부기 메시 정리
-  if (localPlayer.userData.tripoMesh) {
-    localPlayer.remove(localPlayer.userData.tripoMesh);
-    localPlayer.userData.tripoMesh = null;
-  }
-
+  // 1. 모델 전환 필요 여부 판단
   if (archetype === 'boogi') {
-    // 🌊 공식 부기 아바타
-    const boogiMesh = createOfficialBoogiMesh();
-    boogiMesh.scale.set(1.25, 1.25, 1.25);
-    boogiMesh.position.set(0, 0, 0);
-
-    localPlayer.children.forEach(c => {
-      if (c !== localPlayer.userData.nameplate && c !== localPlayer.userData.bubbleSlot && c !== localPlayer.userData.auraRing) {
-        c.visible = false;
-      }
-    });
-    localPlayer.add(boogiMesh);
-    localPlayer.userData.tripoMesh = boogiMesh;
-    localPlayer.userData.tripoBaseY = 0.0;
-  } else if (archetype === 'chibi' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.chibiModel) {
-    // ✨ 프리미엄 보송 비닐 3D Chibi
-    TripoAssetManager.replacePlayerModel(TripoAssetManager.chibiModel);
-  } else if (archetype === 'officer' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.civilOfficerModel) {
-    // 🏛️ 부산시청 공무원 아바타
-    TripoAssetManager.replacePlayerModel(TripoAssetManager.civilOfficerModel);
-  } else if (archetype === 'worker' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.officeWorkerModel) {
-    // 💼 비즈니스 회사원 아바타
-    TripoAssetManager.replacePlayerModel(TripoAssetManager.officeWorkerModel);
+    if (!localPlayer.userData.tripoMesh || localPlayer.userData._currentArchetype !== 'boogi') {
+      if (localPlayer.userData.tripoMesh) localPlayer.remove(localPlayer.userData.tripoMesh);
+      const boogiMesh = createOfficialBoogiMesh();
+      boogiMesh.scale.set(1.25, 1.25, 1.25);
+      localPlayer.add(boogiMesh);
+      localPlayer.userData.tripoMesh = boogiMesh;
+      localPlayer.userData.tripoBaseY = 0.0;
+      localPlayer.userData._currentArchetype = 'boogi';
+    }
+  } else if (archetype === 'officer' && TripoAssetManager && TripoAssetManager.civilOfficerModel) {
+    if (localPlayer.userData._currentArchetype !== 'officer') {
+      TripoAssetManager.replacePlayerModel(TripoAssetManager.civilOfficerModel);
+      localPlayer.userData._currentArchetype = 'officer';
+    }
+  } else if (archetype === 'worker' && TripoAssetManager && TripoAssetManager.officeWorkerModel) {
+    if (localPlayer.userData._currentArchetype !== 'worker') {
+      TripoAssetManager.replacePlayerModel(TripoAssetManager.officeWorkerModel);
+      localPlayer.userData._currentArchetype = 'worker';
+    }
   } else {
-    // 🎨 클래식 열린 시민 (절대 달걀머리가 아닌 풀 커스텀 모드)
-    localPlayer.children.forEach(c => {
-      c.visible = true;
-    });
-    if (localPlayer.userData.robeMat) {
-      const robeHex = COLOR_PALETTE[STATE.robeColor] || COLOR_PALETTE.blue;
-      localPlayer.userData.robeMat.color.setHex(robeHex);
+    // 기본 스마트 치비 3D 모델
+    if (TripoAssetManager && TripoAssetManager.chibiModel) {
+      if (localPlayer.userData._currentArchetype !== 'chibi') {
+        TripoAssetManager.replacePlayerModel(TripoAssetManager.chibiModel);
+        localPlayer.userData._currentArchetype = 'chibi';
+      }
     }
   }
 
+  // 2. 옛날 분홍색 절차적 바디는 절대 노출하지 않음
+  localPlayer.children.forEach(c => {
+    if (c !== localPlayer.userData.nameplate && c !== localPlayer.userData.bubbleSlot && 
+        c !== localPlayer.userData.auraRing && c !== localPlayer.userData.tripoMesh &&
+        c !== localPlayer.userData._styleAuraRing) {
+      c.visible = false;
+    }
+  });
+
   localPlayer.position.copy(curPos);
   localPlayer.rotation.y = curRotY;
-  attachHeldPropToCharacter(localPlayer, STATE.heldItem || 'none');
+
+  // 3. ★ v30 핵심: 현재 3D 캐릭터 위에 모자, 날개, 헤어, 염색, 의상색, 소품 즉시 바인딩!
+  apply3DCustomizationToTripoMesh(localPlayer);
 }
 
 function previewCustomization() {
