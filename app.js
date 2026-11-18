@@ -1,5 +1,137 @@
 
 // ========================================================
+// [소품 커스터마이징 엔진] 맨손(none) 기본 및 3D 손잡이 소품
+// ========================================================
+function createHeldPropMesh(propType) {
+  if (!propType || propType === 'none') return null;
+  const group = new THREE.Group();
+  group.name = 'held_prop_' + propType;
+
+  if (propType === 'coffee') {
+    // ☕ 테이크아웃 카페 텀블러
+    const cup = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.035, 0.12, 16),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.85, metalness: 0.0 })
+    );
+    const sleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.047, 0.039, 0.055, 16),
+      new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.9, metalness: 0.0 })
+    );
+    sleeve.position.y = 0.005;
+    const lid = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.048, 0.048, 0.02, 16),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7, metalness: 0.0 })
+    );
+    lid.position.y = 0.065;
+    group.add(cup, sleeve, lid);
+    group.scale.set(1.3, 1.3, 1.3);
+  } else if (propType === 'briefcase') {
+    // 💼 비즈니스 서류가방
+    const caseBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.22, 0.28),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.0 })
+    );
+    const handle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.045, 0.012, 8, 16, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4, metalness: 0.3 })
+    );
+    handle.position.y = 0.11;
+    group.add(caseBody, handle);
+    group.scale.set(1.2, 1.2, 1.2);
+  } else if (propType === 'tablet') {
+    // 📱 스마트 행정 태블릿
+    const tab = new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, 0.24, 0.18),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7, metalness: 0.0 })
+    );
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.16, 0.22),
+      new THREE.MeshBasicMaterial({ color: 0x0284c7 })
+    );
+    screen.rotation.y = -Math.PI / 2;
+    screen.position.x = -0.011;
+    group.add(tab, screen);
+    group.scale.set(1.2, 1.2, 1.2);
+  } else if (propType === 'clipboard') {
+    // 📋 민원 서식 클립보드
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, 0.25, 0.18),
+      new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85, metalness: 0.0 })
+    );
+    const paper = new THREE.Mesh(
+      new THREE.BoxGeometry(0.028, 0.21, 0.15),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    paper.position.x = -0.002;
+    const clip = new THREE.Mesh(
+      new THREE.BoxGeometry(0.032, 0.03, 0.07),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.8 })
+    );
+    clip.position.set(-0.003, 0.11, 0);
+    group.add(board, paper, clip);
+    group.scale.set(1.2, 1.2, 1.2);
+  } else if (propType === 'bouquet') {
+    // 💐 부산 시화 동백꽃 다발
+    const wrap = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.22, 12),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.9, metalness: 0.0 })
+    );
+    wrap.rotation.x = Math.PI;
+    group.add(wrap);
+    const flowers = new THREE.Group();
+    flowers.position.y = 0.11;
+    for (let i = 0; i < 5; i++) {
+      const f = new THREE.Mesh(
+        new THREE.SphereGeometry(0.035, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.85, metalness: 0.0 })
+      );
+      const ang = (i / 5) * Math.PI * 2;
+      f.position.set(Math.cos(ang) * 0.04, Math.sin(i * 1.5) * 0.02, Math.sin(ang) * 0.04);
+      flowers.add(f);
+    }
+    group.add(flowers);
+    group.scale.set(1.2, 1.2, 1.2);
+  }
+  return group;
+}
+
+function attachHeldPropToCharacter(charGroup, propType) {
+  if (!charGroup) return;
+  if (charGroup.userData.heldPropMesh) {
+    if (charGroup.userData.heldPropMesh.parent) {
+      charGroup.userData.heldPropMesh.parent.remove(charGroup.userData.heldPropMesh);
+    }
+    charGroup.userData.heldPropMesh = null;
+  }
+  if (!propType || propType === 'none') return;
+
+  const prop = createHeldPropMesh(propType);
+  if (!prop) return;
+
+  // 1. 리깅 뼈대(Mixamo RightHand) 탐색
+  let handBone = null;
+  charGroup.traverse(c => {
+    if (c.isBone && c.name && (c.name.includes('RightHand') || c.name.includes('RightForeArm'))) {
+      if (!handBone || c.name.includes('RightHand')) handBone = c;
+    }
+  });
+
+  if (handBone) {
+    prop.position.set(0, 0.05, 0.06);
+    prop.rotation.set(0, 0, 0);
+    handBone.add(prop);
+  } else if (charGroup.userData.armR) {
+    prop.position.set(0.06, -0.16, 0.10);
+    charGroup.userData.armR.add(prop);
+  } else {
+    prop.position.set(0.28, 0.72, 0.15);
+    charGroup.add(prop);
+  }
+  charGroup.userData.heldPropMesh = prop;
+}
+
+
+// ========================================================
 // ★ 부산광역시 공식 3D 소통 마스코트 부기 (Official Boogi)
 // (조롱박형 순백 체형 + 이마 위 빨간 스마트 안경 + 점눈 + 노란 부리 + 동백꽃 스니커즈)
 // ========================================================
@@ -340,7 +472,8 @@ function registerInteractionArea({ x, z, y = 0, radius = 3.5, name = '', action 
 // 1. 글로벌 상태 및 상수 정의
 // --------------------------------------------------------
 const STATE = {
-  avatarArchetype: localStorage.getItem('busan_avatar_archetype') || 'worker', // 'worker', 'officer', 'citizen', 'boogi'
+  avatarArchetype: localStorage.getItem('busan_avatar_archetype') || 'chibi',
+    heldItem: localStorage.getItem('busan_held_item') || 'none', // 'worker', 'officer', 'citizen', 'boogi'
   lastEnteredCivilRoom: null,
   playerName: "열린시민",
   playerLevel: 1,
@@ -2471,9 +2604,11 @@ const TripoAssetManager = {
             if (c.material) {
               c.material.metalness = 0.0;
               c.material.metalnessMap = null;
-              c.material.roughness = 0.35;
+              c.material.roughness = 0.85; // ★ 부드럽고 보송보송한 매트 비닐/클레이 질감
               c.material.roughnessMap = null;
-              c.material.color.setHex(0xffffff);
+              if (!c.material.map) {
+                c.material.color.setHex(0xffffff);
+              }
               c.material.needsUpdate = true;
             }
           }
@@ -2497,11 +2632,30 @@ const TripoAssetManager = {
 
   boogiModel: null,
   civilOfficerModel: null,
+  chibiModel: null,
   officeWorkerModel: null,
+  civilOfficerModel: null,
   anchorModel: null,
   cityHallModel: null,
+  sharedWalkClip: null,
 
   checkAndLoadDefaultModels() {
+    // 0. Mixamo 걷기 애니메이션 우선 로드 (모든 리깅 캐릭터 공유)
+    this.loadModel('models/civil_officer_walk.glb', (model) => {
+      const anims = this.animationsCache['models/civil_officer_walk.glb'] || [];
+      if (anims.length > 0) {
+        this.sharedWalkClip = anims[0];
+        console.log('🚶 [TripoAssetManager] 표준 Mixamo 걷기 모션이 로드되었습니다!');
+      }
+    });
+
+    // 0-1. 프리미엄 보송 비닐 3D Chibi (Tripo 3D 정품 리깅 & 맨손 소품 지원)
+    this.loadModel('models/chibi_character.glb', (model) => {
+      this.chibiModel = model;
+      if (!STATE.avatarArchetype || STATE.avatarArchetype === 'chibi') {
+        this.replacePlayerModel(model);
+      }
+    });
     // 1. 소통 캐릭터 부기 마스코트 우선 로드 (화사한 순백 몬스터블락 3D)
     this.loadModel('models/boogi.glb', (model) => {
       this.boogiModel = model;
@@ -2629,16 +2783,15 @@ const TripoAssetManager = {
     m.position.set(0, baseY, 0);
 
     // AnimationMixer 바인딩 (idle & walk)
-    const anims = tripoModel.userData.animations || [];
+    let anims = tripoModel.userData.animations || [];
+    if (anims.length === 0 && this.sharedWalkClip) {
+      anims = [this.sharedWalkClip];
+    }
     if (anims.length > 0) {
       const mixer = new THREE.AnimationMixer(m);
-      const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || anims[0];
-      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || anims[1] || anims[0];
-      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || this.sharedWalkClip || anims[0];
       const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
-      if (idleAction) idleAction.play();
       m.userData.mixer = mixer;
-      m.userData.idleAction = idleAction;
       m.userData.walkAction = walkAction;
       m.userData.currentAction = 'idle';
     }
@@ -2665,7 +2818,7 @@ const TripoAssetManager = {
         const scale = 1.65 / (size.y || 1);
         m.scale.set(scale, scale, scale);
         m.rotation.y = -Math.PI / 2; // ★ 정면(+Z) 보행 완벽 정렬 (옆으로 걷기 해결)
-        const baseY = -bbox.min.y * scale + 0.12 * scale; // ★ 보행 시 발바닥 바닥 잠김 방지
+        const baseY = -bbox.min.y * scale; // ★ 완벽한 지면 밀착 접지 (붕 뜨는 현상 박멸) // ★ 보행 시 발바닥 바닥 잠김 방지
         m.position.set(0, baseY, 0);
 
         const anims = tripoModel.userData.animations || [];
@@ -2703,7 +2856,7 @@ const TripoAssetManager = {
         const scale = 1.65 / (size.y || 1);
         m.scale.set(scale, scale, scale);
         m.rotation.y = -Math.PI / 2; // ★ 정면(+Z) 보행 완벽 정렬 (옆으로 걷기 해결)
-        const baseY = -bbox.min.y * scale + 0.12 * scale; // ★ 보행 시 발바닥 바닥 잠김 방지
+        const baseY = -bbox.min.y * scale; // ★ 완벽한 지면 밀착 접지 (붕 뜨는 현상 박멸) // ★ 보행 시 발바닥 바닥 잠김 방지
         m.position.set(0, baseY, 0);
 
         const anims = tripoModel.userData.animations || [];
@@ -2757,19 +2910,18 @@ const TripoAssetManager = {
     const scale = targetHeight / (size.y || 1);
     m.scale.set(scale, scale, scale);
     m.rotation.y = -Math.PI / 2; // ★ 정면(+Z) 보행 완벽 정렬
-    const baseY = -bbox.min.y * scale + 0.12 * scale; // ★ 발바닥 잠김 방지
+    const baseY = -bbox.min.y * scale; // ★ 완벽한 지면 밀착 접지 (붕 뜨는 현상 박멸) // ★ 발바닥 잠김 방지
     m.position.set(0, baseY, 0);
 
-    const anims = tripoModel.userData.animations || [];
+    let anims = tripoModel.userData.animations || [];
+    if (anims.length === 0 && this.sharedWalkClip) {
+      anims = [this.sharedWalkClip];
+    }
     if (anims.length > 0) {
       const mixer = new THREE.AnimationMixer(m);
-      const idleClip = anims.find(a => a.name.toLowerCase().includes('idle')) || anims[0];
-      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || anims[1] || anims[0];
-      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+      const walkClip = anims.find(a => a.name.toLowerCase().includes('walk')) || this.sharedWalkClip || anims[0];
       const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
-      if (idleAction) idleAction.play();
       m.userData.mixer = mixer;
-      m.userData.idleAction = idleAction;
       m.userData.walkAction = walkAction;
       m.userData.currentAction = 'idle';
     }
@@ -4775,8 +4927,8 @@ function buildBusanCivilServiceWorld() {
   const floorGeo = new THREE.PlaneGeometry(76, 48);
   const floorMat = new THREE.MeshStandardMaterial({
     color: 0xf8fafc,
-    roughness: 0.25,
-    metalness: 0.05
+    roughness: 0.75, // ★ 눈부신 하얀 반사광 제거 & 은은하고 차분한 대리석 질감
+    metalness: 0.0
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -6338,9 +6490,15 @@ function updatePlayerMovement(dt) {
 
   const targetFloorY = getBusanCityHallFloorY(curPos.x, curPos.z);
 
-  // ★ 시청 본관 정문 워프 감지 (야외에서 정문 안으로 진입 시 즉시 쾌적한 전용 민원실로 자동 전환)
+  // ★ 시청 본관 정문 워프 감지 (야외 -> 행복민원실 자동 입장)
   if (STATE.currentRoom === 'BUSAN-HQ' && curPos.z < -15.5 && Math.abs(curPos.x) < 8.0) {
     switchRealm('BUSAN-CIVIL');
+    return;
+  }
+
+  // ★ 행복민원실 남쪽 출구 워프 감지 (행복민원실 -> 야외 시민광장 자동 퇴장)
+  if (STATE.currentRoom === 'BUSAN-CIVIL' && curPos.z > 19.5 && Math.abs(curPos.x) < 7.0) {
+    switchRealm('BUSAN-HQ');
     return;
   }
 
@@ -6571,12 +6729,10 @@ function updateCuteCitizenAnimation(c, dt, t) {
         }
         ud.tripoMesh.userData.mixer.update(dt);
       }
-      // 발걸음 통통 바운스
-      ud.tripoMesh.position.y = (ud.tripoBaseY || 0) + Math.abs(Math.sin(t * 11)) * 0.12;
-      // 골반 / 몸체 좌우 뒤뚱뒤뚱 스윙
-      ud.tripoMesh.rotation.z = Math.sin(t * 11) * 0.09;
-      // 달리기 전방 피치 기울임
-      ud.tripoMesh.rotation.x = 0.08;
+      // ★ 리깅 캐릭터 보행 시: 뼈대 관절이 자연 보행하므로 Y축 위치는 바닥(baseY)에 완벽 고정!
+      ud.tripoMesh.position.y = ud.tripoBaseY || 0.0;
+      ud.tripoMesh.rotation.z = 0.0;
+      ud.tripoMesh.rotation.x = 0.0;
 
       if (ud.rigBones) {
         const armSwing = Math.sin(t * 11) * 0.65;
@@ -6604,9 +6760,9 @@ function updateCuteCitizenAnimation(c, dt, t) {
         }
         ud.tripoMesh.userData.mixer.update(dt);
       }
-      ud.tripoMesh.position.y = (ud.tripoBaseY || 0) + Math.sin(t * 2.5) * 0.025;
-      ud.tripoMesh.rotation.z *= 0.85;
-      ud.tripoMesh.rotation.x *= 0.85;
+      ud.tripoMesh.position.y = ud.tripoBaseY || 0.0;
+      ud.tripoMesh.rotation.z = 0.0;
+      ud.tripoMesh.rotation.x = 0.0;
 
       if (ud.rigBones) {
         if (ud.rigBones.spine) ud.rigBones.spine.rotation.x = Math.sin(t * 2.5) * 0.04;
@@ -7702,10 +7858,20 @@ function openCustomizeModal() {
       archContainer.innerHTML = `
         <label style="font-weight: bold; color: #0284c7; display: block; margin-bottom: 6px;">🎭 아바타 캐릭터 선택 (3D 모델 & 스타일):</label>
         <select id="custom-archetype" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #38bdf8; font-size: 14px; font-weight: bold;">
-          <option value="worker">💼 스마트 회사원 (Tripo 3D Chibi - 웨이브 헤어 & 수트 & 사원증 & 커피)</option>
-          <option value="officer">🏛️ 부산시청 공무원 (Tripo 3D Chibi - 단정한 정복 & 공무원증 & 태블릿)</option>
+          <option value="chibi">✨ 프리미엄 보송 비닐 3D Chibi (Tripo 3D 정품 리깅 & 맨손 소품 지원)</option>
+          <option value="officer">🏛️ 부산시청 공무원 (Tripo 3D Chibi - 단정한 정복 & 공무원증)</option>
+          <option value="worker">💼 비즈니스 회사원 (Tripo 3D Chibi - 웨이브 헤어 & 클래식 수트)</option>
           <option value="boogi">🌊 부산 공식 소통 마스코트 부기 (100% 공식 3D 모델)</option>
           <option value="citizen">🎨 클래식 열린 시민 (헤어/의상/피부 풀 커스터마이징)</option>
+        </select>
+        <label style="font-weight: bold; color: #0284c7; display: block; margin-top: 10px; margin-bottom: 6px;">🎒 손에 든 소품 선택 (기본: 맨손):</label>
+        <select id="custom-held-item" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #38bdf8; font-size: 14px; font-weight: bold;">
+          <option value="none">✋ 맨손 (기본 - 깔끔한 빈손)</option>
+          <option value="coffee">☕ 테이크아웃 카페 텀블러</option>
+          <option value="briefcase">💼 비즈니스 서류가방</option>
+          <option value="tablet">📱 스마트 행정 태블릿</option>
+          <option value="clipboard">📋 민원 안내 클립보드</option>
+          <option value="bouquet">💐 부산 시화 동백꽃 다발</option>
         </select>
       `;
       modalBody.insertBefore(archContainer, modalBody.firstChild);
@@ -7713,8 +7879,13 @@ function openCustomizeModal() {
     }
   }
   if (archSel) {
-    archSel.value = STATE.avatarArchetype || 'worker';
+    archSel.value = STATE.avatarArchetype || 'chibi';
     archSel.onchange = previewCustomization;
+  }
+  const itemSel = document.getElementById('custom-held-item');
+  if (itemSel) {
+    itemSel.value = STATE.heldItem || 'none';
+    itemSel.onchange = previewCustomization;
   }
 
   if (wingsSelect) wingsSelect.value = STATE.wingsType;
@@ -7764,6 +7935,11 @@ function saveCustomization() {
   if (archSel) {
     STATE.avatarArchetype = archSel.value;
     localStorage.setItem('busan_avatar_archetype', STATE.avatarArchetype);
+  }
+  const itemSel = document.getElementById('custom-held-item');
+  if (itemSel) {
+    STATE.heldItem = itemSel.value;
+    localStorage.setItem('busan_held_item', STATE.heldItem);
   }
 
   closeModal('modal-customize');
@@ -7817,11 +7993,12 @@ function switchRealm(realmCode) {
     if (districtWorldGroup) districtWorldGroup.visible = false;
     interactiveObjects = [...cityHallInteractablesBackup];
     if (localPlayer) {
-      localPlayer.position.set(0, 0, 10.0);
-      localPlayer.rotation.y = 0;
+      // 민원실에서 나온 경우 정문 바로 바깥(z = -12.5)에 배치하여 즉시 재입장 루프 방지
+      localPlayer.position.set(0, 0, -12.5);
+      localPlayer.rotation.y = 0; // 광장 방면 남쪽 정면 응시
       if (controls && camera) {
-        controls.target.set(0, 1.4, 10.0);
-        camera.position.set(0, 4.8, 17.0);
+        controls.target.set(0, 1.4, -12.5);
+        camera.position.set(0, 4.8, -5.0);
         controls.update();
       }
     }
@@ -9450,11 +9627,14 @@ function applyPlayerAvatarArchetype(archetype) {
     localPlayer.add(boogiMesh);
     localPlayer.userData.tripoMesh = boogiMesh;
     localPlayer.userData.tripoBaseY = 0.0;
+  } else if (archetype === 'chibi' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.chibiModel) {
+    // ✨ 프리미엄 보송 비닐 3D Chibi
+    TripoAssetManager.replacePlayerModel(TripoAssetManager.chibiModel);
   } else if (archetype === 'officer' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.civilOfficerModel) {
     // 🏛️ 부산시청 공무원 아바타
     TripoAssetManager.replacePlayerModel(TripoAssetManager.civilOfficerModel);
   } else if (archetype === 'worker' && typeof TripoAssetManager !== 'undefined' && TripoAssetManager.officeWorkerModel) {
-    // 💼 스마트 회사원 아바타
+    // 💼 비즈니스 회사원 아바타
     TripoAssetManager.replacePlayerModel(TripoAssetManager.officeWorkerModel);
   } else {
     // 🎨 클래식 열린 시민 (절대 달걀머리가 아닌 풀 커스텀 모드)
@@ -9469,6 +9649,7 @@ function applyPlayerAvatarArchetype(archetype) {
 
   localPlayer.position.copy(curPos);
   localPlayer.rotation.y = curRotY;
+  attachHeldPropToCharacter(localPlayer, STATE.heldItem || 'none');
 }
 
 function previewCustomization() {
@@ -9483,6 +9664,8 @@ function previewCustomization() {
 
   if (nameInput && nameInput.value.trim()) STATE.playerName = nameInput.value.trim();
   if (archSel) STATE.avatarArchetype = archSel.value;
+  const itemSel = document.getElementById('custom-held-item');
+  if (itemSel) STATE.heldItem = itemSel.value;
   if (hairStyleSel) STATE.hairStyle = hairStyleSel.value;
   if (hairColorSel) STATE.hairColor = hairColorSel.value;
   if (skinSel) STATE.skinTone = skinSel.value;
