@@ -13,6 +13,7 @@ a = Analysis(
         ('GLTFLoader.js', '.'),
         ('DRACOLoader.js', '.'),
         ('models', 'models'),
+        ('textures', 'textures'),
         ('OrbitControls.js', '.'),
         ('busan_data.py', '.'),
         ('district_details.json', '.'),

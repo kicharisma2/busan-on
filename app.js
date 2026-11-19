@@ -2598,20 +2598,28 @@ const TripoAssetManager = {
         console.log(`✅ [TripoAssetManager] 모델 로드 성공: ${url} (애니메이션: ${gltf.animations.length}개)`);
         
         // PBR 머티리얼 최적화: 시커먼 메탈릭 버그 100% 박멸 & 화사한 순백 클레이/비닐 토이 광택
+        const isSkyline = typeof url === 'string' && url.includes('skyline');
         gltf.scene.traverse(c => {
           if (c.isMesh) {
-            c.castShadow = true;
+            c.castShadow = !isSkyline;
             c.receiveShadow = true;
             c.frustumCulled = false;
-            if (c.material) {
-              c.material.metalness = 0.0;
-              c.material.metalnessMap = null;
-              c.material.roughness = 0.85; // ★ 부드럽고 보송보송한 매트 비닐/클레이 질감
-              c.material.roughnessMap = null;
-              if (!c.material.map) {
-                c.material.color.setHex(0xffffff);
+            if (!isSkyline) {
+              if (c.material) {
+                c.material.metalness = 0.0;
+                c.material.metalnessMap = null;
+                c.material.roughness = 0.85; // ★ 부드럽고 보송보송한 매트 비닐/클레이 질감
+                c.material.roughnessMap = null;
+                if (!c.material.map) {
+                  c.material.color.setHex(0xffffff);
+                }
+                c.material.needsUpdate = true;
               }
-              c.material.needsUpdate = true;
+            } else {
+              // ★ Blender 3D 생성 실사 빌딩/아파트 스카이라인은 자체 PBR 색상 및 유리 반사 보존
+              if (c.material) {
+                c.material.needsUpdate = true;
+              }
             }
           }
         });
@@ -2650,38 +2658,57 @@ const TripoAssetManager = {
   checkAndLoadDefaultModels() {
     this._initialModelApplied = false;
 
-    // ★ v30: [시작 속도 극대화] 플레이어 3D 치비 모델만 최우선 즉시 로드!
-    this.loadModel('models/chibi_character.glb', (model) => {
+    // ★ v36: 최적화된 3D 정품 캐릭터 모델(5.4MB) 최우선 즉각 로드!
+    this.loadModel('models/civil_officer.glb', (model) => {
+      this.civilOfficerModel = model;
       this.chibiModel = model;
       if (!this._initialModelApplied) {
         this._initialModelApplied = true;
         this.replacePlayerModel(model);
-        console.log('✨ [v30] 플레이어 3D 치비 캐릭터 즉시 적용 완료!');
+        console.log('✨ [v36] 플레이어 3D 시정 공무원 캐릭터 즉각 적용 완료!');
       }
     });
 
-    // 로딩 스크린은 0.5초 이내에 무조건 해제하여 즉각 플레이 가능
-    setTimeout(() => {
-      const ldr = document.getElementById('busan-loading-screen');
-      if (ldr) {
-        ldr.style.opacity = '0';
-        setTimeout(() => { ldr.style.display = 'none'; }, 400);
-      }
-    }, 500);
+    // 3D 시청사 및 스카이라인 병렬 로드
+    this.loadModel('models/city_hall.glb', (m) => {
+      this.cityHallModel = m;
+      this.replaceCityHallFacade(m);
+    });
 
-    // ★ v30: 나머지 무거운 NPC와 건물 모델은 프레임 드랍 방지를 위해 1.2초 후 순차 백그라운드 로드
-    setTimeout(() => {
-      this.loadModel('models/boogi.glb', (m) => { this.boogiModel = m; this.replaceBoogiMascot(m); });
-    }, 1200);
+    this.loadModel('models/city_hall_skyline.glb', (m) => {
+      this.cityHallSkylineModel = m;
+      this.addCityHallSkyline(m);
+    });
 
+    // 백그라운드에서 부기 및 구군 스카이라인 로드
     setTimeout(() => {
-      this.loadModel('models/civil_officer.glb', (m) => { this.civilOfficerModel = m; this.replaceCivilOfficerModel(m); });
-    }, 2200);
+      this.loadModel('models/boogi.glb', (m) => {
+        this.boogiModel = m;
+        this.replaceBoogiMascot(m);
+      });
+      this.loadModel('models/anchor_statue.glb', (m) => {
+        this.anchorModel = m;
+        this.replaceAnchorStatue(m);
+      });
+      this.loadModel('models/district_skyline_coastal.glb', (m) => {
+        this.districtCoastalModel = m;
+      });
+      this.loadModel('models/district_skyline_urban.glb', (m) => {
+        this.districtUrbanModel = m;
+      });
+    }, 800);
+  },
 
-    setTimeout(() => {
-      this.loadModel('models/anchor_statue.glb', (m) => { this.anchorModel = m; this.replaceAnchorStatue(m); });
-      this.loadModel('models/city_hall.glb', (m) => { this.cityHallModel = m; this.replaceCityHallFacade(m); });
-    }, 3200);
+  // 1-B. 블렌더 5.3 생성 부산시청 광장 주변 실사 고층 아파트 & 오피스 빌딩 스카이라인 안착
+  addCityHallSkyline(model) {
+    if (!cityHallWorldGroup || !model) return;
+    const prev = cityHallWorldGroup.getObjectByName('city_hall_surrounding_skyline');
+    if (prev) cityHallWorldGroup.remove(prev);
+    const clone = model.clone(true);
+    clone.name = 'city_hall_surrounding_skyline';
+    clone.position.set(0, 0, 0);
+    cityHallWorldGroup.add(clone);
+    console.log('🏙️ [Blender 5.3] 부산시청 야외 시민광장 주변 실사 고층 아파트 & 오피스 빌딩 스카이라인 안착 완료!');
   },
 
   // 1. 부산시청 3D 외관 본관 교체 (야외 광장 배경으로 당당히 배치)
@@ -3075,20 +3102,21 @@ const TripoAssetManager = {
 // ========================================================
 function createDistantBusanSkylinePanorama() {
   const panoGroup = new THREE.Group();
+  panoGroup.name = "city_hall_distant_mountains";
 
-  // ★ 부산의 명산(황령산·금정산·배산) 실사풍 유려한 중첩 능선 파노라마
+  // ★ 부산의 명산(황령산·금정산·배산) 실사풍 유려한 원경 지평선 파노라마 (반경 350m 이상의 아늑한 원경)
   const mountainSegments = 36;
   const ridgeColors = [0x1e3a2b, 0x2d4f3b, 0x3d644d, 0x517962]; // 심산유곡 그라데이션
 
   for (let layer = 0; layer < 3; layer++) {
-    const radius = 180 + layer * 40;
+    const radius = 350 + layer * 50;
     const curvePoints = [];
     for (let s = 0; s <= mountainSegments; s++) {
       const theta = (s / mountainSegments) * Math.PI * 2;
-      // 황령산(북동), 금정산(북서), 배산(동남)의 실제 고도 실루엣
-      const bump1 = Math.sin(theta * 3.0 + layer) * 18.0;
-      const bump2 = Math.cos(theta * 5.0) * 12.0;
-      const h = 42.0 + (3 - layer) * 14.0 + bump1 + bump2;
+      // 황령산(북동), 금정산(북서), 배산(동남)의 실제 원경 실루엣
+      const bump1 = Math.sin(theta * 3.0 + layer) * 14.0;
+      const bump2 = Math.cos(theta * 5.0) * 8.0;
+      const h = 32.0 + (3 - layer) * 10.0 + bump1 + bump2;
       const r = radius + Math.sin(theta * 4.0) * 12.0;
       curvePoints.push(new THREE.Vector3(Math.cos(theta) * r, h, Math.sin(theta) * r));
     }
@@ -3101,15 +3129,17 @@ function createDistantBusanSkylinePanorama() {
       const midZ = (p1.z + p2.z) / 2;
       const avgH = (p1.y + p2.y) / 2;
 
-      const hillGeo = new THREE.SphereGeometry(avgH * 0.72, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+      const hillGeo = new THREE.SphereGeometry(avgH * 0.45, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
       const hillMat = new THREE.MeshStandardMaterial({
         color: ridgeColors[layer % ridgeColors.length],
-        roughness: 0.88,
+        roughness: 0.95,
+        transparent: true,
+        opacity: 0.65,
         flatShading: false
       });
       const hill = new THREE.Mesh(hillGeo, hillMat);
       hill.position.set(midX, 0, midZ);
-      hill.scale.set(1.4, 1.0, 1.4);
+      hill.scale.set(1.4, 0.75, 1.4);
       panoGroup.add(hill);
     }
   }
@@ -3157,7 +3187,11 @@ function createDistantBusanSkylinePanorama() {
   bridgeGroup.add(cable2);
 
   panoGroup.add(bridgeGroup);
-  scene.add(panoGroup);
+  if (cityHallWorldGroup) {
+    cityHallWorldGroup.add(panoGroup);
+  } else {
+    scene.add(panoGroup);
+  }
 }
 
 // ========================================================
@@ -5047,7 +5081,7 @@ function buildBusanCivilServiceWorld() {
   floor.receiveShadow = true;
   civilHallWorldGroup.add(floor);
 
-  // 민원 대기선 (노란색/하늘색 대기 안전선)
+  // 민원 대기선 (안내 안전선)
   const lineGeo = new THREE.PlaneGeometry(54, 0.2);
   const lineMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
   const waitLine = new THREE.Mesh(lineGeo, lineMat);
@@ -5068,7 +5102,7 @@ function buildBusanCivilServiceWorld() {
   createSignBoard(0, 6.0, -23.0, "Busan is Good! 🏛️ 부산광역시청 2층 열린 행복민원실", 0x0284c7, civilHallWorldGroup);
   createSignBoard(0, 5.1, -23.0, "시민과 함께하는 따뜻하고 신속한 행정 서비스 · 120 바로콜", 0x1e293b, civilHallWorldGroup);
 
-  // 앞벽 (출구 게이트 방면)
+  // 앞벽 / 좌측벽 / 우측벽
   const frontWallL = new THREE.Mesh(new THREE.BoxGeometry(32, 7.5, 0.8), creamWallMat);
   frontWallL.position.set(-22, 3.75, 23.5);
   civilHallWorldGroup.add(frontWallL);
@@ -5076,7 +5110,6 @@ function buildBusanCivilServiceWorld() {
   frontWallR.position.set(22, 3.75, 23.5);
   civilHallWorldGroup.add(frontWallR);
 
-  // 좌측벽 / 우측벽
   const sideWallL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7.5, 48), creamWallMat);
   sideWallL.position.set(-38, 3.75, 0);
   civilHallWorldGroup.add(sideWallL);
@@ -5084,102 +5117,114 @@ function buildBusanCivilServiceWorld() {
   sideWallR.position.set(38, 3.75, 0);
   civilHallWorldGroup.add(sideWallR);
 
-  // 천장 (은은한 LED 조명 그리드)
+  // 천장 (은은한 LED 조명)
   const ceilMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
   const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(76, 48), ceilMat);
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.set(0, 7.5, 0);
   civilHallWorldGroup.add(ceiling);
 
-  // 실내 쾌적 조명
   const civilAmbient = new THREE.HemisphereLight(0xfffaed, 0xcfd8dc, 1.4);
   civilHallWorldGroup.add(civilAmbient);
 
-  // (3) ★ 8개 전문 민원 창구 - 현실적인 카운터 높이(0.85m) & 공무원 얼굴/상반신 100% 노출!
+  // (3) ★ 8개 전문 민원 창구: 인체공학 카운터(높이 0.76m) & 공무원 눈높이 완벽 일치(얼굴 100% 노출)
   const cGroup = new THREE.Group();
   cGroup.position.set(0, 0, -14);
 
-  // 카운터 데스크 (높이 0.85m로 현실화!)
+  // 세련된 투톤 행정 카운터 데스크
   const counterMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.35 });
   const counterTopMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
 
-  const deskBase = new THREE.Mesh(new THREE.BoxGeometry(54, 0.80, 1.8), counterMat);
-  deskBase.position.y = 0.40;
+  const deskBase = new THREE.Mesh(new THREE.BoxGeometry(54, 0.72, 1.6), counterMat);
+  deskBase.position.y = 0.36;
   deskBase.castShadow = true;
   cGroup.add(deskBase);
 
-  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(54.4, 0.08, 2.2), counterTopMat);
-  deskTop.position.y = 0.84;
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(54.4, 0.05, 2.0), counterTopMat);
+  deskTop.position.y = 0.745;
   deskTop.receiveShadow = true;
   cGroup.add(deskTop);
 
   const services = [
-    { num: 1, name: "여권발급·신청", color: 0x0284c7, officer: "박소연 주무관" },
-    { num: 2, name: "여권교부·서명", color: 0x0284c7, officer: "이지은 주무관" },
-    { num: 3, name: "주민·가족관계", color: 0x0284c7, officer: "최현우 주무관" },
-    { num: 4, name: "지적·부동산토지", color: 0x0284c7, officer: "정다솜 주무관" },
-    { num: 5, name: "지방세·취득세", color: 0x0284c7, officer: "강민석 주무관" },
-    { num: 6, name: "차량등록·번호판", color: 0x0284c7, officer: "윤서연 주무관" },
-    { num: 7, name: "어르신·장애인복지", color: 0x059669, officer: "송태양 주무관" },
-    { num: 8, name: "120 시민통합상담", color: 0xd97706, officer: "김다온 총괄관" }
+    { num: 1, name: "여권발급·접수", color: 0x0284c7, officer: "박소연 주무관", dept: "행복민원과 여권팀" },
+    { num: 2, name: "여권교부·서명", color: 0x0284c7, officer: "이지은 주무관", dept: "행복민원과 여권교부팀" },
+    { num: 3, name: "주민·가족관계", color: 0x0284c7, officer: "최현우 주무관", dept: "자치행정과 가족관계등록" },
+    { num: 4, name: "지적·부동산토지", color: 0x0284c7, officer: "정다솜 주무관", dept: "토지정보과 지적측량" },
+    { num: 5, name: "지방세·취득세", color: 0x0284c7, officer: "강민석 주무관", dept: "세정담당관 세무민원" },
+    { num: 6, name: "차량등록·번호판", color: 0x0284c7, officer: "윤서연 주무관", dept: "교통정책과 차량등록사업소" },
+    { num: 7, name: "어르신·장애인복지", color: 0x059669, officer: "송태양 주무관", dept: "복지정책과 장애인복지팀" },
+    { num: 8, name: "120 시민통합상담", color: 0xd97706, officer: "김다온 총괄관", dept: "시민소통기획관 120바로콜" }
   ];
 
   services.forEach((s, idx) => {
     const cx = -23.5 + idx * 6.7;
 
-    // 상단 세련된 창구 번호판
-    createSignBoard(cx, 2.2, 0.2, `[${s.num}번] ${s.name}`, s.color, cGroup);
+    // 상단 아크릴 LED 창구 번호판 (선명한 블루 폰트)
+    createSignBoard(cx, 2.3, 0.2, `[${s.num}번] ${s.name}`, s.color, cGroup);
 
-    // 데스크 위 듀얼 모니터 & 키보드 소품
+    // 모니터를 좌측으로 치워 시민과의 시야 확보 (가림 현상 완전 해결!)
     const monitorMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
     const screenMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
-    const monBody = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.5, 0.06), monitorMat);
-    monBody.position.set(cx - 0.4, 1.15, 0.2);
-    const monScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.80, 0.45), screenMat);
-    monScreen.position.set(cx - 0.4, 1.15, 0.24);
+    const monBody = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.42, 0.05), monitorMat);
+    monBody.position.set(cx - 0.95, 1.02, 0.1);
+    monBody.rotation.y = 0.25;
+    const monScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.38), screenMat);
+    monScreen.position.set(cx - 0.94, 1.02, 0.13);
+    monScreen.rotation.y = 0.25;
     cGroup.add(monBody, monScreen);
 
-    // 명패 소품 (황동/원목 아크릴)
+    // 공무원 공식 명패 (우측 배치)
     const namePlate = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.12, 0.15),
+      new THREE.BoxGeometry(0.48, 0.10, 0.14),
       new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.5 })
     );
-    namePlate.position.set(cx + 0.6, 0.92, 0.4);
+    namePlate.position.set(cx + 0.90, 0.81, 0.45);
     cGroup.add(namePlate);
 
-    // 사무용 회전의자 (블랙 가죽)
+    // 인체공학 사무용 회전의자 (블랙 가죽 + 크롬 휠)
     const chairBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.3, 0.3, 0.4, 12),
-      new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })
+      new THREE.CylinderGeometry(0.32, 0.32, 0.48, 16),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.6 })
     );
-    chairBase.position.set(cx, 0.2, -0.9);
+    chairBase.position.set(cx, 0.24, -0.85);
+
     const chairBack = new THREE.Mesh(
-      new THREE.BoxGeometry(0.65, 0.75, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 })
+      new THREE.BoxGeometry(0.60, 0.70, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 })
     );
-    chairBack.position.set(cx, 0.75, -1.2);
+    chairBack.position.set(cx, 0.82, -1.15);
     cGroup.add(chairBase, chairBack);
 
-    // ★ 공무원 NPC: 얼굴과 상반신, 신분증이 훤히 보이도록 Y좌표 상향(0.52m) 및 정면 응대 배치!
+    // ★ 공무원 NPC 배치: Y좌표를 0.78m로 상향하여 상반신, 수트, 신분증, 얼굴이 데스크 위로 100% 훤히 보임!
     let officerMesh;
-    if (TripoAssetManager && TripoAssetManager.civilOfficerModel) {
-      officerMesh = cloneWithBones(TripoAssetManager.civilOfficerModel);
-      officerMesh.scale.set(1.05, 1.05, 1.05);
-      officerMesh.position.set(cx, 0.48, -0.9);
-      officerMesh.rotation.y = 0; // 시민을 향해 정면 응대!
+    const baseModel = (TripoAssetManager && (TripoAssetManager.civilOfficerModel || TripoAssetManager.chibiModel));
+    if (baseModel) {
+      officerMesh = cloneWithBones(baseModel);
+      officerMesh.scale.set(1.18, 1.18, 1.18);
+      officerMesh.rotation.y = -Math.PI / 2; // 시민을 향해 정면 마주봄!
+      officerMesh.position.set(cx, 0.78, -0.85);
     } else {
       officerMesh = createCuteCitizenMesh({
         name: s.officer,
         title: s.name,
         level: 15,
         robeColor: 'civil_suit',
-        hairStyle: 'dandy',
-        hairColor: 'dark_brown',
         isNpc: true
       });
-      officerMesh.position.set(cx, 0.48, -0.9);
+      officerMesh.position.set(cx, 0.78, -0.85);
     }
     cGroup.add(officerMesh);
+
+    // 인터랙션 등록 (E키 또는 클릭 시 해당 창구 주무관 응대)
+    civilHallInteractables.push({
+      pos: { x: cx, y: 1.0, z: -13.0 },
+      radius: 2.8,
+      prompt: `[E키] ${s.num}번 창구 (${s.name}) 안내 및 상담`,
+      action: () => {
+        showSpeechBubble(officerMesh, `안녕하세요! ${s.name} 업무를 도와드리는 ${s.officer}입니다. 무엇을 도와드릴까요?`);
+        if (window.busanAudio) window.busanAudio.playChime();
+      }
+    });
   });
 
   civilHallWorldGroup.add(cGroup);
@@ -6029,34 +6074,50 @@ function createNameTagSprite(name, title, level, isMe = false, isNpc = false) {
 }
 
 function createLocalPlayer() {
-  localPlayer = createCuteCitizenMesh({
-    name: STATE.playerName,
-    title: STATE.playerTitle,
-    level: STATE.playerLevel,
-    robeColor: STATE.robeColor,
-    hatType: STATE.hatType,
-    wingsType: STATE.wingsType,
-    hairStyle: STATE.hairStyle,
-    hairColor: STATE.hairColor,
-    skinTone: STATE.skinTone,
-    isPlayer: true
-  });
+  localPlayer = new THREE.Group();
   localPlayer.position.set(0, 0, 10.0);
-  // ★ v29: Tripo 3D 치비 모델 로딩 전 옛날 분홍색 절차적 캐릭터 노출 방지
-  // 3D 치비 캐릭터가 적용될 때까지 이름표와 아우라만 유지하고 몸통 메시는 숨김
-  localPlayer.children.forEach(c => {
-    if (c !== localPlayer.userData.nameplate && c !== localPlayer.userData.bubbleSlot && c !== localPlayer.userData.auraRing) {
-      c.visible = false;
-    }
+  localPlayer.userData = {
+    isPlayer: true,
+    isWalking: false,
+    isJumping: false,
+    jumpVelocity: 0,
+    currentGesture: 'idle',
+    gestureTimer: 0
+  };
+
+  // 1. 세련된 네임플레이트 & 칭호 뱃지
+  const nameplate = createCivicNameplate(STATE.playerName, STATE.playerTitle, STATE.playerLevel, false);
+  nameplate.position.set(0, 2.35, 0);
+  localPlayer.add(nameplate);
+  localPlayer.userData.nameplate = nameplate;
+
+  // 2. 말풍선 슬롯
+  const bubbleSlot = new THREE.Group();
+  bubbleSlot.position.set(0, 2.9, 0);
+  localPlayer.add(bubbleSlot);
+  localPlayer.userData.bubbleSlot = bubbleSlot;
+
+  // 3. 발밑 은은한 아우라 링
+  const auraGeo = new THREE.RingGeometry(0.68, 0.74, 32);
+  auraGeo.rotateX(-Math.PI / 2);
+  const auraMat = new THREE.MeshBasicMaterial({
+    color: COLOR_PALETTE[STATE.robeColor] || 0x0284c7,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.65
   });
+  const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+  auraMesh.position.y = 0.04;
+  localPlayer.add(auraMesh);
+  localPlayer.userData.auraRing = auraMesh;
+
   scene.add(localPlayer);
 
-  // ★ Tripo 3D 치비 캐시가 준비되어 있으면 플레이어 캐릭터에 즉시 3D 리깅 모델 적용!
+  // 캐시된 3D 모델이 있으면 즉각 적용
   if (typeof TripoAssetManager !== 'undefined') {
-    if (TripoAssetManager.chibiModel) {
-      TripoAssetManager.replacePlayerModel(TripoAssetManager.chibiModel);
-    } else if (TripoAssetManager.cache['models/chibi_character.glb']) {
-      TripoAssetManager.replacePlayerModel(TripoAssetManager.cache['models/chibi_character.glb']);
+    const cached = TripoAssetManager.civilOfficerModel || TripoAssetManager.chibiModel;
+    if (cached) {
+      TripoAssetManager.replacePlayerModel(cached);
     }
   }
 }
@@ -7095,10 +7156,13 @@ function showSpeechBubble(characterMesh, text) {
 // 11. WebSocket 실시간 멀티플레이 연동 (상호 완벽 동기화 보장)
 // ========================================================
 // ★ v27: 재연결 무한 루프 방지 카운터
+// ========================================================
+// 11. WebSocket 실시간 멀티플레이 연동 (연결 루프 방지 및 완벽 동기화)
+// ========================================================
 let _wsReconnectCount = 0;
-const _WS_MAX_RECONNECT = 12;
+const _WS_MAX_RECONNECT = 10;
 let _wsReconnectTimer = null;
-let _wsSessionId = null; // ★ 세션 ID 고정 (입퇴장 중복 방지)
+let _activeWs = null;
 
 function _scheduleReconnect() {
   if (_wsReconnectCount >= _WS_MAX_RECONNECT) {
@@ -7107,14 +7171,32 @@ function _scheduleReconnect() {
     return;
   }
   _wsReconnectCount++;
-  const delay = Math.min(2000 * _wsReconnectCount, 30000);
+  const delay = Math.min(2500 * _wsReconnectCount, 30000);
   console.log(`[부산ON] ${delay/1000}초 후 재연결 (${_wsReconnectCount}/${_WS_MAX_RECONNECT})`);
-  updateServerStatusUI(false, `재연결 중... (${_wsReconnectCount}회)`);
+  updateServerStatusUI(false, `재연결 대기 중... (${_wsReconnectCount}회)`);
   if (_wsReconnectTimer) clearTimeout(_wsReconnectTimer);
   _wsReconnectTimer = setTimeout(connectMultiplayerWebSocket, delay);
 }
 
 async function connectMultiplayerWebSocket() {
+  // 이미 연결되어 있거나 연결 시도 중이면 중복 연결 방지
+  if (_activeWs && (_activeWs.readyState === WebSocket.OPEN || _activeWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  // 기존 소켓 이벤트 완전 분리 후 안전 종료 (이벤트 폭풍 방지)
+  if (_activeWs) {
+    try {
+      _activeWs.onopen = null;
+      _activeWs.onmessage = null;
+      _activeWs.onerror = null;
+      _activeWs.onclose = null;
+      _activeWs.close();
+    } catch {}
+    _activeWs = null;
+  }
+  STATE.ws = null;
+
   const hostUrl = await autoDiscoverHostServer();
   const isSecure = window.location.protocol === 'https:' || hostUrl.includes('trycloudflare.com') || hostUrl.startsWith('https:');
   const cleanHost = hostUrl.replace(/^https?:\/\//i, '').replace(/^wss?:\/\//i, '').replace(/\/+$/, '');
@@ -7122,15 +7204,14 @@ async function connectMultiplayerWebSocket() {
 
   console.log(`[부산ON] WebSocket 연결 시도: ${wsUrl}`);
   try {
-    if (STATE.ws) {
-      try { STATE.ws.close(); } catch {}
-    }
+    const ws = new WebSocket(wsUrl);
+    _activeWs = ws;
+    STATE.ws = ws;
 
-    STATE.ws = new WebSocket(wsUrl);
-
-    STATE.ws.onopen = () => {
+    ws.onopen = () => {
+      if (_activeWs !== ws) return;
       console.log("[부산ON] WebSocket 서버 연결 성공!");
-      _wsReconnectCount = 0; // ★ 성공 시 카운터 리셋
+      _wsReconnectCount = 0;
       if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
       updateServerStatusUI(true, "글로벌 인터넷 연결됨 (부산ON)");
 
@@ -7139,22 +7220,19 @@ async function connectMultiplayerWebSocket() {
       const pz = (localPlayer && localPlayer.position && typeof localPlayer.position.z === 'number') ? localPlayer.position.z : 10.0;
       const pry = (localPlayer && localPlayer.rotation && typeof localPlayer.rotation.y === 'number') ? localPlayer.rotation.y : 0.0;
 
-      // 룸 참가 패킷 즉각 전송 (모든 꾸미기 및 정밀 위치 완벽 전송)
-      STATE.ws.send(JSON.stringify({
+      // 룸 참가 패킷 즉각 전송
+      ws.send(JSON.stringify({
         type: 'join',
         room: STATE.currentRoom,
         name: STATE.playerName,
         title: STATE.playerTitle,
         level: STATE.playerLevel,
-        robe: STATE.robeColor,
-        robeColor: STATE.robeColor,
-        hat: STATE.hatType,
-        hatType: STATE.hatType,
-        wings: STATE.wingsType,
-        wingsType: STATE.wingsType,
-        hairStyle: STATE.hairStyle,
-        hairColor: STATE.hairColor,
-        skinTone: STATE.skinTone,
+        archetype: STATE.avatarArchetype || 'officer',
+        robeColor: STATE.robeColor || 'blue',
+        hatType: STATE.hatType || 'none',
+        wingsType: STATE.wingsType || 'none',
+        hairColor: STATE.hairColor || 'black',
+        heldItem: STATE.heldItem || 'none',
         x: px,
         y: py,
         z: pz,
@@ -7162,7 +7240,8 @@ async function connectMultiplayerWebSocket() {
       }));
     };
 
-    STATE.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (_activeWs !== ws) return;
       try {
         const msg = JSON.parse(event.data);
         handleServerMessage(msg);
@@ -7171,12 +7250,16 @@ async function connectMultiplayerWebSocket() {
       }
     };
 
-    STATE.ws.onclose = () => {
+    ws.onclose = () => {
+      if (_activeWs !== ws) return;
       console.log("[부산ON] 서버 연결 종료.");
+      _activeWs = null;
+      STATE.ws = null;
       _scheduleReconnect();
     };
 
-    STATE.ws.onerror = (e) => {
+    ws.onerror = (e) => {
+      if (_activeWs !== ws) return;
       console.warn("[부산ON] WebSocket 에러:", e);
     };
   } catch (err) {
@@ -7246,28 +7329,64 @@ function handleServerMessage(msg) {
 function addRemotePeer(id, info) {
   if (STATE.peers[id]) return;
 
-  const mesh = createCuteCitizenMesh({
-    name: info.name || "시민",
-    title: info.title || "열린시민",
-    level: info.level || 1,
-    robeColor: info.robeColor || info.robe || "blue",
-    hatType: info.hatType || info.hat || "camellia",
-    wingsType: info.wingsType || info.wings || "none",
-    hairStyle: info.hairStyle || "short",
-    hairColor: info.hairColor || "black",
-    skinTone: info.skinTone || "warm"
-  });
-  mesh.position.set(info.x || 0, info.y || 0, info.z || 30);
-  mesh.rotation.y = info.ry || 0;
-  scene.add(mesh);
-
-  STATE.peers[id] = {
-    mesh,
-    info,
-    targetPos: mesh.position.clone(),
-    targetRotY: mesh.rotation.y
+  const peerRoot = new THREE.Group();
+  peerRoot.position.set(info.x || 0, info.y || 0, info.z || 30);
+  peerRoot.rotation.y = info.ry || 0;
+  peerRoot.userData = {
+    isPlayer: false,
+    isWalking: false,
+    isJumping: false,
+    jumpVelocity: 0
   };
-  console.log(`[부산ON] 원격 동료 시민 스폰 완료: ${info.name} (${id})`);
+
+  const nameplate = createCivicNameplate(info.name || "시민", info.title || "열린시민", info.level || 1, false);
+  nameplate.position.set(0, 2.35, 0);
+  peerRoot.add(nameplate);
+  peerRoot.userData.nameplate = nameplate;
+
+  const bubbleSlot = new THREE.Group();
+  bubbleSlot.position.set(0, 2.9, 0);
+  peerRoot.add(bubbleSlot);
+  peerRoot.userData.bubbleSlot = bubbleSlot;
+
+  // 100% 3D 리깅 캐릭터 인스턴싱
+  const baseModel = (info.archetype === 'boogi' && TripoAssetManager && TripoAssetManager.boogiModel)
+    ? TripoAssetManager.boogiModel
+    : (TripoAssetManager && (TripoAssetManager.civilOfficerModel || TripoAssetManager.chibiModel));
+
+  if (baseModel) {
+    const cloned = cloneWithBones(baseModel);
+    cloned.scale.set(1.15, 1.15, 1.15);
+    cloned.rotation.y = -Math.PI / 2;
+    peerRoot.add(cloned);
+    peerRoot.userData.tripoMesh = cloned;
+
+    if (cloned.userData.animations && cloned.userData.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(cloned);
+      peerRoot.userData.mixer = mixer;
+      const walkClip = cloned.userData.animations.find(a => a.name.toLowerCase().includes('walk')) || cloned.userData.animations[0];
+      if (walkClip) {
+        const action = mixer.clipAction(walkClip);
+        action.play();
+      }
+    }
+    apply3DCustomizationToTripoMesh(peerRoot, {
+      hatType: info.hatType || info.hat,
+      wingsType: info.wingsType || info.wings,
+      hairColor: info.hairColor,
+      robeColor: info.robeColor || info.robe,
+      heldItem: info.heldItem
+    });
+  }
+
+  scene.add(peerRoot);
+  STATE.peers[id] = {
+    mesh: peerRoot,
+    info,
+    targetPos: peerRoot.position.clone(),
+    targetRotY: peerRoot.rotation.y
+  };
+  console.log(`[부산ON] 원격 동료 3D 시민 스폰 완료: ${info.name || '시민'} (${id})`);
 }
 
 function removeRemotePeer(id) {
@@ -8449,6 +8568,24 @@ function buildDistrictOfficeWorld(realmCode) {
 
   // (6-B) 구정 공식 홍보관 & 비전 대형 전광판
   buildDistrictPrMediaWall(realmCode, dist, districtWorldGroup);
+
+  // (6-C) ★ Blender 5.3 3D 생성 실사 고층 빌딩/스카이라인 배경 배치
+  const isCoastal = ['DIST-HAEUNDAE', 'DIST-SUYEONG', 'DIST-GIJANG', 'DIST-YEONGDO', 'DIST-NAM'].includes(realmCode);
+  const skylineModel = isCoastal ? TripoAssetManager.districtCoastalModel : TripoAssetManager.districtUrbanModel;
+  if (skylineModel) {
+    const sClone = skylineModel.clone(true);
+    sClone.name = 'district_surrounding_skyline';
+    sClone.position.set(0, 0, 0);
+    sClone.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = false;
+        c.receiveShadow = true;
+        c.frustumCulled = false;
+      }
+    });
+    districtWorldGroup.add(sClone);
+    console.log(`🏙️ [Blender 5.3] ${distName} 실사 3D 스카이라인(${isCoastal ? '해안가/마린시티' : '도심 고층빌딩'}) 배치 완료!`);
+  }
 
   // (7) 부산시청 본관 복귀 텔레포트 게이트
 
