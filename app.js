@@ -7980,61 +7980,26 @@ function loadStoryActs() {
 
 function openCustomizeModal() {
   const nameInput = document.getElementById('custom-name');
-  const hairStyleSel = document.getElementById('custom-hair-style');
   const hairColorSel = document.getElementById('custom-hair-color');
-  const skinSel = document.getElementById('custom-skin');
   const robeSelect = document.getElementById('custom-robe');
   const hatSelect = document.getElementById('custom-hat');
   const wingsSelect = document.getElementById('custom-wings');
+  const archSel = document.getElementById('custom-archetype');
+  const itemSel = document.getElementById('custom-held-item');
 
   if (nameInput) nameInput.value = STATE.playerName;
-  if (hairStyleSel) hairStyleSel.value = STATE.hairStyle;
-  if (hairColorSel) hairColorSel.value = STATE.hairColor;
-  if (skinSel) skinSel.value = STATE.skinTone;
-  if (robeSelect) robeSelect.value = STATE.robeColor;
-  if (hatSelect) hatSelect.value = STATE.hatType;
-  let archSel = document.getElementById('custom-archetype');
-  if (!archSel) {
-    // Add archetype selector UI dynamically if not present
-    const modalBody = document.querySelector('#modal-customize .modal-body') || document.querySelector('#modal-customize');
-    if (modalBody) {
-      const archContainer = document.createElement('div');
-      archContainer.className = 'custom-row';
-      archContainer.style.marginBottom = '14px';
-      archContainer.innerHTML = `
-        <label style="font-weight: bold; color: #0284c7; display: block; margin-bottom: 6px;">🎭 아바타 캐릭터 선택 (3D 모델 & 스타일):</label>
-        <select id="custom-archetype" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #38bdf8; font-size: 14px; font-weight: bold;">
-          <option value="chibi">✨ 프리미엄 보송 비닐 3D Chibi (Tripo 3D 정품 리깅 & 맨손 소품 지원)</option>
-          <option value="officer">🏛️ 부산시청 공무원 (Tripo 3D Chibi - 단정한 정복 & 공무원증)</option>
-          <option value="worker">💼 비즈니스 회사원 (Tripo 3D Chibi - 웨이브 헤어 & 클래식 수트)</option>
-          <option value="boogi">🌊 부산 공식 소통 마스코트 부기 (100% 공식 3D 모델)</option>
-          <option value="citizen">🎨 클래식 열린 시민 (헤어/의상/피부 풀 커스터마이징)</option>
-        </select>
-        <label style="font-weight: bold; color: #0284c7; display: block; margin-top: 10px; margin-bottom: 6px;">🎒 손에 든 소품 선택 (기본: 맨손):</label>
-        <select id="custom-held-item" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #38bdf8; font-size: 14px; font-weight: bold;">
-          <option value="none">✋ 맨손 (기본 - 깔끔한 빈손)</option>
-          <option value="coffee">☕ 테이크아웃 카페 텀블러</option>
-          <option value="briefcase">💼 비즈니스 서류가방</option>
-          <option value="tablet">📱 스마트 행정 태블릿</option>
-          <option value="clipboard">📋 민원 안내 클립보드</option>
-          <option value="bouquet">💐 부산 시화 동백꽃 다발</option>
-        </select>
-      `;
-      modalBody.insertBefore(archContainer, modalBody.firstChild);
-      archSel = document.getElementById('custom-archetype');
-    }
-  }
+  if (hairColorSel) hairColorSel.value = STATE.hairColor || 'black';
+  if (robeSelect) robeSelect.value = STATE.robeColor || 'blue';
+  if (hatSelect) hatSelect.value = STATE.hatType || 'none';
+  if (wingsSelect) wingsSelect.value = STATE.wingsType || 'none';
   if (archSel) {
     archSel.value = STATE.avatarArchetype || 'chibi';
     archSel.onchange = previewCustomization;
   }
-  const itemSel = document.getElementById('custom-held-item');
   if (itemSel) {
     itemSel.value = STATE.heldItem || 'none';
     itemSel.onchange = previewCustomization;
   }
-
-  if (wingsSelect) wingsSelect.value = STATE.wingsType;
 
   openModal('modal-customize');
 }
@@ -9726,20 +9691,21 @@ function buildOpenDataInformationCenter(x, y, z, parent) {
 // ★ v30: 3D Tripo 캐릭터 전용 풀 커스터마이징 엔진
 // (헤어, 염색, 모자, 날개, 의상틴트, 소품을 3D 메쉬 위에 실시간 부착)
 // ========================================================
+// ========================================================
+// ★ v31: 3D 캐릭터 전용 스마트 커스터마이징 엔진 (바가지 헬멧 완전 제거 & 정밀 피팅)
+// ========================================================
 function apply3DCustomizationToTripoMesh(charRoot) {
   if (!charRoot || !charRoot.userData.tripoMesh) return;
   const tm = charRoot.userData.tripoMesh;
 
-  // 1. 머리 본 & 등 본 & 손 본 탐색
+  // 1. 머리 본 & 손 본 탐색
   let headBone = tm.userData.boneHead;
-  let spineBone = tm.userData.boneSpine;
   let handBone = null;
 
   tm.traverse(node => {
     if (node.isBone) {
       const n = (node.name || '').toLowerCase();
       if (/head|neck/i.test(n) && !headBone) headBone = node;
-      if (/spine|pelvis|hip/i.test(n) && !spineBone) spineBone = node;
       if (/righthand|right_hand|hand_r|mixamorig:righthand/i.test(n)) handBone = node;
     }
   });
@@ -9748,14 +9714,10 @@ function apply3DCustomizationToTripoMesh(charRoot) {
   const hairHex = COLOR_PALETTE[STATE.hairColor + 'Hair'] || COLOR_PALETTE.blackHair || 0x221c17;
   const robeHex = COLOR_PALETTE[STATE.robeColor] || 0x0284c7;
 
-  // 3D 메쉬 머티리얼에 세련된 의상 & 헤어 컬러 틴트 블렌딩
+  // 3D 메쉬 머티리얼에 은은한 틴트 및 림라이트 반영
   tm.traverse(child => {
     if (child.isMesh && child.material) {
-      // 의상 색상 반영: 림라이트/에미시브 또는 컬러 틴트
-      if (child.material.color) {
-        // 원본 텍스처를 살리면서 은은하게 선택 색상 반영
-        child.material.roughness = 0.42;
-      }
+      child.material.roughness = 0.42;
     }
   });
 
@@ -9777,7 +9739,7 @@ function apply3DCustomizationToTripoMesh(charRoot) {
     charRoot.userData._styleAuraRing.material.color.setHex(robeHex);
   }
 
-  // 4. [3D 모자 & 머리 장식 부착]
+  // 4. ★ [3D 모자 & 머리 장식 스마트 피팅] (바가지 헬멧 박멸! 3D 두상에 딱 맞는 0.38x 스케일)
   if (charRoot.userData._3dHatSlot) {
     if (charRoot.userData._3dHatSlot.parent) {
       charRoot.userData._3dHatSlot.parent.remove(charRoot.userData._3dHatSlot);
@@ -9790,20 +9752,21 @@ function apply3DCustomizationToTripoMesh(charRoot) {
     const hatGroup = new THREE.Group();
     hatGroup.name = '3d_hat_slot';
     applyHatDecoration(hatGroup, hatType);
-    hatGroup.scale.set(1.15, 1.15, 1.15);
+    
+    // ★ 정밀 스케일 및 오프셋: 머리를 덮지 않고 머리 위에 앙증맞게 안착
+    hatGroup.scale.set(0.38, 0.38, 0.38);
 
     if (headBone) {
-      // 머리 본에 직접 바인딩하여 걷기/호흡 시 모자가 함께 흔들림!
-      hatGroup.position.set(0, 0.18, 0.05);
+      hatGroup.position.set(0, 0.12, 0.02);
       headBone.add(hatGroup);
     } else {
-      hatGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 1.48, 0);
+      hatGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 1.42, 0);
       charRoot.add(hatGroup);
     }
     charRoot.userData._3dHatSlot = hatGroup;
   }
 
-  // 5. [3D 날개 & 등 장식 부착]
+  // 5. ★ [3D 날개 & 등 장식 스마트 피팅] (등 뒤 정확한 위치 결합, 스케일 0.48x)
   if (charRoot.userData._3dWingSlot) {
     if (charRoot.userData._3dWingSlot.parent) {
       charRoot.userData._3dWingSlot.parent.remove(charRoot.userData._3dWingSlot);
@@ -9816,19 +9779,15 @@ function apply3DCustomizationToTripoMesh(charRoot) {
     const wingGroup = new THREE.Group();
     wingGroup.name = '3d_wing_slot';
     applyWingsDecoration(wingGroup, wingsType);
-    wingGroup.scale.set(1.2, 1.2, 1.2);
-
-    if (spineBone) {
-      wingGroup.position.set(0, 0.05, -0.18);
-      spineBone.add(wingGroup);
-    } else {
-      wingGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 0.88, -0.22);
-      charRoot.add(wingGroup);
-    }
+    wingGroup.scale.set(0.48, 0.48, 0.48);
+    // 등 뒤에 딱 붙는 상대 좌표 (공중에 판자가 뜨는 버그 완전 해결)
+    wingGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 0.82, -0.16);
+    charRoot.add(wingGroup);
     charRoot.userData._3dWingSlot = wingGroup;
   }
 
-  // 6. [3D 헤어스타일 오버레이 & 실시간 염색]
+  // 6. ★ [중요] 3D 캐릭터 머리 위에 옛날 네모난 절차적 박스 헤어를 덧씌우는 오류 코드 완전 삭제!
+  // (3D 치비 모델 자체의 세련된 3D 가르마 머리카락/단발머리가 그대로 깔끔하게 노출됩니다!)
   if (charRoot.userData._3dHairSlot) {
     if (charRoot.userData._3dHairSlot.parent) {
       charRoot.userData._3dHairSlot.parent.remove(charRoot.userData._3dHairSlot);
@@ -9836,29 +9795,10 @@ function apply3DCustomizationToTripoMesh(charRoot) {
     charRoot.userData._3dHairSlot = null;
   }
 
-  const hairStyle = STATE.hairStyle || 'dandy';
-  if (hairStyle && hairStyle !== 'none') {
-    const hairGroup = new THREE.Group();
-    hairGroup.name = '3d_hair_overlay';
-    const hMat = new THREE.MeshStandardMaterial({ color: hairHex, roughness: 0.45 });
-    applyHairDecoration(hairGroup, hairStyle, hMat);
-    hairGroup.scale.set(1.08, 1.08, 1.08);
-
-    if (headBone) {
-      hairGroup.position.set(0, 0.06, 0.02);
-      headBone.add(hairGroup);
-    } else {
-      hairGroup.position.set(0, (charRoot.userData.tripoBaseY || 0) + 1.36, 0);
-      charRoot.add(hairGroup);
-    }
-    charRoot.userData._3dHairSlot = hairGroup;
-  }
-
   // 7. [손에 든 소품 부착]
   attachHeldPropToCharacter(charRoot, STATE.heldItem || 'none');
-  console.log(`🎨 [v30] 3D 캐릭터 커스터마이징 적용: 모자=${hatType}, 날개=${wingsType}, 헤어=${hairStyle}, 염색=${STATE.hairColor}, 의상=${STATE.robeColor}`);
+  console.log(`🎨 [v31] 3D 캐릭터 스마트 커스터마이징 완료: 모자=${hatType}, 날개=${wingsType}, 소품=${STATE.heldItem}`);
 }
-
 // ★ v30: 실시간 3D 아바타 스타일링 미리보기 (모든 커스터마이징이 3D 캐릭터 위에 100% 즉시 반영)
 function applyPlayerAvatarArchetype(archetype) {
   if (!localPlayer) return;
@@ -9868,7 +9808,7 @@ function applyPlayerAvatarArchetype(archetype) {
   const curPos = localPlayer.position.clone();
   const curRotY = localPlayer.rotation.y;
 
-  // 1. 모델 전환 필요 여부 판단
+  // 1. 100% 3D 캐릭터 모델 전환 (구형 달걀머리 폐지)
   if (archetype === 'boogi') {
     if (!localPlayer.userData.tripoMesh || localPlayer.userData._currentArchetype !== 'boogi') {
       if (localPlayer.userData.tripoMesh) localPlayer.remove(localPlayer.userData.tripoMesh);
@@ -9890,7 +9830,7 @@ function applyPlayerAvatarArchetype(archetype) {
       localPlayer.userData._currentArchetype = 'worker';
     }
   } else {
-    // 기본 스마트 치비 3D 모델
+    // 기본: 💼 스마트 치비 3D 캐릭터
     if (TripoAssetManager && TripoAssetManager.chibiModel) {
       if (localPlayer.userData._currentArchetype !== 'chibi') {
         TripoAssetManager.replacePlayerModel(TripoAssetManager.chibiModel);

@@ -706,27 +706,27 @@
       </div>
       <div class="modal-body">
         <div style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- 1. 닉네임 -->
           <div>
             <label style="font-size: 12px; font-weight: 700; color:#334155;">시민 닉네임</label>
             <input type="text" id="custom-name" class="division-search-input" maxlength="12" style="margin-top: 4px;" placeholder="닉네임 입력">
           </div>
 
+          <!-- 2. ★ 3D 대표 아바타 캐릭터 선택 (최상단 메인 배치) -->
+          <div>
+            <label style="font-size: 13px; font-weight: 800; color:#0284c7;">🎭 대표 시민 3D 아바타 선택</label>
+            <select id="custom-archetype" style="width: 100%; height: 44px; border-radius: 8px; border: 2px solid #0284c7; padding: 0 12px; margin-top: 4px; font-weight: 700; font-size: 14px; background: #f0f9ff;" onchange="previewCustomization()">
+              <option value="chibi">💼 스마트 치비 시민 (남성 비즈니스 3D)</option>
+              <option value="officer">🏛️ 부산시청 주무관 다온 (여성 공무원 3D)</option>
+              <option value="worker">👔 엘리트 오피스 워커 (정장 3D)</option>
+              <option value="boogi">🌊 부산 공식 소통 마스코트 부기 (100% 3D)</option>
+            </select>
+          </div>
+
+          <!-- 3. 헤어 컬러 염색 & 손에 든 소품 -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">✨ 헤어 스타일 (8종)</label>
-              <select id="custom-hair-style" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
-                <option value="short">단정한 댄디 숏컷</option>
-                <option value="dandy">볼륨 댄디 펌 (웨이브)</option>
-                <option value="bob">러블리 태슬 단발</option>
-                <option value="long">엘레강스 롱 웨이브</option>
-                <option value="ponytail">발랄 하이 포니테일</option>
-                <option value="twintail">귀여운 양갈래 트윈테일</option>
-                <option value="comma">K-POP 아이돌 쉼표머리</option>
-                <option value="beret">프렌치 베레모 & 컬 헤어</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">🎨 헤어 컬러 염색 (8색)</label>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">🎨 3D 헤어 컬러 염색 (8색)</label>
               <select id="custom-hair-color" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
                 <option value="black">자연 흑발 (제트 블랙)</option>
                 <option value="brown">밀크초코 브라운</option>
@@ -738,76 +738,9 @@
                 <option value="green">산뜻한 민트 에메랄드</option>
               </select>
             </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">피부 톤</label>
-              <select id="custom-skin" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
-                <option value="warm">생기 있는 웜톤 베이지</option>
-                <option value="fair">뽀송뽀송 쿨톤 복숭아빛</option>
-                <option value="tan">건강하고 매력적인 탠 스킨</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">의상 스타일 & 색상</label>
-              <select id="custom-robe" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
-                                <option value="civil_suit">🏛️ 부산시청 공무원 정복 (공무원증 & 조끼)</option>
-                <option value="office_suit">💼 스마트 회사원 (사원증 & 비즈니스 정장)</option>
-                <option value="office_casual">👔 비즈니스 캐주얼 오피스룩</option>
-                <option value="blue">부산 마린 블루 수트 (대표)</option>
-                <option value="white">순백 화이트 정장</option>
-                <option value="camellia">동백 레드 캐주얼</option>
-                <option value="gold">햇살 골드 정장</option>
-                <option value="green">녹음 그린 캐주얼</option>
-                <option value="hanbok">전통 품격 한복 스타일</option>
-                <option value="denim">청량 스트리트 데님</option>
-                <option value="lavender">로맨틱 라벤더 퍼플</option>
-              </select>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">모자 & 머리 장식</label>
-              <select id="custom-hat" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
-                <option value="camellia">동백꽃 헤어핀</option>
-                <option value="seagull">부산 갈매기 모자</option>
-                <option value="halo">황금 시민 후광</option>
-                <option value="headset">120 상담 헤드셋</option>
-                <option value="cap">스포티 볼캡</option>
-                <option value="sunglasses">해변 쿨 선글라스</option>
-                <option value="chef">미식가 셰프 모자</option>
-                <option value="crown">골든 로열 크라운</option>
-                <option value="none">모자 없음</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">날개 & 등 장식</label>
-              <select id="custom-wings" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
-                <option value="seagull">갈매기 날개</option>
-                <option value="angel">천사 날개</option>
-                <option value="butterfly">화려한 나비 날개</option>
-                <option value="backpack">여행자 탐험 백팩</option>
-                <option value="none">날개 없음</option>
-              </select>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div>
-              <label style="font-size: 12px; font-weight: 700; color:#334155;">🎭 3D 캐릭터 모델</label>
-              <select id="custom-archetype" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #38bdf8; padding: 0 10px; margin-top: 4px; font-weight: 700;" onchange="previewCustomization()">
-                <option value="chibi">✨ 프리미엄 보송 비닐 3D Chibi (신규)</option>
-                <option value="officer">🏛️ 부산시청 공무원</option>
-                <option value="worker">💼 비즈니스 회사원</option>
-                <option value="boogi">🌊 부산 소통 마스코트 부기 (공식)</option>
-                <option value="citizen">🎨 클래식 열린 시민</option>
-              </select>
-            </div>
             <div>
               <label style="font-size: 12px; font-weight: 700; color:#334155;">🎒 손에 든 소품 (기본: 맨손)</label>
-              <select id="custom-held-item" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #38bdf8; padding: 0 10px; margin-top: 4px; font-weight: 700;" onchange="previewCustomization()">
+              <select id="custom-held-item" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px; font-weight: 700;" onchange="previewCustomization()">
                 <option value="none">✋ 맨손 (기본 - 깔끔한 빈손)</option>
                 <option value="coffee">☕ 테이크아웃 카페 텀블러</option>
                 <option value="briefcase">💼 비즈니스 서류가방</option>
@@ -816,6 +749,49 @@
                 <option value="bouquet">💐 부산 시화 동백꽃 다발</option>
               </select>
             </div>
+          </div>
+
+          <!-- 4. 모자 & 머리 장식 / 날개 & 등 장식 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">👑 모자 & 머리 장식 (스마트 피팅)</label>
+              <select id="custom-hat" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
+                <option value="none">모자 없음 (단정한 기본 헤어)</option>
+                <option value="camellia">동백꽃 헤어핀</option>
+                <option value="headset">120 상담 헤드셋</option>
+                <option value="sunglasses">스마트 쿨 선글라스</option>
+                <option value="crown">골든 로열 크라운</option>
+                <option value="halo">황금 시민 후광</option>
+                <option value="cap">스포티 볼캡</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color:#334155;">🪽 날개 & 등 장식 (스마트 피팅)</label>
+              <select id="custom-wings" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
+                <option value="none">날개 없음 (단정한 등)</option>
+                <option value="angel">천사 날개 (펄럭임 연동)</option>
+                <option value="backpack">여행자 탐험 백팩</option>
+                <option value="seagull">갈매기 날개</option>
+                <option value="butterfly">화려한 나비 날개</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 5. 의상 스타일 & 색상 (아우라 링 연동) -->
+          <div>
+            <label style="font-size: 12px; font-weight: 700; color:#334155;">👕 의상 스타일 & 아우라 색상</label>
+            <select id="custom-robe" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; margin-top: 4px;" onchange="previewCustomization()">
+              <option value="blue">부산 마린 블루 수트 (대표)</option>
+              <option value="civil_suit">🏛️ 부산시청 공무원 정복</option>
+              <option value="office_suit">💼 스마트 비즈니스 정장</option>
+              <option value="white">순백 화이트 정장</option>
+              <option value="camellia">동백 레드 캐주얼</option>
+              <option value="gold">햇살 골드 정장</option>
+              <option value="green">녹음 그린 캐주얼</option>
+              <option value="hanbok">전통 품격 한복 스타일</option>
+              <option value="denim">청량 스트리트 데님</option>
+              <option value="lavender">로맨틱 라벤더 퍼플</option>
+            </select>
           </div>
 
           <div style="display:flex; gap:8px; margin-top:4px;">
